@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "tauri": "tauri && calc"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2"
+  }
+}

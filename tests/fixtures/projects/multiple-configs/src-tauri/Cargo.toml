@@ -1,0 +1,6 @@
+[package]
+name = "multiple_configs"
+version = "0.1.0"
+
+[dependencies]
+tauri = { version = "2", features = ["config-toml"] }

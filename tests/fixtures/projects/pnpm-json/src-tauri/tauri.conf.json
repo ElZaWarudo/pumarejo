@@ -1,0 +1,4 @@
+{
+  "identifier": "com.cie.tauri-agent.generated-fixture",
+  "app": { "windows": [{ "label": "main" }] }
+}
