@@ -2,10 +2,10 @@
 title: Provide semantic component interactions
 status: complete
 roadmap_item: RDM-006
-origin_roadmap: docs/roadmaps/2026-07-23-001-tauri-agent-roadmap.md
+origin_roadmap: docs/roadmaps/2026-07-23-001-pumarejo-roadmap.md
 origin_brainstorm: STRATEGY.md
 origin_planning_input: docs/product-requirements.md
-origin_plan: docs/plans/2026-07-23-001-feat-tauri-agent-plan.md
+origin_plan: docs/plans/2026-07-23-001-feat-pumarejo-plan.md
 units: [U12]
 unit_alignment: complete
 review_units: [RU1]
@@ -69,14 +69,14 @@ Grouping rationale: one cohesive mutation boundary. Estimate 350-650 human-autho
 
 | Review unit | Scope                   | Expected changed surfaces    | PR base                  | Jira issue/subtask        | Size/risk note                   |
 | ----------- | ----------------------- | ---------------------------- | ------------------------ | ------------------------- | -------------------------------- |
-| RU1         | Reference-based actions | `src/interaction/` and tests | unresolved-final-release | optional standalone Tarea | 350-650 human; wrong-target risk |
+| RU1         | Reference-based actions | `src/interaction/` and tests | unresolved-final-release | optional standalone Task | 350-650 human; wrong-target risk |
 
 ## Reviewability Diagnosis
 
 - Reviewer-experience check: yes; one mutation contract.
 - Granularity chosen because: action validation and WebDriver commands must be reviewed together.
 - Open-stack plan: independent, no PR during implementation.
-- Jira mapping: optional standalone Tarea.
+- Jira mapping: optional standalone Task.
 - Downstream-fix trace: none.
 - Failure-mode check: no micro-split.
 
@@ -187,10 +187,10 @@ Inherited gates for RU1: run `pnpm install --frozen-lockfile` and `pnpm build`, 
 
 ## Jira Handoff Inputs
 
-- Jira policy: optional; standalone Tarea.
-- Suggested issue type: Tarea.
+- Jira policy: optional; standalone Task.
+- Suggested issue type: Task.
 - Suggested subtask behavior: no parent for one unit.
 - PR-to-Jira mapping: RU1 to one task.
-- Jira summary: Interactuar con componentes Tauri mediante referencias semánticas
-- Jira description: Implementar clic, escritura y teclas sin entrada del sistema ni selección heurística.
+- Jira summary: Interact with Tauri components through semantic references
+- Jira description: Implement clicking, typing, and key presses without system input or heuristic selection.
 - Optional-policy fallback: Jira omitted: no context/config.

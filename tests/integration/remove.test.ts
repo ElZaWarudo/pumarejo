@@ -18,7 +18,7 @@ const FIXTURE = join(
 const temporaryDirectories: string[] = [];
 
 async function projectCopy(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "tauri-agent-remove-"));
+  const root = await mkdtemp(join(tmpdir(), "pumarejo-remove-"));
   temporaryDirectories.push(root);
   await cp(FIXTURE, root, { recursive: true });
   return root;
@@ -43,9 +43,9 @@ async function integrationState(
     "src-tauri/Cargo.toml",
     "src-tauri/src/lib.rs",
     ".gitignore",
-    ".tauri-agent.json",
-    ".tauri-agent/agent-capability.json",
-    ".tauri-agent/integration-manifest.json",
+    ".pumarejo.json",
+    ".pumarejo/agent-capability.json",
+    ".pumarejo/integration-manifest.json",
   ];
   return Object.fromEntries(
     await Promise.all(
@@ -73,7 +73,7 @@ describe("Tauri project integration removal", () => {
     await initializeProject(project);
     const manifestPath = join(
       project,
-      ".tauri-agent",
+      ".pumarejo",
       "integration-manifest.json",
     );
     const before = await readFile(manifestPath, "utf8");
@@ -84,7 +84,7 @@ describe("Tauri project integration removal", () => {
       status: "planned",
       changes: expect.arrayContaining([
         { relativePath: "src-tauri/Cargo.toml", action: "restore" },
-        { relativePath: ".tauri-agent.json", action: "delete" },
+        { relativePath: ".pumarejo.json", action: "delete" },
       ]),
     });
     expect(await readFile(manifestPath, "utf8")).toBe(before);
@@ -121,15 +121,13 @@ describe("Tauri project integration removal", () => {
     expect(await readFile(cargoPath, "utf8")).toContain(
       "# developer cargo note",
     );
-    expect(await readFile(rustPath, "utf8")).not.toContain(
-      "<tauri-agent:begin>",
-    );
+    expect(await readFile(rustPath, "utf8")).not.toContain("<pumarejo:begin>");
     expect(await readFile(rustPath, "utf8")).toContain(
       "// developer rust note",
     );
     expect(await readFile(ignorePath, "utf8")).toContain("developer-cache/");
-    expect(await exists(join(project, ".tauri-agent.json"))).toBe(false);
-    expect(await exists(join(project, ".tauri-agent"))).toBe(false);
+    expect(await exists(join(project, ".pumarejo.json"))).toBe(false);
+    expect(await exists(join(project, ".pumarejo"))).toBe(false);
   });
 
   it("preserves pre-existing Cargo dependency and feature values exactly", async () => {
@@ -142,7 +140,7 @@ describe("Tauri project integration removal", () => {
         'tauri-plugin-wdio-webdriver = { version = "1", optional = true }',
         "",
         "[features]",
-        'tauri-agent = ["existing"] # preserve',
+        'pumarejo = ["existing"] # preserve',
       ].join("\n"),
     );
     await writeFile(cargoPath, original, "utf8");
@@ -155,7 +153,7 @@ describe("Tauri project integration removal", () => {
   it("refuses all removal when an owned created file was changed", async () => {
     const project = await projectCopy();
     await initializeProject(project);
-    const configPath = join(project, ".tauri-agent.json");
+    const configPath = join(project, ".pumarejo.json");
     await writeFile(
       configPath,
       `${await readFile(configPath, "utf8")}\n`,
@@ -163,7 +161,7 @@ describe("Tauri project integration removal", () => {
     );
     const manifestPath = join(
       project,
-      ".tauri-agent",
+      ".pumarejo",
       "integration-manifest.json",
     );
     const manifestBefore = await readFile(manifestPath, "utf8");
@@ -235,7 +233,7 @@ describe("Tauri project integration removal", () => {
     await initializeProject(project);
     const manifestPath = join(
       project,
-      ".tauri-agent",
+      ".pumarejo",
       "integration-manifest.json",
     );
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
@@ -261,7 +259,7 @@ describe("Tauri project integration removal", () => {
     await initializeProject(project);
     const manifestPath = join(
       project,
-      ".tauri-agent",
+      ".pumarejo",
       "integration-manifest.json",
     );
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {

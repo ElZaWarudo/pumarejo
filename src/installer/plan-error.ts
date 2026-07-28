@@ -1,4 +1,4 @@
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import type { ErrorEnvelope } from "../shared/errors.js";
 
 export type IntegrationPlanErrorReason =
@@ -15,7 +15,7 @@ export type IntegrationPlanErrorReason =
 
 const GUIDANCE: Record<IntegrationPlanErrorReason, string> = {
   ALREADY_INTEGRATED_MODIFIED:
-    "Run tauri-agent doctor; preserve the existing files and resolve the reported integration drift manually.",
+    "Run pumarejo doctor; preserve the existing files and resolve the reported integration drift manually.",
   CAPABILITY_AMBIGUOUS:
     "Keep one capability that applies to the configured primary window, then rerun init.",
   CAPABILITY_INVALID:
@@ -23,20 +23,20 @@ const GUIDANCE: Record<IntegrationPlanErrorReason, string> = {
   CARGO_DEPENDENCY_AMBIGUOUS:
     "Make tauri-plugin-wdio-webdriver optional without changing unrelated dependency settings, then rerun init.",
   CARGO_FEATURE_AMBIGUOUS:
-    'Define tauri-agent as a string array containing "dep:tauri-plugin-wdio-webdriver", then rerun init.',
+    'Define pumarejo as a string array containing "dep:tauri-plugin-wdio-webdriver", then rerun init.',
   CARGO_MANIFEST_INVALID:
     "Fix src-tauri/Cargo.toml so it can be parsed safely, then rerun init.",
   PROJECT_CHANGED:
     "Review the concurrent project change and rerun init from a stable working tree.",
   RUST_LAYOUT_AMBIGUOUS:
-    "Manually wrap the single Tauri builder with the documented debug-and-feature-gated tauri_agent_builder helper.",
+    "Manually wrap the single Tauri builder with the documented debug-and-feature-gated pumarejo_builder helper.",
   UNSAFE_TARGET:
     "Replace linked or escaping integration targets with regular project-local files, then rerun init.",
   WRITE_FAILED:
     "Inspect the reported files, restore any unresolved attributable change, and rerun doctor.",
 };
 
-export class IntegrationPlanError extends TauriAgentError {
+export class IntegrationPlanError extends PumarejoError {
   readonly reason: IntegrationPlanErrorReason;
 
   constructor(reason: IntegrationPlanErrorReason, options?: ErrorOptions) {
@@ -48,7 +48,7 @@ export class IntegrationPlanError extends TauriAgentError {
   override toJSON(): ErrorEnvelope {
     return {
       code: "INTEGRATION_INCOMPLETE",
-      message: `The Tauri Agent integration could not be completed (${this.reason}).`,
+      message: `The pumarejo integration could not be completed (${this.reason}).`,
       phase: "integration",
       retryable: false,
       suggestion: GUIDANCE[this.reason],

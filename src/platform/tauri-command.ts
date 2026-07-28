@@ -2,7 +2,7 @@ import { lstat, realpath } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join, parse, sep } from "node:path";
 
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 
 function isDependencyPath(candidate: string): boolean {
   return candidate
@@ -47,14 +47,14 @@ export async function resolveProjectTauriCommand(
     );
     const metadata = await lstat(cli);
     if (!metadata.isFile() || !isDependencyPath(cli)) {
-      throw new TauriAgentError("APP_START_FAILED");
+      throw new PumarejoError("APP_START_FAILED");
     }
     return {
       command: process.execPath,
       args: [cli, ...tauriArgs],
     };
   } catch (error) {
-    if (error instanceof TauriAgentError) throw error;
-    throw new TauriAgentError("APP_START_FAILED", { cause: error });
+    if (error instanceof PumarejoError) throw error;
+    throw new PumarejoError("APP_START_FAILED", { cause: error });
   }
 }

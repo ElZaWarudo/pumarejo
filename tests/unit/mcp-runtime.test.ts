@@ -3,11 +3,11 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { createMcpServer } from "../../src/mcp/server.js";
-import { TauriAgentRuntime } from "../../src/mcp/runtime.js";
+import { PumarejoRuntime } from "../../src/mcp/runtime.js";
 import { ReferenceTable } from "../../src/observation/refs.js";
 import type { SemanticSnapshot } from "../../src/observation/schema.js";
 import type { ReadySession, SessionSnapshot } from "../../src/session/state.js";
-import { TauriAgentError } from "../../src/shared/errors.js";
+import { PumarejoError } from "../../src/shared/errors.js";
 import type { WebDriverClient } from "../../src/webdriver/client.js";
 
 const SESSION_ID = "0123456789abcdef0123456789abcdef";
@@ -55,7 +55,7 @@ function harness() {
   const artifactOpen = vi.fn(async () => undefined);
   const artifactClose = vi.fn(async () => undefined);
   const writePng = vi.fn(async () => ({
-    projectRelativePath: ".tauri-agent/artifacts/screenshot.png",
+    projectRelativePath: ".pumarejo/artifacts/screenshot.png",
   }));
   const references = new ReferenceTable();
   const snapshot = vi.fn(async () => semanticSnapshot());
@@ -88,11 +88,11 @@ function harness() {
     action: "pressKey" as const,
     key: "ENTER" as const,
   }));
-  const runtime = new TauriAgentRuntime({
+  const runtime = new PumarejoRuntime({
     config: {
       projectRoot: "C:\\fixture",
-      configPath: "C:\\fixture\\.tauri-agent.json",
-      artifactsPath: "C:\\fixture\\.tauri-agent\\artifacts",
+      configPath: "C:\\fixture\\.pumarejo.json",
+      artifactsPath: "C:\\fixture\\.pumarejo\\artifacts",
       config: {
         version: 1,
         launch: {
@@ -101,7 +101,7 @@ function harness() {
         },
         webdriverPort: 4567,
         window: "main",
-        artifactsDirectory: ".tauri-agent/artifacts",
+        artifactsDirectory: ".pumarejo/artifacts",
         retainArtifacts: false,
       },
     },
@@ -259,7 +259,7 @@ describe("application-scoped MCP runtime", () => {
 
   it("cleans the process and artifacts when initial observation fails", async () => {
     const test = harness();
-    test.snapshot.mockRejectedValueOnce(new TauriAgentError("INTERNAL_ERROR"));
+    test.snapshot.mockRejectedValueOnce(new PumarejoError("INTERNAL_ERROR"));
 
     await expect(
       test.runtime.launch({ mode: "visible" }, context()),
@@ -271,7 +271,7 @@ describe("application-scoped MCP runtime", () => {
   it("cleans the process when artifact initialization fails", async () => {
     const test = harness();
     test.artifactOpen.mockRejectedValueOnce(
-      new TauriAgentError("SCREENSHOT_FAILED"),
+      new PumarejoError("SCREENSHOT_FAILED"),
     );
 
     await expect(

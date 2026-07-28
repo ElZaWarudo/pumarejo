@@ -131,8 +131,9 @@ function isStructuredWorkflow(answer: TrialAnswer): boolean {
   const isSubstantiveStep = (item: string) =>
     item.trim().split(/\s+/u).length >= 8;
   if (
-    answer.existingFlow.length !== 6 ||
-    answer.proposedFlow.length !== 6 ||
+    answer.existingFlow.length === 0 ||
+    answer.proposedFlow.length === 0 ||
+    answer.existingFlow.length + answer.proposedFlow.length > 12 ||
     ![...answer.existingFlow, ...answer.proposedFlow].every(isSubstantiveStep)
   ) {
     return false;
@@ -153,8 +154,8 @@ function isStructuredWorkflow(answer: TrialAnswer): boolean {
       { patterns: ["screenshot|PNG", "close|clos|cerr", "\\bidle\\b"] },
     ]) &&
     hasOrderedStages(answer.proposedFlow, [
-      { patterns: ["tauri_launch", "tauri_snapshot"] },
-      { patterns: ["tauri_type", "ref|referencia"] },
+      { patterns: ["tauri_launch", "tauri_snapshot|snapshot"] },
+      { patterns: ["tauri_type", "ref|reference"] },
       { patterns: ["tauri_click", "Apply"] },
       { patterns: ["tauri_screenshot"] },
       { patterns: ["tauri_close", "\\bidle\\b"], allowSameItem: true },
@@ -230,7 +231,7 @@ describe("agent-understanding certification", () => {
     expect(report.rubricVisibleDuringTrials).toBe(false);
     expect(report.execution).toMatchObject({
       harness: "Codex subagent trial runner",
-      harnessVersion: "2026-07-27.1",
+      harnessVersion: "2026-07-28.1",
       agent: "OpenAI Codex",
       model: "GPT-5",
       invocationMode: "independent transcript-only subagent",

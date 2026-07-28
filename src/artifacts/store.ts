@@ -14,7 +14,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { z } from "zod";
 
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import {
   createArtifactPermissionEnforcer,
   type ArtifactPermissionEnforcer,
@@ -69,8 +69,8 @@ export interface ArtifactRecoveryResult {
   readonly retained: number;
 }
 
-function screenshotError(cause?: unknown): TauriAgentError {
-  return new TauriAgentError("SCREENSHOT_FAILED", { cause });
+function screenshotError(cause?: unknown): PumarejoError {
+  return new PumarejoError("SCREENSHOT_FAILED", { cause });
 }
 
 function isInside(root: string, candidate: string): boolean {

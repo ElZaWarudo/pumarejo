@@ -2,13 +2,13 @@ import { randomInt, timingSafeEqual } from "node:crypto";
 import { createServer as createHttpServer, request } from "node:http";
 import { createServer as createNetServer, type Server } from "node:net";
 
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 
 const MIN_HIGH_PORT = 49_152;
 const MAX_HIGH_PORT = 65_535;
 const MAX_PROXY_REQUEST_BYTES = 2 * 1024 * 1024;
-const NONCE_HEADER = "x-tauri-agent-session-nonce";
-const PROVIDER_NONCE_HEADER = "x-tauri-agent-provider-nonce";
+const NONCE_HEADER = "x-pumarejo-session-nonce";
+const PROVIDER_NONCE_HEADER = "x-pumarejo-provider-nonce";
 const ALLOWED_COMMANDS = [
   { method: "GET", route: /^\/status$/u },
   { method: "POST", route: /^\/session$/u },
@@ -89,11 +89,11 @@ export async function reserveProviderPort(
       preferredPort < 1024 ||
       preferredPort > MAX_HIGH_PORT
     ) {
-      throw new TauriAgentError("CONFIG_INVALID");
+      throw new PumarejoError("CONFIG_INVALID");
     }
     const reservation = await tryReserve(preferredPort);
     if (reservation === undefined) {
-      throw new TauriAgentError("PORT_UNAVAILABLE");
+      throw new PumarejoError("PORT_UNAVAILABLE");
     }
     return reservation;
   }
@@ -103,7 +103,7 @@ export async function reserveProviderPort(
     );
     if (reservation !== undefined) return reservation;
   }
-  throw new TauriAgentError("PORT_UNAVAILABLE");
+  throw new PumarejoError("PORT_UNAVAILABLE");
 }
 
 function validNonce(value: string): boolean {
@@ -131,7 +131,7 @@ export async function startAuthenticatedProxy(options: {
     !validNonce(options.providerNonce) ||
     options.sessionNonce === options.providerNonce
   ) {
-    throw new TauriAgentError("INTERNAL_ERROR");
+    throw new PumarejoError("INTERNAL_ERROR");
   }
 
   const server = createHttpServer((incoming, outgoing) => {
@@ -227,12 +227,12 @@ export async function startAuthenticatedProxy(options: {
       server.listen(0, "127.0.0.1", resolve);
     });
   } catch (error) {
-    throw new TauriAgentError("PORT_UNAVAILABLE", { cause: error });
+    throw new PumarejoError("PORT_UNAVAILABLE", { cause: error });
   }
   const address = server.address();
   if (address === null || typeof address === "string") {
     await closeServer(server);
-    throw new TauriAgentError("PORT_UNAVAILABLE");
+    throw new PumarejoError("PORT_UNAVAILABLE");
   }
   return {
     port: address.port,

@@ -1,5 +1,5 @@
 import type { PressKeyInput } from "../mcp/schemas.js";
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 
 const WEBDRIVER_KEYS: Readonly<Record<PressKeyInput["key"], string>> = {
   ENTER: "\uE007",
@@ -20,6 +20,6 @@ const WEBDRIVER_KEYS: Readonly<Record<PressKeyInput["key"], string>> = {
 
 export function webdriverKey(key: PressKeyInput["key"]): string {
   const value = WEBDRIVER_KEYS[key];
-  if (value === undefined) throw new TauriAgentError("UNSUPPORTED_KEY");
+  if (value === undefined) throw new PumarejoError("UNSUPPORTED_KEY");
   return value;
 }

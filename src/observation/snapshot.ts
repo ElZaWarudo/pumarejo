@@ -1,4 +1,4 @@
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import type { WebDriverClient } from "../webdriver/client.js";
 import { W3C_ELEMENT_KEY } from "../webdriver/protocol.js";
 import { assertRedactionBoundary } from "./redaction.js";
@@ -31,7 +31,7 @@ export class SnapshotEngine {
       options.windowLabel.trim().length === 0 ||
       options.windowLabel.length > 128
     ) {
-      throw new TauriAgentError("CONFIG_INVALID");
+      throw new PumarejoError("CONFIG_INVALID");
     }
     this.#webdriver = options.webdriver;
     this.#windowLabel = options.windowLabel;
@@ -77,7 +77,7 @@ export class SnapshotEngine {
     } catch (error) {
       if (
         signal?.aborted ||
-        !(error instanceof TauriAgentError) ||
+        !(error instanceof PumarejoError) ||
         error.code !== "INTERNAL_ERROR"
       ) {
         throw error;
@@ -119,8 +119,8 @@ export class SnapshotEngine {
       };
     } catch (error) {
       if (signal?.aborted) throw signal.reason;
-      if (error instanceof TauriAgentError) throw error;
-      throw new TauriAgentError("INTERNAL_ERROR", { cause: error });
+      if (error instanceof PumarejoError) throw error;
+      throw new PumarejoError("INTERNAL_ERROR", { cause: error });
     }
   }
 }

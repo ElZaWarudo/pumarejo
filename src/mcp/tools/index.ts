@@ -1,4 +1,4 @@
-export const TAURI_AGENT_TOOL_NAMES = [
+export const PUMAREJO_TOOL_NAMES = [
   "tauri_launch",
   "tauri_snapshot",
   "tauri_screenshot",
@@ -8,7 +8,7 @@ export const TAURI_AGENT_TOOL_NAMES = [
   "tauri_close",
 ] as const;
 
-export const TAURI_AGENT_TOOL_DESCRIPTIONS = {
+export const PUMAREJO_TOOL_DESCRIPTIONS = {
   tauri_launch:
     "Launch the approved debug Tauri application in visible or background mode.",
   tauri_snapshot:
@@ -22,5 +22,5 @@ export const TAURI_AGENT_TOOL_DESCRIPTIONS = {
   tauri_press_key:
     "Dispatch one supported key to the active WebView element through WebDriver.",
   tauri_close:
-    "Close the owned WebDriver session and release all Tauri Agent resources.",
+    "Close the owned WebDriver session and release all pumarejo resources.",
 } as const;

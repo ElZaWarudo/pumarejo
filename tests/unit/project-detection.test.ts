@@ -14,7 +14,7 @@ const FIXTURES_ROOT = join(import.meta.dirname, "..", "fixtures", "projects");
 const temporaryDirectories: string[] = [];
 
 async function copyFixture(name: string): Promise<string> {
-  const destination = await mkdtemp(join(tmpdir(), "tauri-agent-project-"));
+  const destination = await mkdtemp(join(tmpdir(), "pumarejo-project-"));
   temporaryDirectories.push(destination);
   const { cp } = await import("node:fs/promises");
   await cp(join(FIXTURES_ROOT, name), destination, { recursive: true });
@@ -69,37 +69,22 @@ afterEach(async () => {
 
 describe("detectTauriProject", () => {
   it.each([
-    [
-      "pnpm-json",
-      "pnpm",
-      ["tauri", "dev", "--features", "tauri-agent"],
-      "json",
-    ],
+    ["pnpm-json", "pnpm", ["tauri", "dev", "--features", "pumarejo"], "json"],
     [
       "npm-json5",
       "npm",
-      ["run", "tauri", "--", "dev", "--features", "tauri-agent"],
+      ["run", "tauri", "--", "dev", "--features", "pumarejo"],
       "json5",
     ],
-    [
-      "yarn-toml",
-      "yarn",
-      ["tauri", "dev", "--features", "tauri-agent"],
-      "toml",
-    ],
-    ["bun-json", "bun", ["tauri", "dev", "--features", "tauri-agent"], "json"],
+    ["yarn-toml", "yarn", ["tauri", "dev", "--features", "pumarejo"], "toml"],
+    ["bun-json", "bun", ["tauri", "dev", "--features", "pumarejo"], "json"],
     [
       "deno-json",
       "deno",
-      ["task", "tauri", "dev", "--features", "tauri-agent"],
+      ["task", "tauri", "dev", "--features", "pumarejo"],
       "json",
     ],
-    [
-      "cargo-json",
-      "cargo",
-      ["tauri", "dev", "--features", "tauri-agent"],
-      "json",
-    ],
+    ["cargo-json", "cargo", ["tauri", "dev", "--features", "pumarejo"], "json"],
   ] as const)(
     "derives the canonical %s launch profile",
     async (fixture, command, prefix, format) => {
@@ -128,7 +113,7 @@ describe("detectTauriProject", () => {
       version: 1,
       launch: detected.launch,
       window: "main",
-      artifactsDirectory: ".tauri-agent/artifacts",
+      artifactsDirectory: ".pumarejo/artifacts",
       retainArtifacts: false,
     });
   });
@@ -198,7 +183,7 @@ describe("detectTauriProject", () => {
   it("rejects linked project metadata instead of following it", async () => {
     const project = await copyFixture("pnpm-json");
     const tauriDirectory = join(project, "src-tauri");
-    const outside = await mkdtemp(join(tmpdir(), "tauri-agent-outside-"));
+    const outside = await mkdtemp(join(tmpdir(), "pumarejo-outside-"));
     temporaryDirectories.push(outside);
     const { cp } = await import("node:fs/promises");
     await cp(tauriDirectory, outside, { recursive: true });

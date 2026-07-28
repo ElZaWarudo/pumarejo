@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ReferenceTable } from "../../src/observation/refs.js";
 import { rawSnapshotSchema } from "../../src/observation/schema.js";
 import { SnapshotEngine } from "../../src/observation/snapshot.js";
-import { TauriAgentError } from "../../src/shared/errors.js";
+import { PumarejoError } from "../../src/shared/errors.js";
 import type { WebDriverClient } from "../../src/webdriver/client.js";
 
 function rawNode(
@@ -191,7 +191,7 @@ describe("semantic snapshots", () => {
   it("retries one provider-constrained incoherent capture before replacing refs", async () => {
     const execute = vi
       .fn()
-      .mockRejectedValueOnce(new TauriAgentError("INTERNAL_ERROR"))
+      .mockRejectedValueOnce(new PumarejoError("INTERNAL_ERROR"))
       .mockResolvedValueOnce(rawSnapshot([rawNode(0)]));
     const client = {
       execute,

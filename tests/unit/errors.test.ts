@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  TAURI_AGENT_ERROR_CODES,
-  TauriAgentError,
+  PUMAREJO_ERROR_CODES,
+  PumarejoError,
   toErrorEnvelope,
 } from "../../src/shared/errors.js";
 
-describe("TauriAgentError", () => {
+describe("PumarejoError", () => {
   it("matches the complete stable v1 code list", () => {
-    expect(TAURI_AGENT_ERROR_CODES).toEqual([
+    expect(PUMAREJO_ERROR_CODES).toEqual([
       "PROJECT_NOT_FOUND",
       "UNSUPPORTED_TAURI_VERSION",
       "CONFIG_INVALID",
@@ -35,20 +35,20 @@ describe("TauriAgentError", () => {
   });
 
   it("serializes a stable expected error envelope", () => {
-    const error = new TauriAgentError("CONFIG_INVALID");
+    const error = new PumarejoError("CONFIG_INVALID");
 
     expect(toErrorEnvelope(error)).toEqual({
       code: "CONFIG_INVALID",
       message: "The project configuration does not satisfy the v1 contract.",
       phase: "configuration",
       retryable: false,
-      suggestion: "Fix .tauri-agent.json or run tauri-agent doctor.",
+      suggestion: "Fix .pumarejo.json or run pumarejo doctor.",
     });
   });
 
   it("never promotes a secret-bearing cause into a public typed error", () => {
     const secret = "token-super-secret";
-    const error = new TauriAgentError("CONFIG_INVALID", {
+    const error = new PumarejoError("CONFIG_INVALID", {
       cause: new Error(secret),
     });
 

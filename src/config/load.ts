@@ -1,7 +1,7 @@
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, parse, relative, resolve, sep } from "node:path";
 
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import {
   launchProfileSchema,
   MODE_CONFIG_PLACEHOLDER,
@@ -10,7 +10,7 @@ import {
   type ProjectConfig,
 } from "./schema.js";
 
-export const CONFIG_FILE_NAME = ".tauri-agent.json";
+export const CONFIG_FILE_NAME = ".pumarejo.json";
 const MAX_CONFIG_BYTES = 64 * 1024;
 
 export interface LoadedProjectConfig {
@@ -25,8 +25,8 @@ export interface MaterializedLaunchProfile {
   readonly args: readonly string[];
 }
 
-function configurationError(cause?: unknown): TauriAgentError {
-  return new TauriAgentError("CONFIG_INVALID", { cause });
+function configurationError(cause?: unknown): PumarejoError {
+  return new PumarejoError("CONFIG_INVALID", { cause });
 }
 
 function isStrictlyInside(root: string, candidate: string): boolean {
@@ -55,7 +55,7 @@ async function rejectExistingLinks(
       }
     } catch (error) {
       if (
-        error instanceof TauriAgentError ||
+        error instanceof PumarejoError ||
         (error as NodeJS.ErrnoException).code !== "ENOENT"
       ) {
         throw error;
@@ -78,10 +78,10 @@ export async function resolveProjectRoot(projectPath: string): Promise<string> {
     }
     return await realpath(absolutePath);
   } catch (error) {
-    if (error instanceof TauriAgentError) {
+    if (error instanceof PumarejoError) {
       throw error;
     }
-    throw new TauriAgentError("PROJECT_NOT_FOUND", { cause: error });
+    throw new PumarejoError("PROJECT_NOT_FOUND", { cause: error });
   }
 }
 
@@ -115,7 +115,7 @@ export async function loadProjectConfig(
 
     return { projectRoot, configPath, artifactsPath, config };
   } catch (error) {
-    if (error instanceof TauriAgentError) {
+    if (error instanceof PumarejoError) {
       throw error;
     }
     throw configurationError(error);

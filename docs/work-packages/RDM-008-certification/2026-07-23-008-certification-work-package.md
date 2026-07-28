@@ -2,10 +2,10 @@
 title: Certify and prepare final release
 status: passed
 roadmap_item: RDM-008
-origin_roadmap: docs/roadmaps/2026-07-23-001-tauri-agent-roadmap.md
+origin_roadmap: docs/roadmaps/2026-07-23-001-pumarejo-roadmap.md
 origin_brainstorm: STRATEGY.md
 origin_planning_input: docs/product-requirements.md
-origin_plan: docs/plans/2026-07-23-001-feat-tauri-agent-plan.md
+origin_plan: docs/plans/2026-07-23-001-feat-pumarejo-plan.md
 units: [U14]
 unit_alignment: complete
 review_units: [RU1, RU2, RU3]
@@ -69,16 +69,16 @@ Grouping rationale: one release-readiness verdict; evidence files are committed 
 
 | Review unit | Scope                                     | Expected changed surfaces          | PR base                  | Jira issue/subtask | Size/risk note                                       |
 | ----------- | ----------------------------------------- | ---------------------------------- | ------------------------ | ------------------ | ---------------------------------------------------- |
-| RU1         | Platform/package/security certification   | tests/evidence/audit reports       | unresolved-final-release | optional Tarea     | 250-450 human; hard release gates                    |
-| RU2         | Reproducible agent-understanding protocol | agent fixtures/transcripts/scoring | unresolved-final-release | optional Tarea     | 200-400 human + generated transcripts; hidden rubric |
-| RU3         | Support/release documentation             | README/security/support docs       | unresolved-final-release | optional Tarea     | 200-400 human; operator-facing                       |
+| RU1         | Platform/package/security certification   | tests/evidence/audit reports       | unresolved-final-release | optional Task     | 250-450 human; hard release gates                    |
+| RU2         | Reproducible agent-understanding protocol | agent fixtures/transcripts/scoring | unresolved-final-release | optional Task     | 200-400 human + generated transcripts; hidden rubric |
+| RU3         | Support/release documentation             | README/security/support docs       | unresolved-final-release | optional Task     | 200-400 human; operator-facing                       |
 
 ## Reviewability Diagnosis
 
 - Reviewer-experience check: yes; one release-readiness decision with indexed evidence.
 - Granularity chosen because: splitting evidence from its verdict would make neither independently useful.
 - Open-stack plan: independent final local review; Release Marshal resolves actual release shape once.
-- Jira mapping: optional standalone Tarea.
+- Jira mapping: optional standalone Task.
 - Downstream-fix trace: record any earlier-review surface revalidated here.
 - Failure-mode check: evidence is indexed, not a hidden mega-diff.
 
@@ -135,9 +135,9 @@ Full `tests/` matrix, `docs/evidence/`, `README.md`, `docs/security.md`, support
 ## Branch and PR Handoff Inputs
 
 - Review unit: RU1, RU2, or RU3 certification slice; aggregate release gate requires all three.
-- Branch name: `feat/semantic-tauri-agent-control`.
+- Branch name: `feat/semantic-pumarejo-control`.
 - PR base: unresolved-final-release; Release Marshal must resolve repository/default base.
-- Suggested commit grouping for this review unit: `test(certification): verify supported Tauri agent workflows`; `docs: document Tauri agent operation and security`.
+- Suggested commit grouping for this review unit: `test(certification): verify supported pumarejo workflows`; `docs: document pumarejo operation and security`.
 - PR title: Enable agents to inspect and operate Tauri apps without desktop takeover
 - PR body bullets:
   - Adds reversible Tauri 2 integration and isolated visible/background sessions.
@@ -150,11 +150,11 @@ Full `tests/` matrix, `docs/evidence/`, `README.md`, `docs/security.md`, support
 ## Jira Handoff Inputs
 
 - Jira policy: optional.
-- Suggested issue type: Tarea.
+- Suggested issue type: Task.
 - Suggested subtask behavior: Release Marshal may create a multi-child parent only if final grouped delivery includes multiple review units.
 - PR-to-Jira mapping: preserve each completed review unit if grouped.
-- Jira summary: Certificar y preparar Tauri Agent para su primera entrega
-- Jira description: Validar plataformas, seguridad, empaquetado y comprensión de flujos antes de la publicación final.
+- Jira summary: Certify and prepare pumarejo for its first release
+- Jira description: Validate platforms, security, packaging, and flow comprehension before final publication.
 - Optional-policy fallback: Jira omitted: no context/config.
 
 ## Closeout Candidate

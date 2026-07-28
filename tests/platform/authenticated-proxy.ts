@@ -1,8 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { createServer, request, type Server } from "node:http";
 
-const NONCE_HEADER = "x-tauri-agent-session-nonce";
-const PROVIDER_NONCE_HEADER = "x-tauri-agent-provider-nonce";
+const NONCE_HEADER = "x-pumarejo-session-nonce";
+const PROVIDER_NONCE_HEADER = "x-pumarejo-provider-nonce";
 const ALLOWED = [
   /^\/status$/,
   /^\/session$/,

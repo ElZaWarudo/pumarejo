@@ -2,10 +2,10 @@
 title: Own WebDriver and platform lifecycles
 status: review-passed
 roadmap_item: RDM-004
-origin_roadmap: docs/roadmaps/2026-07-23-001-tauri-agent-roadmap.md
+origin_roadmap: docs/roadmaps/2026-07-23-001-pumarejo-roadmap.md
 origin_brainstorm: STRATEGY.md
 origin_planning_input: docs/product-requirements.md
-origin_plan: docs/plans/2026-07-23-001-feat-tauri-agent-plan.md
+origin_plan: docs/plans/2026-07-23-001-feat-pumarejo-plan.md
 units: [U7, U8, U9]
 unit_alignment: complete
 review_units: [RU1, RU2, RU3]
@@ -55,11 +55,11 @@ No semantic extraction, component actions, consumer writes, or public MCP compos
 
 ## Plan Unit Alignment
 
-| Plan unit | Included | Reason |
-|---|---|---|
-| U7 | yes | W3C boundary |
-| U8 | yes | Session/process lifecycle |
-| U9 | yes | Platform modes |
+| Plan unit | Included | Reason                    |
+| --------- | -------- | ------------------------- |
+| U7        | yes      | W3C boundary              |
+| U8        | yes      | Session/process lifecycle |
+| U9        | yes      | Platform modes            |
 
 Grouping rationale: split transport, ownership, and platform behavior because each has an independent failure model. Estimates: RU1 350-650 human; RU2 500-900; RU3 350-700.
 
@@ -71,18 +71,18 @@ Grouping rationale: split transport, ownership, and platform behavior because ea
 
 ## Review Units
 
-| Review unit | Scope | Expected changed surfaces | PR base | Jira issue/subtask | Size/risk note |
-|---|---|---|---|---|---|
-| RU1 | W3C transport | client/protocol/capabilities/errors/tests | unresolved-final-release | optional Tarea | 350-650 human; provider normalization |
-| RU2 | Exclusive lifecycle owner | session/endpoint/cleanup/process/tests | unresolved-final-release | optional Tarea | 500-900 human; concurrency/security |
-| RU3 | Visible/background adapters | mode config/platform launch/diagnostics/tests | unresolved-final-release | optional Tarea | 350-700 human; Windows + Ubuntu 24.04 platform risk |
+| Review unit | Scope                       | Expected changed surfaces                     | PR base                  | Jira issue/subtask | Size/risk note                                      |
+| ----------- | --------------------------- | --------------------------------------------- | ------------------------ | ------------------ | --------------------------------------------------- |
+| RU1         | W3C transport               | client/protocol/capabilities/errors/tests     | unresolved-final-release | optional Task      | 350-650 human; provider normalization               |
+| RU2         | Exclusive lifecycle owner   | session/endpoint/cleanup/process/tests        | unresolved-final-release | optional Task      | 500-900 human; concurrency/security                 |
+| RU3         | Visible/background adapters | mode config/platform launch/diagnostics/tests | unresolved-final-release | optional Task      | 350-700 human; Windows + Ubuntu 24.04 platform risk |
 
 ## Reviewability Diagnosis
 
 - Reviewer-experience check: yes; each RU answers transport, ownership, or platform behavior separately.
 - Granularity chosen because: combining them would obscure independent high-risk failure modes.
 - Open-stack plan: serial local work, independent final handoff.
-- Jira mapping: optional standalone Tarea per RU.
+- Jira mapping: optional standalone Task per RU.
 - Downstream-fix trace: none.
 - Failure-mode check: no deep stack; each unit verifies independently.
 
@@ -103,11 +103,11 @@ Grouping rationale: split transport, ownership, and platform behavior because ea
 
 ## Verification Gate
 
-| RU | U | Required verification | Evidence | Pass signal |
-|---|---|---|---|---|
-| RU1 | U7 | fake W3C contract plus real provider commands/cancellation/error normalization | unit/integration results | provider-independent port passes |
-| RU2 | U8 | every state edge, phase failures, competing clients, unrelated process/port protection, PID-reuse/crash/port-race cases; owner lease uses PID + creation time + command hash + session nonce and revalidates before terminate | transition/integration results on both authoritative hosts | no owned residue, hijack, or non-owned termination |
-| RU3 | U9 | Windows and native/dedicated-VM Ubuntu visible/background parity and focus/input evidence | platform evidence | both modes pass on both hosts |
+| RU  | U   | Required verification                                                                                                                                                                                                         | Evidence                                                   | Pass signal                                        |
+| --- | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------- |
+| RU1 | U7  | fake W3C contract plus real provider commands/cancellation/error normalization                                                                                                                                                | unit/integration results                                   | provider-independent port passes                   |
+| RU2 | U8  | every state edge, phase failures, competing clients, unrelated process/port protection, PID-reuse/crash/port-race cases; owner lease uses PID + creation time + command hash + session nonce and revalidates before terminate | transition/integration results on both authoritative hosts | no owned residue, hijack, or non-owned termination |
+| RU3 | U9  | Windows and native/dedicated-VM Ubuntu visible/background parity and focus/input evidence                                                                                                                                     | platform evidence                                          | both modes pass on both hosts                      |
 
 ## Review Gate
 
@@ -305,10 +305,10 @@ Grouping rationale: split transport, ownership, and platform behavior because ea
 
 ## Jira Handoff Inputs
 
-- Jira policy: optional; standalone Tarea per RU.
-- Suggested issue type: Tarea.
+- Jira policy: optional; standalone Task per RU.
+- Suggested issue type: Task.
 - Suggested subtask behavior: shared parent only for grouped final delivery.
 - PR-to-Jira mapping: one task per RU.
-- Jira summary: Gestionar sesiones Tauri aisladas en Windows y Linux
-- Jira description: Implementar el transporte WebDriver, la propiedad exclusiva de recursos y los modos de ejecución.
+- Jira summary: Manage isolated Tauri sessions on Windows and Linux
+- Jira description: Implement WebDriver transport, exclusive resource ownership, and execution modes.
 - Optional-policy fallback: Jira omitted: no context/config.

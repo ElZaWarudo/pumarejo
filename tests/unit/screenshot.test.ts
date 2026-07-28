@@ -4,7 +4,7 @@ import {
   parsePng,
   ScreenshotService,
 } from "../../src/observation/screenshot.js";
-import { TauriAgentError } from "../../src/shared/errors.js";
+import { PumarejoError } from "../../src/shared/errors.js";
 
 const PNG =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -37,7 +37,7 @@ describe("PNG screenshot validation", () => {
       return corrupt.toString("base64");
     })(),
   ])("rejects malformed provider data", (encoded) => {
-    expect(() => parsePng(encoded)).toThrowError(TauriAgentError);
+    expect(() => parsePng(encoded)).toThrowError(PumarejoError);
   });
 
   it("rejects a valid-CRC PNG whose dimensions exceed the decoded pixel budget", () => {
@@ -47,7 +47,7 @@ describe("PNG screenshot validation", () => {
     oversized.writeUInt32BE(crc32(oversized, 12, 29), 29);
 
     expect(() => parsePng(oversized.toString("base64"))).toThrowError(
-      TauriAgentError,
+      PumarejoError,
     );
   });
 });
@@ -78,7 +78,7 @@ describe("ScreenshotService", () => {
   it("writes validated bytes and publishes only the confined path", async () => {
     const writePng = vi.fn(async () => ({
       projectRelativePath:
-        ".tauri-agent/artifacts/session-safe/screenshot-0001.png",
+        ".pumarejo/artifacts/session-safe/screenshot-0001.png",
     }));
     const service = new ScreenshotService({
       webdriver: { screenshot: vi.fn(async () => PNG) },
@@ -91,7 +91,7 @@ describe("ScreenshotService", () => {
     expect(writePng).toHaveBeenCalledWith(Buffer.from(PNG, "base64"));
     expect(result.metadata).toMatchObject({
       generation: 3,
-      path: ".tauri-agent/artifacts/session-safe/screenshot-0001.png",
+      path: ".pumarejo/artifacts/session-safe/screenshot-0001.png",
       width: 1,
       height: 1,
     });

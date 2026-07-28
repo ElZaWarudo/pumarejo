@@ -2,10 +2,10 @@
 title: Establish package and public contracts
 status: review-passed
 roadmap_item: RDM-002
-origin_roadmap: docs/roadmaps/2026-07-23-001-tauri-agent-roadmap.md
+origin_roadmap: docs/roadmaps/2026-07-23-001-pumarejo-roadmap.md
 origin_brainstorm: STRATEGY.md
 origin_planning_input: docs/product-requirements.md
-origin_plan: docs/plans/2026-07-23-001-feat-tauri-agent-plan.md
+origin_plan: docs/plans/2026-07-23-001-feat-pumarejo-plan.md
 units: [U2, U3]
 unit_alignment: complete
 review_units: [RU1, RU2]
@@ -55,10 +55,10 @@ No consumer mutation, live WebDriver runtime, real handlers, or release.
 
 ## Plan Unit Alignment
 
-| Plan unit | Included | Reason |
-|---|---|---|
-| U2 | yes | Package/config/error foundation |
-| U3 | yes | Early public MCP skeleton |
+| Plan unit | Included | Reason                          |
+| --------- | -------- | ------------------------------- |
+| U2        | yes      | Package/config/error foundation |
+| U3        | yes      | Early public MCP skeleton       |
 
 Grouping rationale: two independent questions—package contracts and protocol exposure. Estimated RU1 400-750 human lines; RU2 300-600; no generated files; 50-100 doc lines.
 
@@ -69,17 +69,17 @@ Grouping rationale: two independent questions—package contracts and protocol e
 
 ## Review Units
 
-| Review unit | Scope | Expected changed surfaces | PR base | Jira issue/subtask | Size/risk note |
-|---|---|---|---|---|---|
-| RU1 | ESM package, config, errors, CLI | build/config/shared/CLI/tests | unresolved-final-release | optional Tarea | 400-750 human; public contract |
-| RU2 | Seven-tool MCP skeleton | MCP schemas/ports/stubs/contract tests | unresolved-final-release | optional Tarea | 300-600 human; public protocol |
+| Review unit | Scope                            | Expected changed surfaces              | PR base                  | Jira issue/subtask | Size/risk note                 |
+| ----------- | -------------------------------- | -------------------------------------- | ------------------------ | ------------------ | ------------------------------ |
+| RU1         | ESM package, config, errors, CLI | build/config/shared/CLI/tests          | unresolved-final-release | optional Task      | 400-750 human; public contract |
+| RU2         | Seven-tool MCP skeleton          | MCP schemas/ports/stubs/contract tests | unresolved-final-release | optional Task      | 300-600 human; public protocol |
 
 ## Reviewability Diagnosis
 
 - Reviewer-experience check: yes; RU1 can verify package import/CLI/config, RU2 can verify protocol independently.
 - Granularity chosen because: MCP framing should not obscure package/config review.
 - Open-stack plan: serial local work, independent final handoff.
-- Jira mapping: optional standalone Tarea per RU.
+- Jira mapping: optional standalone Task per RU.
 - Downstream-fix trace: none.
 - Failure-mode check: no micro-stack or mega-review.
 
@@ -100,10 +100,10 @@ RU1 changes `src/config/`, `src/shared/`, `src/cli/`, root build config and pack
 
 Security-sensitive contract invariants are mandatory: canonicalize `--project` inside the trusted project root; derive the application command only from the project-approved launch profile; spawn with argv and no shell interpolation; reject symlink/escape paths and executable MCP overrides; cap and validate payloads; and keep stdout protocol-clean. Cover shell metacharacters, traversal, symlink, malformed config, and packed-tarball cases.
 
-| RU | U | Required verification | Evidence | Pass signal |
-|---|---|---|---|---|
-| RU1 | U2 | Node 22/24 clean frozen install, build, typecheck, lint, unit/exports/config/package dry-run | command log | zero failures and intended tarball surface |
-| RU2 | U3 | MCP contract suite, exact seven tools, invalid-input matrix, clean stdout, untrusted-data framing | contract results | independent client passes without private APIs |
+| RU  | U   | Required verification                                                                             | Evidence         | Pass signal                                    |
+| --- | --- | ------------------------------------------------------------------------------------------------- | ---------------- | ---------------------------------------------- |
+| RU1 | U2  | Node 22/24 clean frozen install, build, typecheck, lint, unit/exports/config/package dry-run      | command log      | zero failures and intended tarball surface     |
+| RU2 | U3  | MCP contract suite, exact seven tools, invalid-input matrix, clean stdout, untrusted-data framing | contract results | independent client passes without private APIs |
 
 ## Review Gate
 
@@ -134,10 +134,10 @@ Security-sensitive contract invariants are mandatory: canonicalize `--project` i
 ## Branch and PR Handoff Inputs
 
 - Review unit: RU1 or RU2.
-- Branch name: `feat/tauri-agent-contracts`.
+- Branch name: `feat/pumarejo-contracts`.
 - PR base: unresolved-final-release.
-- Suggested commit grouping for this review unit: `feat(core): establish Tauri agent contracts`; `feat(mcp): expose semantic Tauri tool schemas`.
-- PR title: Establish reusable Tauri agent contracts
+- Suggested commit grouping for this review unit: `feat(core): establish pumarejo contracts`; `feat(mcp): expose semantic Tauri tool schemas`.
+- PR title: Establish reusable pumarejo contracts
 - PR body bullets:
   - Defines the package, configuration and typed errors.
   - Exposes seven validated MCP tool contracts.
@@ -160,7 +160,7 @@ Security-sensitive contract invariants are mandatory: canonicalize `--project` i
     tests, formatting and package dry-run pass on Node 22.23.1 and Node
     24.12.0.
   - The contract suite builds from a clean `dist`, packs and offline-installs
-    the tarball, executes the real `tauri-agent` bin, and imports the root plus
+    the tarball, executes the real `pumarejo` bin, and imports the root plus
     every declared export subpath.
   - The packed surface is exactly `package.json` plus 32 `dist/` runtime,
     declaration, and map files; U1 structural regression remains 11 passed and
@@ -216,10 +216,10 @@ Security-sensitive contract invariants are mandatory: canonicalize `--project` i
 
 ## Jira Handoff Inputs
 
-- Jira policy: optional; standalone Tarea per RU.
-- Suggested issue type: Tarea.
+- Jira policy: optional; standalone Task per RU.
+- Suggested issue type: Task.
 - Suggested subtask behavior: no parent unless multiple units are grouped at final release.
 - PR-to-Jira mapping: one task per RU.
-- Jira summary: Definir el paquete y los contratos públicos de Tauri Agent
-- Jira description: Crear la base publicable, la configuración validada y los siete contratos MCP.
+- Jira summary: Define the pumarejo package and public contracts
+- Jira description: Create the publishable foundation, validated configuration, and seven MCP contracts.
 - Optional-policy fallback: Jira omitted: no context/config.

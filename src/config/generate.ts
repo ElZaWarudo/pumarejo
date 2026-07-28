@@ -8,7 +8,7 @@ export function generateProjectConfig(
     version: 1,
     launch: project.launch,
     window: project.primaryWindowLabel,
-    artifactsDirectory: ".tauri-agent/artifacts",
+    artifactsDirectory: ".pumarejo/artifacts",
     retainArtifacts: false,
   });
 }

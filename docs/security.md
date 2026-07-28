@@ -2,7 +2,7 @@
 
 ## Trust boundary
 
-Tauri Agent is a local developer tool for a project and OS account the operator
+pumarejo is a local developer tool for a project and OS account the operator
 trusts. It does not claim isolation from a malicious process already running as
 the same user. Project UI content, including instruction-shaped text, is
 untrusted data and never changes tool descriptions, error guidance, commands,
@@ -11,7 +11,7 @@ or policy.
 ## Provider and process ownership
 
 The optional provider is compiled and registered only with the private
-`tauri-agent` Cargo feature. The agent reserves a loopback port, launches one
+`pumarejo` Cargo feature. The agent reserves a loopback port, launches one
 tracked child with a private mode overlay, authenticates proxy and upstream
 requests with separate random nonces, and verifies listener ancestry and
 process identity before use and termination. Direct provider access is
@@ -31,7 +31,7 @@ directory are destroyed with the session.
 ## Observation and interaction
 
 The browser extractor enforces node, text, relationship, traversal, and output
-budgets. Sensitive inputs and nodes marked `data-tauri-agent-sensitive` are
+budgets. Sensitive inputs and nodes marked `data-pumarejo-sensitive` are
 redacted in the WebView before serialization. Accessible-name dependencies are
 taint-tracked across labels, descendants, ownership, slots, and open shadow
 roots.

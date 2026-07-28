@@ -1,4 +1,4 @@
-export const TAURI_AGENT_ERROR_CODES = [
+export const PUMAREJO_ERROR_CODES = [
   "PROJECT_NOT_FOUND",
   "UNSUPPORTED_TAURI_VERSION",
   "CONFIG_INVALID",
@@ -23,9 +23,9 @@ export const TAURI_AGENT_ERROR_CODES = [
   "INTERNAL_ERROR",
 ] as const;
 
-export type TauriAgentErrorCode = (typeof TAURI_AGENT_ERROR_CODES)[number];
+export type PumarejoErrorCode = (typeof PUMAREJO_ERROR_CODES)[number];
 
-export type TauriAgentErrorPhase =
+export type PumarejoErrorPhase =
   | "configuration"
   | "integration"
   | "platform"
@@ -38,15 +38,15 @@ export type TauriAgentErrorPhase =
   | "internal";
 
 export interface ErrorEnvelope {
-  readonly code: TauriAgentErrorCode;
+  readonly code: PumarejoErrorCode;
   readonly message: string;
-  readonly phase: TauriAgentErrorPhase;
+  readonly phase: PumarejoErrorPhase;
   readonly retryable: boolean;
   readonly suggestion: string;
 }
 
 const ERROR_DEFINITIONS: Record<
-  TauriAgentErrorCode,
+  PumarejoErrorCode,
   Omit<ErrorEnvelope, "code">
 > = {
   PROJECT_NOT_FOUND: {
@@ -65,13 +65,13 @@ const ERROR_DEFINITIONS: Record<
     message: "The project configuration does not satisfy the v1 contract.",
     phase: "configuration",
     retryable: false,
-    suggestion: "Fix .tauri-agent.json or run tauri-agent doctor.",
+    suggestion: "Fix .pumarejo.json or run pumarejo doctor.",
   },
   INTEGRATION_INCOMPLETE: {
-    message: "The Tauri Agent integration is incomplete.",
+    message: "The pumarejo integration is incomplete.",
     phase: "integration",
     retryable: false,
-    suggestion: "Run tauri-agent doctor and complete the reported setup.",
+    suggestion: "Run pumarejo doctor and complete the reported setup.",
   },
   PLATFORM_UNSUPPORTED: {
     message: "The current platform is unsupported.",
@@ -110,13 +110,13 @@ const ERROR_DEFINITIONS: Record<
     suggestion: "Close any owned residue and retry.",
   },
   SESSION_NOT_ACTIVE: {
-    message: "No Tauri Agent session is active.",
+    message: "No pumarejo session is active.",
     phase: "session",
     retryable: true,
     suggestion: "Call tauri_launch first.",
   },
   SESSION_ALREADY_ACTIVE: {
-    message: "A Tauri Agent session is already active.",
+    message: "A pumarejo session is already active.",
     phase: "session",
     retryable: false,
     suggestion: "Close the active session before launching another.",
@@ -183,16 +183,16 @@ const ERROR_DEFINITIONS: Record<
   },
 };
 
-export class TauriAgentError extends Error {
-  readonly code: TauriAgentErrorCode;
-  readonly phase: TauriAgentErrorPhase;
+export class PumarejoError extends Error {
+  readonly code: PumarejoErrorCode;
+  readonly phase: PumarejoErrorPhase;
   readonly retryable: boolean;
   readonly suggestion: string;
 
-  constructor(code: TauriAgentErrorCode, options?: ErrorOptions) {
+  constructor(code: PumarejoErrorCode, options?: ErrorOptions) {
     const envelope = ERROR_DEFINITIONS[code];
     super(envelope.message, options);
-    this.name = "TauriAgentError";
+    this.name = "PumarejoError";
     this.code = code;
     this.phase = envelope.phase;
     this.retryable = envelope.retryable;
@@ -211,7 +211,7 @@ export class TauriAgentError extends Error {
 }
 
 export function toErrorEnvelope(error: unknown): ErrorEnvelope {
-  return error instanceof TauriAgentError
+  return error instanceof PumarejoError
     ? error.toJSON()
-    : new TauriAgentError("INTERNAL_ERROR").toJSON();
+    : new PumarejoError("INTERNAL_ERROR").toJSON();
 }

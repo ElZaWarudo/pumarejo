@@ -1,5 +1,5 @@
 ---
-initiative: Tauri Agent
+initiative: pumarejo
 mode: full
 status: implementation-complete
 date: 2026-07-27
@@ -70,15 +70,15 @@ worktree_policy: avoid
 
 | Artifact                                                            | Creation status                                                  | Review status                                                                                                  |
 | ------------------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `docs/orchestration/2026-07-23-001-tauri-agent-readiness-report.md` | complete                                                         | not applicable                                                                                                 |
+| `docs/orchestration/2026-07-23-001-pumarejo-readiness-report.md`    | complete                                                         | not applicable                                                                                                 |
 | `STRATEGY.md`                                                       | complete                                                         | user-confirmed synthesis                                                                                       |
 | `docs/product-requirements.md`                                      | complete                                                         | passed after fixes                                                                                             |
 | `docs/contracts.md`                                                 | complete                                                         | passed with plan-review fixes                                                                                  |
 | `docs/architecture.md`                                              | complete                                                         | passed with plan-review fixes                                                                                  |
 | `docs/delivery-workflow.md`                                         | complete                                                         | passed                                                                                                         |
-| `docs/roadmaps/2026-07-23-001-tauri-agent-roadmap.md`               | complete                                                         | passed                                                                                                         |
+| `docs/roadmaps/2026-07-23-001-pumarejo-roadmap.md`                  | complete                                                         | passed                                                                                                         |
 | Product strategy brainstorm                                         | complete                                                         | passed; redundant per-item interviews explicitly skipped under the recorded non-interactive discovery override |
-| `docs/plans/2026-07-23-001-feat-tauri-agent-plan.md`                | complete                                                         | passed after coherence, feasibility, security, design, scope, and adversarial fixes                            |
+| `docs/plans/2026-07-23-001-feat-pumarejo-plan.md`                   | complete                                                         | passed after coherence, feasibility, security, design, scope, and adversarial fixes                            |
 | `docs/work-packages/README.md` and RDM-001 through RDM-008 packages | complete; all mechanical checks passed and review findings fixed | RDM-001 through RDM-008 passed with no unresolved P0-P2                                                        |
 
 ## Delegation Record
@@ -312,5 +312,5 @@ worktree_policy: avoid
 Execute the first review unit in RDM-007 without release actions:
 
 ```text
-Usa krt-compound-master con mode:execute package:docs/work-packages/RDM-007-mcp-workflow/2026-07-23-007-mcp-workflow-work-package.md review-unit:RU1.
+Use krt-compound-master with mode:execute package:docs/work-packages/RDM-007-mcp-workflow/2026-07-23-007-mcp-workflow-work-package.md review-unit:RU1.
 ```

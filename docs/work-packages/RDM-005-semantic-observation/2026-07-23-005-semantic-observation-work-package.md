@@ -2,10 +2,10 @@
 title: Expose faithful semantic observations
 status: complete
 roadmap_item: RDM-005
-origin_roadmap: docs/roadmaps/2026-07-23-001-tauri-agent-roadmap.md
+origin_roadmap: docs/roadmaps/2026-07-23-001-pumarejo-roadmap.md
 origin_brainstorm: STRATEGY.md
 origin_planning_input: docs/product-requirements.md
-origin_plan: docs/plans/2026-07-23-001-feat-tauri-agent-plan.md
+origin_plan: docs/plans/2026-07-23-001-feat-pumarejo-plan.md
 units: [U10, U11]
 unit_alignment: complete
 review_units: [RU1, RU2, RU3]
@@ -71,16 +71,16 @@ Grouping rationale: split traversal/schema/refs, redaction/taint, and filesystem
 
 | Review unit | Scope                            | Expected changed surfaces                     | PR base                  | Jira issue/subtask | Size/risk note                              |
 | ----------- | -------------------------------- | --------------------------------------------- | ------------------------ | ------------------ | ------------------------------------------- |
-| RU1         | Snapshot traversal, schema, refs | browser bundle/schema/refs/conformance/tests  | unresolved-final-release | optional Tarea     | 400-700 human + fixtures; semantic fidelity |
-| RU2         | Redaction and UI-taint boundary  | redaction/provenance/MCP-boundary tests       | unresolved-final-release | optional Tarea     | 250-450 human; untrusted data               |
-| RU3         | Screenshot and artifacts         | PNG/store/permissions/manifest/recovery/tests | unresolved-final-release | optional Tarea     | 350-650 human; filesystem security          |
+| RU1         | Snapshot traversal, schema, refs | browser bundle/schema/refs/conformance/tests  | unresolved-final-release | optional Task      | 400-700 human + fixtures; semantic fidelity |
+| RU2         | Redaction and UI-taint boundary  | redaction/provenance/MCP-boundary tests       | unresolved-final-release | optional Task      | 250-450 human; untrusted data               |
+| RU3         | Screenshot and artifacts         | PNG/store/permissions/manifest/recovery/tests | unresolved-final-release | optional Task      | 350-650 human; filesystem security          |
 
 ## Reviewability Diagnosis
 
 - Reviewer-experience check: yes; semantic correctness and artifact confinement have separate evidence.
 - Granularity chosen because: merging DOM semantics with OS permissions would obscure both reviews.
 - Open-stack plan: serial local work, independent final handoff.
-- Jira mapping: optional standalone Tarea per RU.
+- Jira mapping: optional standalone Task per RU.
 - Downstream-fix trace: none.
 - Failure-mode check: conformance fixtures separated by commit, not hidden as generated noise.
 
@@ -91,7 +91,7 @@ RU1 changes `src/observation/` and accessibility fixtures/corpus. RU2 changes re
 ## Impact Scan
 
 - Changed contract: snapshot node schema, refs/generation/fingerprint, redaction marker and screenshot metadata.
-- Consumer scan patterns: node fields, error codes, `data-tauri-agent-sensitive`, element handles, artifact paths.
+- Consumer scan patterns: node fields, error codes, `data-pumarejo-sensitive`, element handles, artifact paths.
 - Consumers found: interactions, MCP runtime and certification.
 - Contract-drift tests searched: schema snapshots, compatibility corpus, stale refs, tainted UI, permission/path cleanup.
 - Required consumer tests: fixture snapshot/screenshot and later MCP tests.
@@ -105,7 +105,7 @@ Inherited gates for every RU: run `pnpm install --frozen-lockfile` and `pnpm bui
 | RU  | U   | Required verification                                                                                                                                                                                                         | Evidence                                                   | Pass signal                                                     |
 | --- | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
 | RU1 | U10 | WAI-ARIA/HTML corpus, product fixtures, preorder/containment/state/name/ref identity                                                                                                                                          | unit/integration/schema results                            | deterministic semantic contract                                 |
-| RU2 | U10 | password and `data-tauri-agent-sensitive` redaction, untrusted provenance for text/name/value, prompt-injection fixtures, open-shadow-root leakage checks                                                                     | boundary/security results                                  | no sensitive leakage and UI text remains non-authoritative data |
+| RU2 | U10 | password and `data-pumarejo-sensitive` redaction, untrusted provenance for text/name/value, prompt-injection fixtures, open-shadow-root leakage checks                                                                        | boundary/security results                                  | no sensitive leakage and UI text remains non-authoritative data |
 | RU3 | U11 | PNG validation, current-user-only permissions before write, permission failure, traversal/link rejection, durable manifest, explicit `retainArtifacts`, close/crash/restart cleanup on Windows and native/dedicated-VM Ubuntu | filesystem/integration results on both authoritative hosts | artifacts confined and lifecycle-complete; any host skip blocks |
 
 ## Review Gate
@@ -297,10 +297,10 @@ No RU passes with an unresolved P0-P2 security finding. RU2 must prove that snap
 
 ## Jira Handoff Inputs
 
-- Jira policy: optional; standalone Tarea per RU.
-- Suggested issue type: Tarea.
+- Jira policy: optional; standalone Task per RU.
+- Suggested issue type: Task.
 - Suggested subtask behavior: shared parent only for grouped final delivery.
 - PR-to-Jira mapping: one task per RU.
-- Jira summary: Exponer observaciones semánticas y protegidas de Tauri
-- Jira description: Crear snapshots accesibles, referencias exactas, redacción y artefactos seguros.
+- Jira summary: Expose protected semantic observations of Tauri applications
+- Jira description: Create accessible snapshots, exact references, redaction, and secure artifacts.
 - Optional-policy fallback: Jira omitted: no context/config.

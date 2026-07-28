@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createConnection } from "node:net";
 
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import {
   launchCommandHash,
   type ProcessAdapter,
@@ -48,7 +48,7 @@ async function waitForSystemIdentity(
     if (identity !== undefined) return identity;
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new TauriAgentError("APP_START_FAILED");
+  throw new PumarejoError("APP_START_FAILED");
 }
 
 async function waitForPort(
@@ -62,7 +62,7 @@ async function waitForPort(
   while (Date.now() < deadline) {
     signal?.throwIfAborted();
     if (child.exitCode !== null) {
-      throw new TauriAgentError("APP_START_FAILED", {
+      throw new PumarejoError("APP_START_FAILED", {
         cause: new Error(`Child exited before readiness: ${output()}`),
       });
     }
@@ -83,7 +83,7 @@ async function waitForPort(
     if (connected) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  throw new TauriAgentError("WEBDRIVER_NOT_READY", {
+  throw new PumarejoError("WEBDRIVER_NOT_READY", {
     cause: new Error(`Provider readiness timed out: ${output()}`),
   });
 }
@@ -95,9 +95,9 @@ export function createTrackedProcessAdapter(
 
   return {
     async spawn(request: SpawnRequest): Promise<SpawnedApplication> {
-      const sessionNonce = request.env.TAURI_AGENT_SESSION_NONCE;
+      const sessionNonce = request.env.PUMAREJO_SESSION_NONCE;
       const readinessTimeout = Number(
-        request.env.TAURI_AGENT_PROVIDER_READY_TIMEOUT_MS ?? "300000",
+        request.env.PUMAREJO_PROVIDER_READY_TIMEOUT_MS ?? "300000",
       );
       if (
         typeof sessionNonce !== "string" ||
@@ -106,7 +106,7 @@ export function createTrackedProcessAdapter(
         readinessTimeout < 1_000 ||
         readinessTimeout > 600_000
       ) {
-        throw new TauriAgentError("APP_START_FAILED");
+        throw new PumarejoError("APP_START_FAILED");
       }
       const child = spawn(request.command, request.args, {
         cwd: request.cwd,
@@ -120,10 +120,10 @@ export function createTrackedProcessAdapter(
         child.once("spawn", resolve);
         child.once("error", reject);
       }).catch((error: unknown) => {
-        throw new TauriAgentError("APP_START_FAILED", { cause: error });
+        throw new PumarejoError("APP_START_FAILED", { cause: error });
       });
       if (child.pid === undefined) {
-        throw new TauriAgentError("APP_START_FAILED");
+        throw new PumarejoError("APP_START_FAILED");
       }
       child.once("exit", () => tracked.delete(child.pid!));
       let output = "";
@@ -161,7 +161,7 @@ export function createTrackedProcessAdapter(
       });
       if (child.exitCode !== null) {
         tracked.delete(child.pid);
-        throw new TauriAgentError("APP_START_FAILED");
+        throw new PumarejoError("APP_START_FAILED");
       }
       return {
         ...identity,

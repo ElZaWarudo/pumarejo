@@ -27,7 +27,7 @@ async function provider(): Promise<number> {
       JSON.stringify({
         value: {
           path: request.url,
-          providerNonce: request.headers["x-tauri-agent-provider-nonce"],
+          providerNonce: request.headers["x-pumarejo-provider-nonce"],
         },
       }),
     );
@@ -56,19 +56,19 @@ describe("authenticated provider ownership", () => {
     expect(
       (
         await fetch(`${base}/status`, {
-          headers: { "x-tauri-agent-session-nonce": "b".repeat(64) },
+          headers: { "x-pumarejo-session-nonce": "b".repeat(64) },
         })
       ).status,
     ).toBe(401);
     expect(
       (
         await fetch(`${base}/not-allowed`, {
-          headers: { "x-tauri-agent-session-nonce": nonce },
+          headers: { "x-pumarejo-session-nonce": nonce },
         })
       ).status,
     ).toBe(404);
     const allowed = await fetch(`${base}/status`, {
-      headers: { "x-tauri-agent-session-nonce": nonce },
+      headers: { "x-pumarejo-session-nonce": nonce },
     });
     expect(allowed.status).toBe(200);
     await expect(allowed.json()).resolves.toEqual({

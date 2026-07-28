@@ -64,16 +64,16 @@ export async function runProviderSequence(
   endpoint?: { port: number; nonce: string },
 ): Promise<ProviderEvidence> {
   const rawPort =
-    endpoint?.port.toString() ?? process.env.TAURI_AGENT_PROVIDER_PORT;
+    endpoint?.port.toString() ?? process.env.PUMAREJO_PROVIDER_PORT;
   if (!rawPort) {
     throw new Error(
-      "TAURI_AGENT_PROVIDER_PORT is required for live provider proof",
+      "PUMAREJO_PROVIDER_PORT is required for live provider proof",
     );
   }
-  const nonce = endpoint?.nonce ?? process.env.TAURI_AGENT_SESSION_NONCE;
+  const nonce = endpoint?.nonce ?? process.env.PUMAREJO_SESSION_NONCE;
   if (!nonce) {
     throw new Error(
-      "TAURI_AGENT_SESSION_NONCE is required for authenticated provider proof",
+      "PUMAREJO_SESSION_NONCE is required for authenticated provider proof",
     );
   }
   const { W3cClient } = await import("./w3c-client.js");
@@ -214,7 +214,7 @@ export async function runProviderSequence(
     return {
       mode,
       commands: [...commands, "delete-session"],
-      windowPresented: process.env.TAURI_AGENT_WINDOW_PRESENTED === "1",
+      windowPresented: process.env.PUMAREJO_WINDOW_PRESENTED === "1",
       screenshot: true,
       actions: true,
     };

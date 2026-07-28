@@ -23,9 +23,9 @@ import {
 } from "./write.js";
 
 const MAX_EDITABLE_BYTES = 1024 * 1024;
-export const IGNORE_BLOCK = `# <tauri-agent:begin>
-/.tauri-agent/
-# <tauri-agent:end>
+export const IGNORE_BLOCK = `# <pumarejo:begin>
+/.pumarejo/
+# <pumarejo:end>
 `;
 
 export { IntegrationPlanError } from "./plan-error.js";
@@ -122,7 +122,7 @@ async function existingIntegration(
   const source = await readSafeFile(projectRoot, manifestPath, false);
   if (source === null) {
     try {
-      const directory = resolve(projectRoot, ".tauri-agent");
+      const directory = resolve(projectRoot, ".pumarejo");
       const metadata = await lstat(directory);
       if (metadata.isDirectory()) {
         throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
@@ -177,9 +177,9 @@ export function validateAppliedManifest(manifest: IntegrationManifest): void {
   }
 
   const required = [
-    [".tauri-agent/agent-capability.json", "capability"],
+    [".pumarejo/agent-capability.json", "capability"],
     [".gitignore", "ignore"],
-    [".tauri-agent.json", "config"],
+    [".pumarejo.json", "config"],
   ] as const;
   for (const [path, kind] of required) {
     if (entries.get(path)?.kind !== kind) {
@@ -195,17 +195,15 @@ export function validateAppliedManifest(manifest: IntegrationManifest): void {
     entry.attribution.every((value, index) => value === expected[index]);
   if (
     !exactAttribution(entries.get(".gitignore"), [
-      "marker:<tauri-agent:begin>",
-      "ignore:/.tauri-agent/",
+      "marker:<pumarejo:begin>",
+      "ignore:/.pumarejo/",
     ]) ||
-    !exactAttribution(entries.get(".tauri-agent.json"), [
-      "created:.tauri-agent.json",
-    ])
+    !exactAttribution(entries.get(".pumarejo.json"), ["created:.pumarejo.json"])
   ) {
     throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
   }
   const capabilityAttribution = entries.get(
-    ".tauri-agent/agent-capability.json",
+    ".pumarejo/agent-capability.json",
   )?.attribution;
   if (
     capabilityAttribution?.length !== 2 ||
@@ -235,8 +233,8 @@ export function validateAppliedManifest(manifest: IntegrationManifest): void {
   }
   if (
     !exactAttribution(rustEntries[0], [
-      "marker:<tauri-agent:begin>",
-      "wrapper:tauri_agent_builder",
+      "marker:<pumarejo:begin>",
+      "wrapper:pumarejo_builder",
     ])
   ) {
     throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
@@ -245,11 +243,11 @@ export function validateAppliedManifest(manifest: IntegrationManifest): void {
     const cargoAttribution = cargoEntries[0].attribution;
     const allowed = new Set([
       "dependency:tauri-plugin-wdio-webdriver:optional",
-      "feature:tauri-agent:created:dep:tauri-plugin-wdio-webdriver",
-      "feature:tauri-agent:value:dep:tauri-plugin-wdio-webdriver",
+      "feature:pumarejo:created:dep:tauri-plugin-wdio-webdriver",
+      "feature:pumarejo:value:dep:tauri-plugin-wdio-webdriver",
     ]);
     const featureEntries = cargoAttribution.filter((value) =>
-      value.startsWith("feature:tauri-agent:"),
+      value.startsWith("feature:pumarejo:"),
     );
     if (
       cargoAttribution.length < 1 ||
@@ -388,8 +386,8 @@ export async function planIntegration(
   );
   const ignoreSource = existingIgnore ?? "";
   if (
-    ignoreSource.includes("<tauri-agent:begin>") ||
-    ignoreSource.includes("<tauri-agent:end>")
+    ignoreSource.includes("<pumarejo:begin>") ||
+    ignoreSource.includes("<pumarejo:end>")
   ) {
     throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
   }
@@ -398,7 +396,7 @@ export async function planIntegration(
     ignoreSource.length === 0 || ignoreSource.endsWith("\n") ? "" : "\n";
   const existingConfig = await readSafeFile(
     detected.projectRoot,
-    resolve(detected.projectRoot, ".tauri-agent.json"),
+    resolve(detected.projectRoot, ".pumarejo.json"),
     false,
   );
   if (existingConfig !== null) {
@@ -421,11 +419,11 @@ export async function planIntegration(
       "rust",
       rust.source,
       planRustEdit(rust.source),
-      ["marker:<tauri-agent:begin>", "wrapper:tauri_agent_builder"],
+      ["marker:<pumarejo:begin>", "wrapper:pumarejo_builder"],
     ),
     change(
       detected.projectRoot,
-      ".tauri-agent/agent-capability.json",
+      ".pumarejo/agent-capability.json",
       "capability",
       null,
       planCapabilityEdit(capability.source, capability.format),
@@ -440,15 +438,15 @@ export async function planIntegration(
       "ignore",
       existingIgnore,
       `${ignoreSource}${ignoreSeparator}${IGNORE_BLOCK}`,
-      ["marker:<tauri-agent:begin>", "ignore:/.tauri-agent/"],
+      ["marker:<pumarejo:begin>", "ignore:/.pumarejo/"],
     ),
     change(
       detected.projectRoot,
-      ".tauri-agent.json",
+      ".pumarejo.json",
       "config",
       null,
       configSource,
-      ["created:.tauri-agent.json"],
+      ["created:.pumarejo.json"],
     ),
   ].filter(
     (plannedChange) => plannedChange.beforeHash !== plannedChange.afterHash,

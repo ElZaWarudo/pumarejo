@@ -47,8 +47,8 @@ describe("artifact permission enforcement", () => {
     expect(args.join("\n")).toContain("WindowsIdentity]::GetCurrent().User");
     expect(args.join("\n")).not.toContain("USERNAME");
     expect(options?.env).toMatchObject({
-      TAURI_AGENT_ARTIFACT_PATH: "C:\\safe artifact",
-      TAURI_AGENT_ARTIFACT_KIND: "directory",
+      PUMAREJO_ARTIFACT_PATH: "C:\\safe artifact",
+      PUMAREJO_ARTIFACT_KIND: "directory",
     });
     expect(run.mock.calls[1]?.[0]).toMatch(/System32[\\/]icacls\.exe$/u);
     expect(run.mock.calls[1]?.[1]).toContain("*S-1-5-21-1234:(OI)(CI)F");
@@ -56,7 +56,7 @@ describe("artifact permission enforcement", () => {
   });
 
   it("establishes owner-only permissions on the current host", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "tauri-agent-mode-"));
+    const directory = await mkdtemp(join(tmpdir(), "pumarejo-mode-"));
     temporaryDirectories.push(directory);
     const file = join(directory, "artifact");
     await writeFile(file, "");

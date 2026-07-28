@@ -9,7 +9,7 @@ import {
 } from "../../config/load.js";
 import type { PreparedLaunch } from "../../session/manager.js";
 import type { RuntimeMode } from "../../session/state.js";
-import { TauriAgentError } from "../../shared/errors.js";
+import { PumarejoError } from "../../shared/errors.js";
 import { createRuntimeOverlay } from "../mode-config.js";
 import { sanitizedLaunchEnvironment } from "../launch-environment.js";
 import { resolveProjectTauriCommand } from "../tauri-command.js";
@@ -34,7 +34,7 @@ async function located(command: string): Promise<readonly string[]> {
       .map((value) => value.trim())
       .filter(Boolean);
   } catch (error) {
-    throw new TauriAgentError("APP_START_FAILED", { cause: error });
+    throw new PumarejoError("APP_START_FAILED", { cause: error });
   }
 }
 
@@ -48,7 +48,7 @@ async function safeExecutable(
     !metadata.isFile() ||
     isInside(resolve(projectRoot), resolve(canonical))
   ) {
-    throw new TauriAgentError("APP_START_FAILED");
+    throw new PumarejoError("APP_START_FAILED");
   }
   return canonical;
 }
@@ -75,10 +75,10 @@ export async function resolveWindowsLaunch(
         continue;
       }
     }
-    throw new TauriAgentError("APP_START_FAILED");
+    throw new PumarejoError("APP_START_FAILED");
   }
   if (!["pnpm", "npm", "yarn"].includes(normalized)) {
-    throw new TauriAgentError("APP_START_FAILED");
+    throw new PumarejoError("APP_START_FAILED");
   }
 
   for (const shimCandidate of await located(`${normalized}.cmd`)) {
@@ -122,7 +122,7 @@ export async function resolveWindowsLaunch(
       continue;
     }
   }
-  throw new TauriAgentError("APP_START_FAILED");
+  throw new PumarejoError("APP_START_FAILED");
 }
 
 export async function prepareWindowsLaunch(
@@ -131,7 +131,7 @@ export async function prepareWindowsLaunch(
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<PreparedLaunch> {
   if (process.platform !== "win32") {
-    throw new TauriAgentError("PLATFORM_UNSUPPORTED");
+    throw new PumarejoError("PLATFORM_UNSUPPORTED");
   }
   const overlay = await createRuntimeOverlay({
     projectRoot: loaded.projectRoot,

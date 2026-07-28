@@ -68,7 +68,7 @@ export async function launchOwnedProvider(
   dependencies: OwnedLaunchDependencies,
 ): Promise<OwnedLaunch> {
   const fixtureDir = resolve(options.fixtureDir ?? "tests/fixtures/tauri-app");
-  const temporaryDir = await mkdtemp(join(tmpdir(), "tauri-agent-proof-"));
+  const temporaryDir = await mkdtemp(join(tmpdir(), "pumarejo-proof-"));
   const overlayPath = join(temporaryDir, "mode-overlay.json");
   await writeFile(
     overlayPath,
@@ -81,7 +81,7 @@ export async function launchOwnedProvider(
     "tauri",
     "dev",
     "--features",
-    "tauri-agent",
+    "pumarejo",
     "--config",
     overlayPath,
   ];
@@ -97,7 +97,7 @@ export async function launchOwnedProvider(
       env: {
         ...process.env,
         CARGO_TARGET_DIR:
-          process.env.TAURI_AGENT_LIVE_TARGET_DIR ??
+          process.env.PUMAREJO_LIVE_TARGET_DIR ??
           resolve(
             fixtureDir,
             "..",
@@ -108,12 +108,12 @@ export async function launchOwnedProvider(
           ),
         DISPLAY:
           options.mode === "background" &&
-          process.env.TAURI_AGENT_BACKGROUND_DISPLAY
-            ? process.env.TAURI_AGENT_BACKGROUND_DISPLAY
+          process.env.PUMAREJO_BACKGROUND_DISPLAY
+            ? process.env.PUMAREJO_BACKGROUND_DISPLAY
             : process.env.DISPLAY,
         WAYLAND_DISPLAY:
           options.mode === "background" &&
-          process.env.TAURI_AGENT_BACKGROUND_DISPLAY
+          process.env.PUMAREJO_BACKGROUND_DISPLAY
             ? undefined
             : process.env.WAYLAND_DISPLAY,
         TAURI_WEBDRIVER_NONCE: providerNonce,

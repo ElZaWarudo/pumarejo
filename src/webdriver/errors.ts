@@ -1,4 +1,4 @@
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import { jsonObject } from "./protocol.js";
 
 export class WebDriverTransportError extends Error {
@@ -47,7 +47,7 @@ export function normalizeWebDriverError(
   if (error instanceof DOMException && error.name === "AbortError") {
     return error;
   }
-  if (error instanceof TauriAgentError) {
+  if (error instanceof PumarejoError) {
     return error;
   }
   if (error instanceof WebDriverTransportError) {
@@ -65,7 +65,7 @@ export function normalizeWebDriverError(
             : providerCode.includes("no such window")
               ? "WINDOW_NOT_FOUND"
               : fallback;
-    return new TauriAgentError(code, { cause: error });
+    return new PumarejoError(code, { cause: error });
   }
-  return new TauriAgentError(fallback, { cause: error });
+  return new PumarejoError(fallback, { cause: error });
 }

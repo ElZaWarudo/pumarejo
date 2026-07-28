@@ -17,7 +17,7 @@ import { prepareWindowsLaunch } from "../platform/windows/launch.js";
 import { createWindowsProcessAdapter } from "../platform/windows/process.js";
 import { SessionManager } from "../session/manager.js";
 import type { ReadySession, SessionSnapshot } from "../session/state.js";
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import type {
   ClickInput,
   LaunchInput,
@@ -29,7 +29,7 @@ import type {
   DomainCallContext,
   DomainResult,
   ScreenshotDomainResult,
-  TauriAgentDomainPorts,
+  PumarejoDomainPorts,
 } from "./domain-ports.js";
 
 interface RuntimeSessionManager {
@@ -69,7 +69,7 @@ interface RuntimeInteractions {
   ): Promise<InteractionResult>;
 }
 
-export interface TauriAgentRuntimeDependencies {
+export interface PumarejoRuntimeDependencies {
   readonly config: LoadedProjectConfig;
   readonly platform: "windows" | "linux";
   readonly platformName: NodeJS.Platform;
@@ -117,7 +117,7 @@ function defaultManager(
 
 function defaultDependencies(
   config: LoadedProjectConfig,
-): TauriAgentRuntimeDependencies {
+): PumarejoRuntimeDependencies {
   const platform =
     process.platform === "win32"
       ? "windows"
@@ -125,7 +125,7 @@ function defaultDependencies(
         ? "linux"
         : undefined;
   if (platform === undefined) {
-    throw new TauriAgentError("PLATFORM_UNSUPPORTED");
+    throw new PumarejoError("PLATFORM_UNSUPPORTED");
   }
   return {
     config,
@@ -165,14 +165,14 @@ function defaultDependencies(
   };
 }
 
-export class TauriAgentRuntime implements TauriAgentDomainPorts {
-  readonly #dependencies: TauriAgentRuntimeDependencies;
+export class PumarejoRuntime implements PumarejoDomainPorts {
+  readonly #dependencies: PumarejoRuntimeDependencies;
   #active: ActiveRuntime | undefined;
   #pendingArtifactClose: RuntimeArtifacts | undefined;
   #tail: Promise<void> = Promise.resolve();
   #activeAbort: AbortController | undefined;
 
-  constructor(dependencies: TauriAgentRuntimeDependencies) {
+  constructor(dependencies: PumarejoRuntimeDependencies) {
     this.#dependencies = dependencies;
   }
 
@@ -186,14 +186,14 @@ export class TauriAgentRuntime implements TauriAgentDomainPorts {
   ): Promise<DomainResult> {
     return this.run(async (signal) => {
       if (this.#active !== undefined) {
-        throw new TauriAgentError("SESSION_ALREADY_ACTIVE");
+        throw new PumarejoError("SESSION_ALREADY_ACTIVE");
       }
       if (this.#pendingArtifactClose !== undefined) {
         await this.closeNow();
       }
       const sessionId = this.#dependencies.sessionId();
       if (!/^[a-f0-9]{32,64}$/u.test(sessionId)) {
-        throw new TauriAgentError("INTERNAL_ERROR");
+        throw new PumarejoError("INTERNAL_ERROR");
       }
       const ready = await this.#dependencies.manager.launch({
         mode: input.mode,
@@ -247,7 +247,7 @@ export class TauriAgentRuntime implements TauriAgentDomainPorts {
             });
         }
         if (cleanupFailures.length > 0) {
-          throw new TauriAgentError("CLOSE_FAILED", {
+          throw new PumarejoError("CLOSE_FAILED", {
             cause: new AggregateError([error, ...cleanupFailures]),
           });
         }
@@ -325,7 +325,7 @@ export class TauriAgentRuntime implements TauriAgentDomainPorts {
 
   private requireActive(): ActiveRuntime {
     if (this.#active === undefined) {
-      throw new TauriAgentError("SESSION_NOT_ACTIVE");
+      throw new PumarejoError("SESSION_NOT_ACTIVE");
     }
     return this.#active;
   }
@@ -383,18 +383,18 @@ export class TauriAgentRuntime implements TauriAgentDomainPorts {
       failures.push(error);
     }
     if (failures.length > 0) {
-      throw new TauriAgentError("CLOSE_FAILED", {
+      throw new PumarejoError("CLOSE_FAILED", {
         cause: new AggregateError(failures),
       });
     }
   }
 }
 
-export async function createTauriAgentRuntime(
+export async function createPumarejoRuntime(
   projectPath: string,
-): Promise<TauriAgentRuntime> {
+): Promise<PumarejoRuntime> {
   const config = await loadProjectConfig(projectPath);
-  const runtime = new TauriAgentRuntime(defaultDependencies(config));
+  const runtime = new PumarejoRuntime(defaultDependencies(config));
   await runtime.initialize();
   return runtime;
 }

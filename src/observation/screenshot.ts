@@ -1,4 +1,4 @@
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import type { ArtifactStore } from "../artifacts/store.js";
 import type { WebDriverClient } from "../webdriver/client.js";
 
@@ -60,7 +60,7 @@ export function parsePng(encoded: string): {
     encoded.length % 4 !== 0 ||
     !/^[A-Za-z0-9+/]*={0,2}$/u.test(encoded)
   ) {
-    throw new TauriAgentError("SCREENSHOT_FAILED");
+    throw new PumarejoError("SCREENSHOT_FAILED");
   }
   const bytes = Buffer.from(encoded, "base64");
   if (
@@ -68,7 +68,7 @@ export function parsePng(encoded: string): {
     bytes.toString("base64") !== encoded ||
     !bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)
   ) {
-    throw new TauriAgentError("SCREENSHOT_FAILED");
+    throw new PumarejoError("SCREENSHOT_FAILED");
   }
 
   let offset = PNG_SIGNATURE.length;
@@ -79,24 +79,24 @@ export function parsePng(encoded: string): {
   let chunkCount = 0;
   while (offset < bytes.length) {
     if (bytes.length - offset < 12 || chunkCount >= 65_536) {
-      throw new TauriAgentError("SCREENSHOT_FAILED");
+      throw new PumarejoError("SCREENSHOT_FAILED");
     }
     const length = bytes.readUInt32BE(offset);
     const chunkEnd = offset + 12 + length;
     if (chunkEnd > bytes.length || chunkEnd < offset) {
-      throw new TauriAgentError("SCREENSHOT_FAILED");
+      throw new PumarejoError("SCREENSHOT_FAILED");
     }
     const type = bytes.toString("ascii", offset + 4, offset + 8);
     if (!/^[A-Za-z]{4}$/u.test(type)) {
-      throw new TauriAgentError("SCREENSHOT_FAILED");
+      throw new PumarejoError("SCREENSHOT_FAILED");
     }
     const expectedCrc = bytes.readUInt32BE(offset + 8 + length);
     if (crc32(bytes, offset + 4, offset + 8 + length) !== expectedCrc) {
-      throw new TauriAgentError("SCREENSHOT_FAILED");
+      throw new PumarejoError("SCREENSHOT_FAILED");
     }
     if (chunkCount === 0) {
       if (type !== "IHDR" || length !== 13) {
-        throw new TauriAgentError("SCREENSHOT_FAILED");
+        throw new PumarejoError("SCREENSHOT_FAILED");
       }
       width = bytes.readUInt32BE(offset + 8);
       height = bytes.readUInt32BE(offset + 12);
@@ -107,7 +107,7 @@ export function parsePng(encoded: string): {
         height > MAX_DIMENSION ||
         width * height > MAX_PIXELS
       ) {
-        throw new TauriAgentError("SCREENSHOT_FAILED");
+        throw new PumarejoError("SCREENSHOT_FAILED");
       }
       const bitDepth = bytes[offset + 16]!;
       const colorType = bytes[offset + 17]!;
@@ -117,21 +117,21 @@ export function parsePng(encoded: string): {
         bytes[offset + 19] !== 0 ||
         ![0, 1].includes(bytes[offset + 20]!)
       ) {
-        throw new TauriAgentError("SCREENSHOT_FAILED");
+        throw new PumarejoError("SCREENSHOT_FAILED");
       }
     } else if (type === "IHDR") {
-      throw new TauriAgentError("SCREENSHOT_FAILED");
+      throw new PumarejoError("SCREENSHOT_FAILED");
     }
     if (
       type[0] === type[0]?.toUpperCase() &&
       !["IHDR", "PLTE", "IDAT", "IEND"].includes(type)
     ) {
-      throw new TauriAgentError("SCREENSHOT_FAILED");
+      throw new PumarejoError("SCREENSHOT_FAILED");
     }
     if (type === "IDAT") sawImageData = true;
     if (type === "IEND") {
       if (length !== 0 || chunkEnd !== bytes.length) {
-        throw new TauriAgentError("SCREENSHOT_FAILED");
+        throw new PumarejoError("SCREENSHOT_FAILED");
       }
       sawEnd = true;
     }
@@ -139,7 +139,7 @@ export function parsePng(encoded: string): {
     chunkCount += 1;
   }
   if (width === undefined || height === undefined || !sawImageData || !sawEnd) {
-    throw new TauriAgentError("SCREENSHOT_FAILED");
+    throw new PumarejoError("SCREENSHOT_FAILED");
   }
   return { bytes, width, height };
 }
@@ -170,7 +170,7 @@ export class ScreenshotService {
           ? await this.#artifacts.writePng(png.bytes)
           : undefined;
       if (save && stored === undefined) {
-        throw new TauriAgentError("SCREENSHOT_FAILED");
+        throw new PumarejoError("SCREENSHOT_FAILED");
       }
       return {
         metadata: {
@@ -186,12 +186,12 @@ export class ScreenshotService {
     } catch (error) {
       if (signal?.aborted) throw signal.reason;
       if (
-        error instanceof TauriAgentError &&
+        error instanceof PumarejoError &&
         error.code === "SCREENSHOT_FAILED"
       ) {
         throw error;
       }
-      throw new TauriAgentError("SCREENSHOT_FAILED", { cause: error });
+      throw new PumarejoError("SCREENSHOT_FAILED", { cause: error });
     }
   }
 }

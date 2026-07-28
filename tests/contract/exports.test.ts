@@ -5,16 +5,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   CONFIG_FILE_NAME,
-  TauriAgentError,
+  PumarejoError,
   projectConfigSchema,
 } from "../../src/index.js";
 import { VERSION } from "../../src/cli/index.js";
 
 describe("public package surface", () => {
   it("exports configuration and error contracts from the root", () => {
-    expect(CONFIG_FILE_NAME).toBe(".tauri-agent.json");
+    expect(CONFIG_FILE_NAME).toBe(".pumarejo.json");
     expect(projectConfigSchema).toBeDefined();
-    expect(TauriAgentError).toBeTypeOf("function");
+    expect(PumarejoError).toBeTypeOf("function");
   });
 
   it("declares a strict ESM package and executable", async () => {
@@ -23,10 +23,10 @@ describe("public package surface", () => {
     ) as Record<string, unknown>;
 
     expect(packageJson).toMatchObject({
-      name: "@cie/tauri-agent",
+      name: "pumarejo",
       type: "module",
       private: true,
-      bin: { "tauri-agent": "./dist/cli/index.js" },
+      bin: { pumarejo: "./dist/cli/index.js" },
     });
     expect(packageJson.version).toBe(VERSION);
     await expect(access(resolve("src/cli/index.ts"))).resolves.toBeUndefined();

@@ -30,7 +30,7 @@ const FIXTURE = join(
 const temporaryDirectories: string[] = [];
 
 async function projectCopy(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "tauri-agent-doctor-"));
+  const root = await mkdtemp(join(tmpdir(), "pumarejo-doctor-"));
   temporaryDirectories.push(root);
   await cp(FIXTURE, root, { recursive: true });
   return root;
@@ -52,7 +52,7 @@ afterEach(async () => {
   );
 });
 
-describe("Tauri Agent doctor", () => {
+describe("pumarejo doctor", () => {
   it("reports every required prerequisite independently with stable identities", async () => {
     const project = await projectCopy();
     await initializeProject(project);
@@ -78,7 +78,7 @@ describe("Tauri Agent doctor", () => {
   });
 
   it("keeps independent failures visible when the project and platform are unavailable", async () => {
-    const empty = await mkdtemp(join(tmpdir(), "tauri-agent-doctor-empty-"));
+    const empty = await mkdtemp(join(tmpdir(), "pumarejo-doctor-empty-"));
     temporaryDirectories.push(empty);
     const report = await doctorProject(empty, {
       platform: "darwin",
@@ -136,11 +136,7 @@ describe("Tauri Agent doctor", () => {
   it("reports changed capability separately from valid manifest structure", async () => {
     const project = await projectCopy();
     await initializeProject(project);
-    const capabilityPath = join(
-      project,
-      ".tauri-agent",
-      "agent-capability.json",
-    );
+    const capabilityPath = join(project, ".pumarejo", "agent-capability.json");
     const capability = JSON.parse(await readFile(capabilityPath, "utf8")) as {
       permissions: string[];
     };
@@ -165,7 +161,7 @@ describe("Tauri Agent doctor", () => {
   it("warns about owned residue without deleting or terminating it", async () => {
     const project = await projectCopy();
     await initializeProject(project);
-    const residue = join(project, ".tauri-agent", "sessions", "owned-session");
+    const residue = join(project, ".pumarejo", "sessions", "owned-session");
     await mkdir(residue, { recursive: true });
     await writeFile(join(residue, "lease.json"), '{"pid":123}\n');
 
@@ -186,7 +182,7 @@ describe("Tauri Agent doctor", () => {
     await initializeProject(project);
     const manifestPath = join(
       project,
-      ".tauri-agent",
+      ".pumarejo",
       "integration-manifest.json",
     );
     const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
@@ -210,14 +206,12 @@ describe("Tauri Agent doctor", () => {
   it("refuses to enumerate a linked residue directory", async () => {
     const project = await projectCopy();
     await initializeProject(project);
-    const outside = await mkdtemp(
-      join(tmpdir(), "tauri-agent-residue-outside-"),
-    );
+    const outside = await mkdtemp(join(tmpdir(), "pumarejo-residue-outside-"));
     temporaryDirectories.push(outside);
     await writeFile(join(outside, "private-name"), "unchanged");
     await symlink(
       outside,
-      join(project, ".tauri-agent", "sessions"),
+      join(project, ".pumarejo", "sessions"),
       process.platform === "win32" ? "junction" : "dir",
     );
 

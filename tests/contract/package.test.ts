@@ -43,12 +43,11 @@ describe("packed package", () => {
 
     expect(root.projectConfigSchema).toBeDefined();
     expect(config.loadProjectConfig).toBeTypeOf("function");
-    expect(errors.TauriAgentError).toBeTypeOf("function");
+    expect(errors.PumarejoError).toBeTypeOf("function");
   });
 
   it("contains only package metadata and built runtime files", () => {
-    const pnpmCli =
-      process.env.TAURI_AGENT_PNPM_CLI ?? process.env.npm_execpath;
+    const pnpmCli = process.env.PUMAREJO_PNPM_CLI ?? process.env.npm_execpath;
     expect(pnpmCli).toBeTruthy();
     const result = spawnSync(
       process.execPath,
@@ -59,7 +58,7 @@ describe("packed package", () => {
     expect(result.status, result.stderr).toBe(0);
     const packed = parsePackResult(result.stdout);
     expect(packed).toMatchObject({
-      name: "@cie/tauri-agent",
+      name: "pumarejo",
       version: "0.1.0",
     });
 
@@ -83,10 +82,9 @@ describe("packed package", () => {
   });
 
   it("installs the tarball and runs its real bin and ESM export", async () => {
-    const pnpmCli =
-      process.env.TAURI_AGENT_PNPM_CLI ?? process.env.npm_execpath;
+    const pnpmCli = process.env.PUMAREJO_PNPM_CLI ?? process.env.npm_execpath;
     expect(pnpmCli).toBeTruthy();
-    const temporaryRoot = await mkdtemp(join(tmpdir(), "tauri-agent-pack-"));
+    const temporaryRoot = await mkdtemp(join(tmpdir(), "pumarejo-pack-"));
     const packageDirectory = join(temporaryRoot, "package");
     const consumerDirectory = join(temporaryRoot, "consumer");
 
@@ -95,7 +93,7 @@ describe("packed package", () => {
       await mkdir(consumerDirectory);
       await writeFile(
         join(consumerDirectory, "package.json"),
-        JSON.stringify({ name: "tauri-agent-pack-consumer", private: true }),
+        JSON.stringify({ name: "pumarejo-pack-consumer", private: true }),
         "utf8",
       );
 
@@ -129,15 +127,15 @@ describe("packed package", () => {
 
       const help = spawnSync(
         process.execPath,
-        [pnpmCli as string, "exec", "tauri-agent", "--help"],
+        [pnpmCli as string, "exec", "pumarejo", "--help"],
         { cwd: consumerDirectory, encoding: "utf8", shell: false },
       );
       expect(help.status, help.stderr).toBe(0);
-      expect(help.stdout).toContain("tauri-agent mcp --project <path>");
+      expect(help.stdout).toContain("pumarejo mcp --project <path>");
 
       const version = spawnSync(
         process.execPath,
-        [pnpmCli as string, "exec", "tauri-agent", "--version"],
+        [pnpmCli as string, "exec", "pumarejo", "--version"],
         { cwd: consumerDirectory, encoding: "utf8", shell: false },
       );
       expect(version.status, version.stderr).toBe(0);
@@ -149,12 +147,12 @@ describe("packed package", () => {
           "--input-type=module",
           "--eval",
           [
-            "const root = await import('@cie/tauri-agent');",
-            "const config = await import('@cie/tauri-agent/config');",
-            "const errors = await import('@cie/tauri-agent/errors');",
-            "const result = await import('@cie/tauri-agent/result');",
-            "const metadata = await import('@cie/tauri-agent/package.json', { with: { type: 'json' } });",
-            "if (!root.projectConfigSchema || !config.loadProjectConfig || !errors.TauriAgentError || !result.ok || metadata.default.name !== '@cie/tauri-agent') process.exit(1);",
+            "const root = await import('pumarejo');",
+            "const config = await import('pumarejo/config');",
+            "const errors = await import('pumarejo/errors');",
+            "const result = await import('pumarejo/result');",
+            "const metadata = await import('pumarejo/package.json', { with: { type: 'json' } });",
+            "if (!root.projectConfigSchema || !config.loadProjectConfig || !errors.PumarejoError || !result.ok || metadata.default.name !== 'pumarejo') process.exit(1);",
           ].join("\n"),
         ],
         { cwd: consumerDirectory, encoding: "utf8", shell: false },

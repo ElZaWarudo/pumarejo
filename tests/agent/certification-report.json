@@ -1,6 +1,6 @@
 {
   "schemaVersion": 3,
-  "date": "2026-07-27",
+  "date": "2026-07-28",
   "model": "GPT-5",
   "prompt": "tests/agent/system-prompt.md",
   "transcript": "tests/agent/public-mcp-transcript.json",
@@ -8,13 +8,13 @@
   "protocol": {
     "promptSha256": "0164325e839af686fa31125229d86e4e59ab7520c523a3449d6477c113975c06",
     "transcriptSha256": "06a8ce97e41df82cd9aa9b4e577f1f5abf80eb16f4ac9a58acd07e16497e5698",
-    "rubricSha256": "e3f354cb774f8197910a3c66849798e2a1ff0899978c6d618356ab072e4bb798"
+    "rubricSha256": "83412070154f39267e406460340f986c6dabd1493d73e6f79fb65a60eef4e045"
   },
   "sourceAccess": false,
   "rubricVisibleDuringTrials": false,
   "execution": {
     "harness": "Codex subagent trial runner",
-    "harnessVersion": "2026-07-27.1",
+    "harnessVersion": "2026-07-28.1",
     "agent": "OpenAI Codex",
     "model": "GPT-5",
     "invocationMode": "independent transcript-only subagent",
@@ -44,8 +44,8 @@
         "answerSha256": "c56904aaf2e85c310e517896d8b1d77abc790330b9d5e3c7c19fa4d7a87f964a"
       },
       {
-        "trialId": "agent_trial_3",
-        "agentTask": "/root/agent_trial_3",
+        "trialId": "agent_trial_3_pumarejo",
+        "agentTask": "/root/agent_trial_3_pumarejo",
         "sourceInputs": [
           "tests/agent/system-prompt.md",
           "tests/agent/public-mcp-transcript.json"
@@ -53,7 +53,7 @@
         "rubricInput": false,
         "toolCalls": 0,
         "retries": 0,
-        "answerSha256": "7eb0d7a45884cf62fa761a31cd088509564bc4045e3b826558849ea7bdf1341f"
+        "answerSha256": "af574b79ef3cacf6a0d18ba3d999ec33b44f8aa402e50745b6d367961b691086"
       }
     ]
   },
@@ -105,16 +105,16 @@
       }
     },
     {
-      "id": "agent_trial_3",
-      "artifact": "tests/agent/trials/agent_trial_3.json",
-      "answerSha256": "7eb0d7a45884cf62fa761a31cd088509564bc4045e3b826558849ea7bdf1341f",
+      "id": "agent_trial_3_pumarejo",
+      "artifact": "tests/agent/trials/agent_trial_3_pumarejo.json",
+      "answerSha256": "af574b79ef3cacf6a0d18ba3d999ec33b44f8aa402e50745b6d367961b691086",
       "toolCalls": 0,
-      "score": 10,
+      "score": 9,
       "maximum": 10,
       "criteria": {
         "existing-state": true,
         "existing-transition": true,
-        "existing-validation": true,
+        "existing-validation": false,
         "existing-outcome": true,
         "redaction-boundary": true,
         "untrusted-boundary": true,
@@ -125,6 +125,6 @@
       }
     }
   ],
-  "aggregateScore": 10,
+  "aggregateScore": 9.67,
   "passed": true
 }

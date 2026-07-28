@@ -1,20 +1,20 @@
 ---
-title: Tauri Agent Public Contracts
+title: pumarejo Public Contracts
 date: 2026-07-23
 contract_version: 1
 ---
 
-# Tauri Agent Public Contracts
+# pumarejo Public Contracts
 
 ## CLI
 
 ```text
-tauri-agent init [--project <path>] [--dry-run]
-tauri-agent doctor [--project <path>] [--json]
-tauri-agent remove [--project <path>] [--dry-run]
-tauri-agent mcp --project <path>
-tauri-agent --version
-tauri-agent --help
+pumarejo init [--project <path>] [--dry-run]
+pumarejo doctor [--project <path>] [--json]
+pumarejo remove [--project <path>] [--dry-run]
+pumarejo mcp --project <path>
+pumarejo --version
+pumarejo --help
 ```
 
 Commands exit with code `0` on success, `1` for an expected validation or runtime failure, and `2` for invalid CLI usage.
@@ -22,7 +22,7 @@ Human-readable output goes to stderr when the MCP stdio server is running so std
 
 ## Project configuration
 
-`.tauri-agent.json` uses this v1 contract:
+`.pumarejo.json` uses this v1 contract:
 
 ```json
 {
@@ -33,13 +33,13 @@ Human-readable output goes to stderr when the MCP stdio server is running so std
       "tauri",
       "dev",
       "--features",
-      "tauri-agent",
+      "pumarejo",
       "--config",
       "{tauriConfig}"
     ]
   },
   "window": "main",
-  "artifactsDirectory": ".tauri-agent/artifacts",
+  "artifactsDirectory": ".pumarejo/artifacts",
   "retainArtifacts": false
 }
 ```
@@ -49,7 +49,7 @@ Rules:
 - `version` must equal `1`.
 - `launch.command` is a non-empty executable and `launch.args` is an argument vector stored by `init`; MCP tool arguments cannot replace either.
 - `launch.args` contains exactly one `{tauriConfig}` placeholder, replaced at launch with the generated visible or background Tauri configuration overlay.
-- The generated agent launch enables the optional consumer Cargo feature `tauri-agent`; normal project commands do not enable it.
+- The generated agent launch enables the optional consumer Cargo feature `pumarejo`; normal project commands do not enable it.
 - The runtime keeps the provider port private and exposes only an agent-owned loopback proxy authenticated with a per-session nonce; an MCP caller never receives a reusable unauthenticated provider endpoint.
 - Launch never evaluates this profile through a shell.
 - `webdriverPort` is an optional integer from `1024` through `65535`; omission selects an unpredictable available high port.
@@ -135,7 +135,7 @@ Success payload:
 Nodes are emitted in deterministic DOM preorder. `parentRef` preserves containment, including forms, dialogs, lists, tables, and open shadow roots.
 Optional fields such as `role`, `name`, `text`, `value`, relationship arrays, `checked` (`true`, `false`, or `"mixed"`), `selected`, `expanded`, `pressed`, `required`, `invalid`, `readOnly`, and `current` are omitted when unknown or inapplicable.
 Accessible-name precedence in v1 is `aria-labelledby`, `aria-label`, associated HTML labels, applicable host-language naming attributes, then rendered text; referenced labels participate even when not themselves visible.
-Password fields and elements marked `data-tauri-agent-sensitive="true"` omit
+Password fields and elements marked `data-pumarejo-sensitive="true"` omit
 `value`, value-bearing text, and accessible names derived from sensitive
 content, and return `redacted: true`, including inside open shadow roots.
 Controls whose accessible name references marked sensitive content are redacted
@@ -162,7 +162,7 @@ The MCP result contains an image content block and structured metadata:
 {
   "generation": 3,
   "observedAt": "2026-07-23T12:00:00.000Z",
-  "path": ".tauri-agent/artifacts/session-s1/screenshot-004.png",
+  "path": ".pumarejo/artifacts/session-s1/screenshot-004.png",
   "mimeType": "image/png",
   "width": 1280,
   "height": 800

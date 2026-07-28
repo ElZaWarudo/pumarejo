@@ -8,5 +8,5 @@ tauri-build = "2"
 [dependencies]
 tauri = "2"
 
-[workspace.metadata.tauri-agent]
+[workspace.metadata.pumarejo]
 cargo-cli = true

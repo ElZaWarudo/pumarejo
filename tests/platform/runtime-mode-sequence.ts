@@ -25,8 +25,8 @@ function fixtureConfig(): LoadedProjectConfig {
   const projectRoot = resolve("tests/fixtures/tauri-app");
   return {
     projectRoot,
-    configPath: resolve(projectRoot, ".tauri-agent.json"),
-    artifactsPath: resolve(projectRoot, ".tauri-agent/artifacts"),
+    configPath: resolve(projectRoot, ".pumarejo.json"),
+    artifactsPath: resolve(projectRoot, ".pumarejo/artifacts"),
     config: {
       version: 1,
       launch: {
@@ -35,13 +35,13 @@ function fixtureConfig(): LoadedProjectConfig {
           "tauri",
           "dev",
           "--features",
-          "tauri-agent",
+          "pumarejo",
           "--config",
           MODE_CONFIG_PLACEHOLDER,
         ],
       },
       window: "main",
-      artifactsDirectory: ".tauri-agent/artifacts",
+      artifactsDirectory: ".pumarejo/artifacts",
       retainArtifacts: false,
     },
   };
@@ -77,7 +77,7 @@ export async function runRuntimeMode(
   const environment: NodeJS.ProcessEnv = {
     ...process.env,
     CARGO_TARGET_DIR:
-      process.env.TAURI_AGENT_LIVE_TARGET_DIR ??
+      process.env.PUMAREJO_LIVE_TARGET_DIR ??
       resolve(".proof-target", "runtime-modes"),
   };
   const before =
@@ -135,7 +135,7 @@ export async function runRuntimeMode(
         after,
         controlledDisplay:
           platform === "linux"
-            ? environment.TAURI_AGENT_BACKGROUND_DISPLAY
+            ? environment.PUMAREJO_BACKGROUND_DISPLAY
             : undefined,
         transientFocusChanged,
       });

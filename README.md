@@ -1,6 +1,6 @@
-# Tauri Agent
+# pumarejo
 
-Tauri Agent gives an MCP client semantic control of one instrumented Tauri 2
+pumarejo gives an MCP client semantic control of one instrumented Tauri 2
 WebView without moving the operating-system pointer or typing through the
 desktop. It launches an owned application process, observes its accessible
 document, acts on opaque snapshot references, and removes the session when the
@@ -21,20 +21,20 @@ native support matrix described in [compatibility](docs/compatibility.md).
 ## Install and integrate
 
 ```sh
-pnpm add -D @cie/tauri-agent
-pnpm exec tauri-agent init --project .
-pnpm exec tauri-agent doctor --project .
+pnpm add -D pumarejo
+pnpm exec pumarejo init --project .
+pnpm exec pumarejo doctor --project .
 ```
 
 Preview reversible integration changes with `--dry-run`. `init` adds an
 optional Cargo feature, a private capability overlay, guarded Rust
-registration, and `.tauri-agent.json`; it does not enable the provider in a
+registration, and `.pumarejo.json`; it does not enable the provider in a
 normal build.
 
 To remove attributable integration while preserving unrelated edits:
 
 ```sh
-pnpm exec tauri-agent remove --project .
+pnpm exec pumarejo remove --project .
 ```
 
 ## MCP host configuration
@@ -42,7 +42,7 @@ pnpm exec tauri-agent remove --project .
 Configure the MCP host to execute:
 
 ```text
-pnpm exec tauri-agent mcp --project /absolute/path/to/project
+pnpm exec pumarejo mcp --project /absolute/path/to/project
 ```
 
 The server writes only JSON-RPC to stdout. Diagnostics use stderr. It exposes

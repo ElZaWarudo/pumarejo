@@ -2,7 +2,7 @@
 set -euo pipefail
 
 source_dir="${1:?workspace source directory is required}"
-run_dir="${2:-$(mktemp -d /home/teb/tauri-agent-ru1-XXXXXX)}"
+run_dir="${2:-$(mktemp -d /home/teb/pumarejo-ru1-XXXXXX)}"
 mkdir -p "$run_dir"
 printf 'RUN_DIR=%s\n' "$run_dir"
 
@@ -23,17 +23,17 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 pnpm install --frozen-lockfile
 
-export TAURI_AGENT_RUN_PROVIDER=1
-export TAURI_AGENT_REQUIRE_AUTH_HOST=1
-export TAURI_AGENT_RUN_CARGO=1
-export TAURI_AGENT_ACCEPT_NONSTANDARD_HOST=1
-export TAURI_AGENT_HOST_EXCEPTION_ID=USER-2026-07-27-WINDOWS-WSL
-export TAURI_AGENT_OS_BUILD=6.6.87.2-microsoft-standard-WSL2
-export TAURI_AGENT_DISPLAY_SESSION=WSLg-Wayland
-export TAURI_AGENT_WEBVIEW_RUNTIME=WebKitGTK-2.52.3
-export TAURI_AGENT_NO_TRANSIENT_WINDOW=1
-export TAURI_AGENT_NO_FOCUS_CHANGE=1
-export TAURI_AGENT_PROVIDER_READY_TIMEOUT_MS=600000
+export PUMAREJO_RUN_PROVIDER=1
+export PUMAREJO_REQUIRE_AUTH_HOST=1
+export PUMAREJO_RUN_CARGO=1
+export PUMAREJO_ACCEPT_NONSTANDARD_HOST=1
+export PUMAREJO_HOST_EXCEPTION_ID=USER-2026-07-27-WINDOWS-WSL
+export PUMAREJO_OS_BUILD=6.6.87.2-microsoft-standard-WSL2
+export PUMAREJO_DISPLAY_SESSION=WSLg-Wayland
+export PUMAREJO_WEBVIEW_RUNTIME=WebKitGTK-2.52.3
+export PUMAREJO_NO_TRANSIENT_WINDOW=1
+export PUMAREJO_NO_FOCUS_CHANGE=1
+export PUMAREJO_PROVIDER_READY_TIMEOUT_MS=600000
 # WSLg's Wayland path stalls WebKitGTK initialization on this host; XWayland is
 # the usable active desktop supplied by the same WSLg session.
 export GDK_BACKEND=x11
@@ -53,6 +53,6 @@ done
   exit 1
 }
 export XAUTHORITY="$xauth_file"
-export TAURI_AGENT_BACKGROUND_DISPLAY=127.0.0.1:99
+export PUMAREJO_BACKGROUND_DISPLAY=127.0.0.1:99
 
 pnpm test:platform:linux

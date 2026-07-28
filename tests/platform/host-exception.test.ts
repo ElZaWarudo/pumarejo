@@ -3,33 +3,33 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { nonstandardHostAccepted } from "./host.js";
 
-const originalFlag = process.env.TAURI_AGENT_ACCEPT_NONSTANDARD_HOST;
-const originalId = process.env.TAURI_AGENT_HOST_EXCEPTION_ID;
+const originalFlag = process.env.PUMAREJO_ACCEPT_NONSTANDARD_HOST;
+const originalId = process.env.PUMAREJO_HOST_EXCEPTION_ID;
 
 afterEach(() => {
   if (originalFlag === undefined) {
-    delete process.env.TAURI_AGENT_ACCEPT_NONSTANDARD_HOST;
+    delete process.env.PUMAREJO_ACCEPT_NONSTANDARD_HOST;
   } else {
-    process.env.TAURI_AGENT_ACCEPT_NONSTANDARD_HOST = originalFlag;
+    process.env.PUMAREJO_ACCEPT_NONSTANDARD_HOST = originalFlag;
   }
   if (originalId === undefined) {
-    delete process.env.TAURI_AGENT_HOST_EXCEPTION_ID;
+    delete process.env.PUMAREJO_HOST_EXCEPTION_ID;
   } else {
-    process.env.TAURI_AGENT_HOST_EXCEPTION_ID = originalId;
+    process.env.PUMAREJO_HOST_EXCEPTION_ID = originalId;
   }
 });
 
 describe("nonstandard host exception", () => {
   it("accepts only the explicit flag paired with the audited id", () => {
-    process.env.TAURI_AGENT_ACCEPT_NONSTANDARD_HOST = "1";
-    process.env.TAURI_AGENT_HOST_EXCEPTION_ID = "USER-2026-07-27-WINDOWS-WSL";
+    process.env.PUMAREJO_ACCEPT_NONSTANDARD_HOST = "1";
+    process.env.PUMAREJO_HOST_EXCEPTION_ID = "USER-2026-07-27-WINDOWS-WSL";
     expect(nonstandardHostAccepted()).toBe(true);
 
-    process.env.TAURI_AGENT_HOST_EXCEPTION_ID = "unrecognized";
+    process.env.PUMAREJO_HOST_EXCEPTION_ID = "unrecognized";
     expect(nonstandardHostAccepted()).toBe(false);
 
-    delete process.env.TAURI_AGENT_ACCEPT_NONSTANDARD_HOST;
-    process.env.TAURI_AGENT_HOST_EXCEPTION_ID = "USER-2026-07-27-WINDOWS-WSL";
+    delete process.env.PUMAREJO_ACCEPT_NONSTANDARD_HOST;
+    process.env.PUMAREJO_HOST_EXCEPTION_ID = "USER-2026-07-27-WINDOWS-WSL";
     expect(nonstandardHostAccepted()).toBe(false);
   });
 
@@ -41,11 +41,11 @@ describe("nonstandard host exception", () => {
         encoding: "utf8",
         env: {
           ...process.env,
-          TAURI_AGENT_RUN_PROVIDER: "1",
-          TAURI_AGENT_REQUIRE_AUTH_HOST: "1",
-          TAURI_AGENT_RUN_CARGO: "1",
-          TAURI_AGENT_ACCEPT_NONSTANDARD_HOST: "1",
-          TAURI_AGENT_HOST_EXCEPTION_ID: "unrecognized",
+          PUMAREJO_RUN_PROVIDER: "1",
+          PUMAREJO_REQUIRE_AUTH_HOST: "1",
+          PUMAREJO_RUN_CARGO: "1",
+          PUMAREJO_ACCEPT_NONSTANDARD_HOST: "1",
+          PUMAREJO_HOST_EXCEPTION_ID: "unrecognized",
         },
       },
     );

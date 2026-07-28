@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export const INTEGRATION_MANIFEST_RELATIVE_PATH =
-  ".tauri-agent/integration-manifest.json";
+  ".pumarejo/integration-manifest.json";
 
 export type IntegrationChangeKind =
   | "cargo"

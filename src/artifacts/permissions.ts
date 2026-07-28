@@ -3,7 +3,7 @@ import { chmod, stat } from "node:fs/promises";
 import { win32 } from "node:path";
 import { promisify } from "node:util";
 
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -24,7 +24,7 @@ export interface PermissionCommandRunner {
 const WINDOWS_IDENTITY_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
 $path = [Environment]::GetEnvironmentVariable(
-  'TAURI_AGENT_ARTIFACT_PATH',
+  'PUMAREJO_ARTIFACT_PATH',
   'Process'
 )
 if ([string]::IsNullOrEmpty($path)) { exit 40 }
@@ -38,11 +38,11 @@ Write-Output $sid.Value
 const WINDOWS_VERIFY_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
 $path = [Environment]::GetEnvironmentVariable(
-  'TAURI_AGENT_ARTIFACT_PATH',
+  'PUMAREJO_ARTIFACT_PATH',
   'Process'
 )
 $sidValue = [Environment]::GetEnvironmentVariable(
-  'TAURI_AGENT_ARTIFACT_SID',
+  'PUMAREJO_ARTIFACT_SID',
   'Process'
 )
 if (
@@ -71,8 +71,8 @@ if (
 ) { exit 42 }
 `;
 
-function permissionError(cause?: unknown): TauriAgentError {
-  return new TauriAgentError("SCREENSHOT_FAILED", { cause });
+function permissionError(cause?: unknown): PumarejoError {
+  return new PumarejoError("SCREENSHOT_FAILED", { cause });
 }
 
 export function createArtifactPermissionEnforcer(
@@ -109,8 +109,8 @@ export function createArtifactPermissionEnforcer(
             ComSpec:
               process.env.ComSpec ??
               win32.join(systemRoot, "System32", "cmd.exe"),
-            TAURI_AGENT_ARTIFACT_PATH: path,
-            TAURI_AGENT_ARTIFACT_KIND: kind,
+            PUMAREJO_ARTIFACT_PATH: path,
+            PUMAREJO_ARTIFACT_KIND: kind,
           };
           const powerShell = win32.join(
             systemRoot,
@@ -156,7 +156,7 @@ export function createArtifactPermissionEnforcer(
             {
               env: {
                 ...environment,
-                TAURI_AGENT_ARTIFACT_SID: sid,
+                PUMAREJO_ARTIFACT_SID: sid,
               },
             },
           );

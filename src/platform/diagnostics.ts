@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { win32 } from "node:path";
 import { promisify } from "node:util";
 
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import type { RuntimeMode } from "../session/state.js";
 import { sanitizedLaunchEnvironment } from "./launch-environment.js";
 
@@ -43,7 +43,7 @@ export function validatedFocusMonitorResult(
   unexpectedExit: boolean,
 ): string | undefined {
   if (unexpectedExit && changedWindow === undefined) {
-    throw new TauriAgentError("BACKGROUND_UNAVAILABLE", {
+    throw new PumarejoError("BACKGROUND_UNAVAILABLE", {
       cause: new Error("Foreground monitor exited unexpectedly."),
     });
   }
@@ -74,10 +74,10 @@ export async function captureDesktopState(
     );
     if (platform === "windows") {
       const script = [
-        'Add-Type -Namespace TauriAgent -Name Desktop -MemberDefinition \'[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);\'',
-        "$h = [TauriAgent.Desktop]::GetForegroundWindow()",
+        'Add-Type -Namespace Pumarejo -Name Desktop -MemberDefinition \'[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);\'',
+        "$h = [Pumarejo.Desktop]::GetForegroundWindow()",
         "$p = [uint32]0",
-        "[void][TauriAgent.Desktop]::GetWindowThreadProcessId($h, [ref]$p)",
+        "[void][Pumarejo.Desktop]::GetWindowThreadProcessId($h, [ref]$p)",
         'Write-Output ("{0}:{1}" -f $p, $h.ToInt64())',
       ].join("; ");
       const activeWindow = (
@@ -110,7 +110,7 @@ export async function captureDesktopState(
     if (activeWindow === undefined) throw new Error("invalid active window");
     return { platform, activeWindow, display };
   } catch (error) {
-    throw new TauriAgentError("BACKGROUND_UNAVAILABLE", { cause: error });
+    throw new PumarejoError("BACKGROUND_UNAVAILABLE", { cause: error });
   }
 }
 
@@ -119,16 +119,16 @@ export async function startWindowsFocusMonitor(
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<FocusMonitor> {
   if (!/^\d+:\d+$/u.test(expectedWindow)) {
-    throw new TauriAgentError("BACKGROUND_UNAVAILABLE");
+    throw new PumarejoError("BACKGROUND_UNAVAILABLE");
   }
   const script = [
-    'Add-Type -Namespace TauriAgent -Name FocusMonitor -MemberDefinition \'[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);\'',
-    "$expected = $env:TAURI_AGENT_EXPECTED_FOREGROUND",
+    'Add-Type -Namespace Pumarejo -Name FocusMonitor -MemberDefinition \'[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);\'',
+    "$expected = $env:PUMAREJO_EXPECTED_FOREGROUND",
     'Write-Output "READY"',
     "while ($true) {",
-    "  $h = [TauriAgent.FocusMonitor]::GetForegroundWindow()",
+    "  $h = [Pumarejo.FocusMonitor]::GetForegroundWindow()",
     "  $p = [uint32]0",
-    "  [void][TauriAgent.FocusMonitor]::GetWindowThreadProcessId($h, [ref]$p)",
+    "  [void][Pumarejo.FocusMonitor]::GetWindowThreadProcessId($h, [ref]$p)",
     '  $current = ("{0}:{1}" -f $p, $h.ToInt64())',
     '  if ($current -ne $expected) { Write-Output ("CHANGED:{0}" -f $current); exit 0 }',
     "  Start-Sleep -Milliseconds 10",
@@ -141,7 +141,7 @@ export async function startWindowsFocusMonitor(
       {
         env: {
           ...sanitizedLaunchEnvironment("windows", environment),
-          TAURI_AGENT_EXPECTED_FOREGROUND: expectedWindow,
+          PUMAREJO_EXPECTED_FOREGROUND: expectedWindow,
         },
         shell: false,
         stdio: ["ignore", "pipe", "ignore"],
@@ -207,14 +207,14 @@ export async function startWindowsFocusMonitor(
           }
           return validatedFocusMonitorResult(changedWindow, unexpectedExit);
         })().catch((error: unknown) => {
-          if (error instanceof TauriAgentError) throw error;
-          throw new TauriAgentError("BACKGROUND_UNAVAILABLE", { cause: error });
+          if (error instanceof PumarejoError) throw error;
+          throw new PumarejoError("BACKGROUND_UNAVAILABLE", { cause: error });
         });
         return stopPromise;
       },
     };
   } catch (error) {
-    throw new TauriAgentError("BACKGROUND_UNAVAILABLE", { cause: error });
+    throw new PumarejoError("BACKGROUND_UNAVAILABLE", { cause: error });
   }
 }
 
@@ -229,14 +229,14 @@ export function validateModeIsolation(options: {
     options.before.platform !== options.after.platform ||
     options.before.display !== options.after.display
   ) {
-    throw new TauriAgentError("BACKGROUND_UNAVAILABLE");
+    throw new PumarejoError("BACKGROUND_UNAVAILABLE");
   }
   if (options.mode === "background") {
     if (
       options.transientFocusChanged !== undefined ||
       options.before.activeWindow !== options.after.activeWindow
     ) {
-      throw new TauriAgentError("BACKGROUND_UNAVAILABLE", {
+      throw new PumarejoError("BACKGROUND_UNAVAILABLE", {
         cause: new Error(
           `Foreground changed from ${options.before.activeWindow} to ${
             options.transientFocusChanged ?? options.after.activeWindow
@@ -249,7 +249,7 @@ export function validateModeIsolation(options: {
       (options.controlledDisplay === undefined ||
         options.controlledDisplay === options.before.display)
     ) {
-      throw new TauriAgentError("BACKGROUND_UNAVAILABLE");
+      throw new PumarejoError("BACKGROUND_UNAVAILABLE");
     }
   }
 }

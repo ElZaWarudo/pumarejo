@@ -31,7 +31,7 @@ const FIXTURE_ROOT = join(
 const temporaryDirectories: string[] = [];
 
 async function projectCopy(fixture = "pnpm-json"): Promise<string> {
-  const project = await mkdtemp(join(tmpdir(), "tauri-agent-init-"));
+  const project = await mkdtemp(join(tmpdir(), "pumarejo-init-"));
   temporaryDirectories.push(project);
   const { cp } = await import("node:fs/promises");
   await cp(
@@ -117,9 +117,9 @@ describe("Tauri project initialization", () => {
     expect(result.changes.map((change) => change.relativePath)).toEqual([
       "src-tauri/Cargo.toml",
       "src-tauri/src/lib.rs",
-      ".tauri-agent/agent-capability.json",
+      ".pumarejo/agent-capability.json",
       ".gitignore",
-      ".tauri-agent.json",
+      ".pumarejo.json",
     ]);
     expect(await treeSnapshot(project)).toBe(before);
   });
@@ -139,9 +139,7 @@ describe("Tauri project initialization", () => {
       "utf8",
     );
     expect(cargo.match(/tauri-plugin-wdio-webdriver/g)).toHaveLength(2);
-    expect(cargo).toContain(
-      'tauri-agent = ["dep:tauri-plugin-wdio-webdriver"]',
-    );
+    expect(cargo).toContain('pumarejo = ["dep:tauri-plugin-wdio-webdriver"]');
     expect(cargo).not.toContain("target.'cfg(debug_assertions)'.dependencies");
 
     const rust = await readFile(
@@ -149,14 +147,14 @@ describe("Tauri project initialization", () => {
       "utf8",
     );
     expect(rust).toContain(
-      '#[cfg(all(debug_assertions, feature = "tauri-agent"))]',
+      '#[cfg(all(debug_assertions, feature = "pumarejo"))]',
     );
-    expect(rust).toContain("tauri_agent_builder(tauri::Builder::default())");
-    expect(rust.match(/<tauri-agent:begin>/g)).toHaveLength(1);
+    expect(rust).toContain("pumarejo_builder(tauri::Builder::default())");
+    expect(rust.match(/<pumarejo:begin>/g)).toHaveLength(1);
 
     const capability = JSON.parse(
       await readFile(
-        join(project, ".tauri-agent", "agent-capability.json"),
+        join(project, ".pumarejo", "agent-capability.json"),
         "utf8",
       ),
     ) as { permissions: string[] };
@@ -177,14 +175,14 @@ describe("Tauri project initialization", () => {
     expect(packageManifest.scripts).toEqual({ tauri: "tauri" });
 
     const config = JSON.parse(
-      await readFile(join(project, ".tauri-agent.json"), "utf8"),
+      await readFile(join(project, ".pumarejo.json"), "utf8"),
     ) as { launch: { args: string[] } };
-    expect(config.launch.args).toContain("tauri-agent");
+    expect(config.launch.args).toContain("pumarejo");
     expect(config.launch.args).toContain("{tauriConfig}");
 
     const manifest = JSON.parse(
       await readFile(
-        join(project, ".tauri-agent", "integration-manifest.json"),
+        join(project, ".pumarejo", "integration-manifest.json"),
         "utf8",
       ),
     ) as {
@@ -197,10 +195,10 @@ describe("Tauri project initialization", () => {
     expect(manifest.changes.flatMap((change) => change.attribution)).toEqual(
       expect.arrayContaining([
         "dependency:tauri-plugin-wdio-webdriver:optional",
-        "feature:tauri-agent:created:dep:tauri-plugin-wdio-webdriver",
-        "marker:<tauri-agent:begin>",
+        "feature:pumarejo:created:dep:tauri-plugin-wdio-webdriver",
+        "marker:<pumarejo:begin>",
         "permission:wdio-webdriver:default",
-        "created:.tauri-agent.json",
+        "created:.pumarejo.json",
       ]),
     );
   });
@@ -223,7 +221,7 @@ describe("Tauri project initialization", () => {
         status: "already-integrated",
       });
       const config = JSON.parse(
-        await readFile(join(project, ".tauri-agent.json"), "utf8"),
+        await readFile(join(project, ".pumarejo.json"), "utf8"),
       ) as { launch: { command: string } };
       expect(config.launch.command).toBe(command);
     },
@@ -259,9 +257,7 @@ describe("Tauri project initialization", () => {
       status: "applied",
     });
     const integrated = await readFile(rustPath, "utf8");
-    expect(integrated).toContain(
-      "tauri_agent_builder(tauri::Builder::default())",
-    );
+    expect(integrated).toContain("pumarejo_builder(tauri::Builder::default())");
   });
 
   it("inserts its Rust helper after multiline crate attributes", async () => {
@@ -279,7 +275,7 @@ describe("Tauri project initialization", () => {
     });
     const integrated = await readFile(rustPath, "utf8");
     expect(integrated.indexOf("#![")).toBeLessThan(
-      integrated.indexOf("// <tauri-agent:begin>"),
+      integrated.indexOf("// <pumarejo:begin>"),
     );
   });
 
@@ -370,7 +366,7 @@ describe("Tauri project initialization", () => {
   it("rejects a junction introduced during writes and rolls back inside the root", async () => {
     const project = await projectCopy();
     const plan = await planIntegration(project);
-    const outside = await mkdtemp(join(tmpdir(), "tauri-agent-race-outside-"));
+    const outside = await mkdtemp(join(tmpdir(), "pumarejo-race-outside-"));
     temporaryDirectories.push(outside);
     const before = await treeSnapshot(project);
     const { symlink } = await import("node:fs/promises");
@@ -379,14 +375,12 @@ describe("Tauri project initialization", () => {
       applyIntegrationPlan(plan, {
         beforeWrite: async (index) => {
           if (index === 2) {
-            await rm(
-              join(project, ".tauri-agent", "integration-manifest.json"),
-            );
+            await rm(join(project, ".pumarejo", "integration-manifest.json"));
             const { rmdir } = await import("node:fs/promises");
-            await rmdir(join(project, ".tauri-agent"));
+            await rmdir(join(project, ".pumarejo"));
             await symlink(
               outside,
-              join(project, ".tauri-agent"),
+              join(project, ".pumarejo"),
               process.platform === "win32" ? "junction" : "dir",
             );
           }
@@ -402,7 +396,7 @@ describe("Tauri project initialization", () => {
     const project = await projectCopy();
     const plan = await planIntegration(project);
     const backup = `${project}-original`;
-    const outside = await mkdtemp(join(tmpdir(), "tauri-agent-root-outside-"));
+    const outside = await mkdtemp(join(tmpdir(), "pumarejo-root-outside-"));
     temporaryDirectories.push(backup, outside);
 
     await expect(
@@ -424,7 +418,7 @@ describe("Tauri project initialization", () => {
     await rm(project);
     await rename(backup, project);
     expect(await treeSnapshot(project)).not.toMatch(
-      /(?:^|\n)d:\.tauri-agent(?:\\|\n|$)/,
+      /(?:^|\n)d:\.pumarejo(?:\\|\n|$)/,
     );
   });
 
@@ -434,7 +428,7 @@ describe("Tauri project initialization", () => {
     if (plan.manifestChange === null) {
       throw new Error("expected an applying manifest");
     }
-    await mkdir(join(project, ".tauri-agent"));
+    await mkdir(join(project, ".pumarejo"));
     await writeFile(
       plan.manifestChange.absolutePath,
       plan.manifestChange.afterContent,
@@ -473,7 +467,7 @@ permissions = ["core:default", "core:window:default"]
     expect(await readFile(tomlCapability, "utf8")).toBe(original);
     const generated = JSON.parse(
       await readFile(
-        join(project, ".tauri-agent", "agent-capability.json"),
+        join(project, ".pumarejo", "agent-capability.json"),
         "utf8",
       ),
     ) as { permissions: string[] };
@@ -482,11 +476,7 @@ permissions = ["core:default", "core:window:default"]
 
   it("refuses to overwrite a pre-existing public configuration", async () => {
     const project = await projectCopy();
-    await writeFile(
-      join(project, ".tauri-agent.json"),
-      '{"version":1}',
-      "utf8",
-    );
+    await writeFile(join(project, ".pumarejo.json"), '{"version":1}', "utf8");
     const before = await treeSnapshot(project);
 
     await expect(initializeProject(project)).rejects.toMatchObject({
@@ -503,7 +493,7 @@ permissions = ["core:default", "core:window:default"]
       status: "applied",
     });
     expect(await readFile(join(project, ".gitignore"), "utf8")).toContain(
-      "/.tauri-agent/",
+      "/.pumarejo/",
     );
   });
 
@@ -541,7 +531,7 @@ existing = ["tauri/custom-protocol"]
       cargoPath,
       `${await readFile(cargoPath, "utf8")}
 [features]
-tauri-agent = ["tauri/custom-protocol"] # developer feature
+pumarejo = ["tauri/custom-protocol"] # developer feature
 `,
       "utf8",
     );

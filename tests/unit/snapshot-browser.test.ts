@@ -144,12 +144,12 @@ describe("standards-derived browser snapshot", () => {
       <button style="display:none">Hidden</button>
       <div inert><button>Inert</button></div>
       <input type="password" value="hunter2">
-      <div data-tauri-agent-sensitive="true"><p>private instruction</p></div>
-      <span id="sensitive-label" data-tauri-agent-sensitive="true">secret label</span>
+      <div data-pumarejo-sensitive="true"><p>private instruction</p></div>
+      <span id="sensitive-label" data-pumarejo-sensitive="true">secret label</span>
       <span id="indirect-label" aria-labelledby="sensitive-label">Public fallback</span>
       <button aria-labelledby="sensitive-label">Fallback label</button>
       <button aria-labelledby="indirect-label">Indirect fallback</button>
-      <button data-tauri-agent-sensitive="true">secret button name</button>
+      <button data-pumarejo-sensitive="true">secret button name</button>
       <button><span aria-labelledby="sensitive-label">Nested fallback</span></button>
       <button aria-owns="sensitive-label">Owned fallback</button>
       <label for="safe-password">Safe password label</label>
@@ -160,7 +160,7 @@ describe("standards-derived browser snapshot", () => {
     document.querySelector("#shadow-sensitive-host")!.attachShadow({
       mode: "open",
     }).innerHTML = `
-      <span id="shadow-secret" data-tauri-agent-sensitive="true">shadow secret label</span>
+      <span id="shadow-secret" data-pumarejo-sensitive="true">shadow secret label</span>
       <button aria-labelledby="shadow-secret">Shadow fallback</button>
     `;
     const snapshot = collectSnapshot();

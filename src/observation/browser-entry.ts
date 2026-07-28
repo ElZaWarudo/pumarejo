@@ -281,7 +281,7 @@ function isSensitive(element: Element): boolean {
     candidate;
     candidate = composedParent(candidate)
   ) {
-    if (candidate.getAttribute("data-tauri-agent-sensitive") === "true") {
+    if (candidate.getAttribute("data-pumarejo-sensitive") === "true") {
       return true;
     }
   }

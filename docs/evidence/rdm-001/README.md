@@ -10,8 +10,8 @@ Current status: **passed** under explicit host exception
 
 On 2026-07-27 the user explicitly accepted the available Windows host and WSL
 as usable proof hosts. The harness requires both
-`TAURI_AGENT_ACCEPT_NONSTANDARD_HOST=1` and the matching
-`TAURI_AGENT_HOST_EXCEPTION_ID`; this exception applies only to the prototype
+`PUMAREJO_ACCEPT_NONSTANDARD_HOST=1` and the matching
+`PUMAREJO_HOST_EXCEPTION_ID`; this exception applies only to the prototype
 feasibility evidence and does not change the supported-platform requirements.
 
 - The minimal fixture and Cargo feature/registration guard are present under `tests/fixtures/tauri-app/`.
@@ -53,7 +53,7 @@ control the user session, not a compromised local account.
 Supplemental local commands (passing with `RUSTUP_TOOLCHAIN=stable-x86_64-pc-windows-msvc`):
 
 ```text
-TAURI_AGENT_RUN_PROVIDER=1 pnpm vitest run tests/platform/provider-proof.test.ts
-TAURI_AGENT_RUN_PROVIDER=1 pnpm vitest run tests/platform/background-proof.test.ts
-TAURI_AGENT_RUN_CARGO=1 pnpm vitest run tests/platform/cargo-proof.test.ts
+PUMAREJO_RUN_PROVIDER=1 pnpm vitest run tests/platform/provider-proof.test.ts
+PUMAREJO_RUN_PROVIDER=1 pnpm vitest run tests/platform/background-proof.test.ts
+PUMAREJO_RUN_CARGO=1 pnpm vitest run tests/platform/cargo-proof.test.ts
 ```

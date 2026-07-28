@@ -10,7 +10,7 @@ coverage/
 *.tgz
 
 # Runtime state and generated integration artifacts
-**/.tauri-agent/
+**/.pumarejo/
 
 # Local environment
 .env

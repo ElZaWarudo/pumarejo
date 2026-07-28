@@ -1,10 +1,10 @@
 ---
-title: Tauri Agent Delivery Workflow
+title: pumarejo Delivery Workflow
 date: 2026-07-23
 release_policy: deferred-until-all-implementation-complete
 ---
 
-# Tauri Agent Delivery Workflow
+# pumarejo Delivery Workflow
 
 ## Development posture
 
@@ -61,7 +61,7 @@ CI configuration is implementation scope; enabling external repository checks oc
 ## Versioning and publication
 
 - Package contract follows semantic versioning.
-- The initial publish target is `@cie/tauri-agent`, subject to registry availability and authorization during release.
-- The CLI binary name is `tauri-agent`.
+- The initial publish target is `pumarejo`, subject to registry availability and authorization during release.
+- The CLI binary name is `pumarejo`.
 - The repository must be publishable with package contents limited to runtime output, templates, license, and user documentation.
 - Publication uses provenance and two-factor-capable npm authentication when the final environment supports them.

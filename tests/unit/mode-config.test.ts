@@ -39,9 +39,9 @@ afterEach(async () => {
 });
 
 async function fixture(command = "pnpm"): Promise<LoadedProjectConfig> {
-  const projectRoot = await mkdtemp(join(tmpdir(), "tauri-agent-mode-"));
+  const projectRoot = await mkdtemp(join(tmpdir(), "pumarejo-mode-"));
   roots.push(projectRoot);
-  await mkdir(join(projectRoot, ".tauri-agent"));
+  await mkdir(join(projectRoot, ".pumarejo"));
   await writeFile(
     join(projectRoot, "package.json"),
     '{"private":true,"devDependencies":{"@tauri-apps/cli":"2.11.4"}}\n',
@@ -61,8 +61,8 @@ async function fixture(command = "pnpm"): Promise<LoadedProjectConfig> {
   );
   return {
     projectRoot,
-    configPath: join(projectRoot, ".tauri-agent.json"),
-    artifactsPath: join(projectRoot, ".tauri-agent", "artifacts"),
+    configPath: join(projectRoot, ".pumarejo.json"),
+    artifactsPath: join(projectRoot, ".pumarejo", "artifacts"),
     config: {
       version: 1,
       launch: {
@@ -71,13 +71,13 @@ async function fixture(command = "pnpm"): Promise<LoadedProjectConfig> {
           "tauri",
           "dev",
           "--features",
-          "tauri-agent",
+          "pumarejo",
           "--config",
           MODE_CONFIG_PLACEHOLDER,
         ],
       },
       window: "primary",
-      artifactsDirectory: ".tauri-agent/artifacts",
+      artifactsDirectory: ".pumarejo/artifacts",
       retainArtifacts: false,
     },
   };
@@ -129,12 +129,12 @@ describe("mode-specific platform launch", () => {
       mode: "background",
       windowLabel: loaded.config.window,
     });
-    const agentDirectory = join(loaded.projectRoot, ".tauri-agent");
+    const agentDirectory = join(loaded.projectRoot, ".pumarejo");
     const originalAgentDirectory = join(
       loaded.projectRoot,
-      ".tauri-agent-original",
+      ".pumarejo-original",
     );
-    const outside = await mkdtemp(join(tmpdir(), "tauri-agent-outside-"));
+    const outside = await mkdtemp(join(tmpdir(), "pumarejo-outside-"));
     roots.push(outside);
     const redirectedRuntime = join(outside, basename(overlay.directory));
     await rename(agentDirectory, originalAgentDirectory);
@@ -274,7 +274,7 @@ describe("mode-specific platform launch", () => {
     const source = {
       DISPLAY: ":0",
       WAYLAND_DISPLAY: "wayland-0",
-      TAURI_AGENT_BACKGROUND_DISPLAY: "127.0.0.1:99",
+      PUMAREJO_BACKGROUND_DISPLAY: "127.0.0.1:99",
     };
     expect(linuxDisplayEnvironment("visible", source)).toMatchObject({
       DISPLAY: ":0",
@@ -289,7 +289,7 @@ describe("mode-specific platform launch", () => {
     expect(source).toEqual({
       DISPLAY: ":0",
       WAYLAND_DISPLAY: "wayland-0",
-      TAURI_AGENT_BACKGROUND_DISPLAY: "127.0.0.1:99",
+      PUMAREJO_BACKGROUND_DISPLAY: "127.0.0.1:99",
     });
     expect(() => linuxDisplayEnvironment("background", {})).toThrowError(
       expect.objectContaining({ code: "BACKGROUND_UNAVAILABLE" }),

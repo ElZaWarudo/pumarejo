@@ -8,7 +8,7 @@ import {
   SessionManager,
   type SessionManagerDependencies,
 } from "../../src/session/manager.js";
-import { TauriAgentError } from "../../src/shared/errors.js";
+import { PumarejoError } from "../../src/shared/errors.js";
 import type { WebDriverClient } from "../../src/webdriver/client.js";
 
 const SESSION_NONCE = "a".repeat(64);
@@ -61,20 +61,20 @@ function harness(
     async waitUntilReady() {
       events.push("webdriver-ready");
       if (options.failure === "webdriver-ready") {
-        throw new TauriAgentError("WEBDRIVER_NOT_READY");
+        throw new PumarejoError("WEBDRIVER_NOT_READY");
       }
     },
     async createSession() {
       events.push("create-session");
       if (options.failure === "session") {
-        throw new TauriAgentError("SESSION_CREATE_FAILED");
+        throw new PumarejoError("SESSION_CREATE_FAILED");
       }
     },
     async selectWindow(window: string) {
       events.push("select-window");
       selectedWindow = window;
       if (options.failure === "window") {
-        throw new TauriAgentError("WINDOW_NOT_FOUND");
+        throw new PumarejoError("WINDOW_NOT_FOUND");
       }
     },
     async deleteSession() {
@@ -91,7 +91,7 @@ function harness(
     async reservePort(preferredPort) {
       events.push(`reserve:${preferredPort ?? "random"}`);
       if (options.failure === "reserve") {
-        throw new TauriAgentError("PORT_UNAVAILABLE");
+        throw new PumarejoError("PORT_UNAVAILABLE");
       }
       return {
         port: preferredPort ?? 50_001,
@@ -130,14 +130,14 @@ function harness(
           pid: 71,
           startedAt: 1_000,
           commandHash: launchCommandHash(request.command, request.args),
-          sessionNonce: String(request.env.TAURI_AGENT_SESSION_NONCE),
+          sessionNonce: String(request.env.PUMAREJO_SESSION_NONCE),
         };
         const application = {
           ...identity,
           async waitUntilProviderReady(_port: number, signal?: AbortSignal) {
             events.push("provider-ready");
             if (options.failure === "provider-ready") {
-              throw new TauriAgentError("WEBDRIVER_NOT_READY");
+              throw new PumarejoError("WEBDRIVER_NOT_READY");
             }
             if (options.providerReady !== undefined) {
               await Promise.race([

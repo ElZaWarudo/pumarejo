@@ -333,10 +333,10 @@ async function residueDiagnostic(
       "residue.owned",
       "warn",
       "Owned process residue could not be inspected.",
-      "Fix project detection, then inspect .tauri-agent.",
+      "Fix project detection, then inspect .pumarejo.",
     );
   }
-  const sessions = resolve(projectRoot, ".tauri-agent", "sessions");
+  const sessions = resolve(projectRoot, ".pumarejo", "sessions");
   const manifestPath = resolve(projectRoot, INTEGRATION_MANIFEST_RELATIVE_PATH);
   let interruptedManifest = false;
   try {
@@ -389,7 +389,7 @@ async function residueDiagnostic(
       "residue.owned",
       "warn",
       "Owned session residue could not be read safely.",
-      "Inspect .tauri-agent without terminating unrelated processes.",
+      "Inspect .pumarejo without terminating unrelated processes.",
     );
   }
 }
@@ -446,7 +446,7 @@ export async function doctorProject(
         "config.valid",
         "error",
         "The v1 project configuration is missing or invalid.",
-        "Run init or fix .tauri-agent.json.",
+        "Run init or fix .pumarejo.json.",
       ),
     );
   }

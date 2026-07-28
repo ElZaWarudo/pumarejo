@@ -1,20 +1,20 @@
 import { IntegrationPlanError } from "./plan-error.js";
 
 const BUILDER = "tauri::Builder::default()";
-const WRAPPED_BUILDER = `tauri_agent_builder(${BUILDER})`;
-const MARKER_BEGIN = "// <tauri-agent:begin>";
-const MARKER_END = "// <tauri-agent:end>";
+const WRAPPED_BUILDER = `pumarejo_builder(${BUILDER})`;
+const MARKER_BEGIN = "// <pumarejo:begin>";
+const MARKER_END = "// <pumarejo:end>";
 
 const HELPER = `${MARKER_BEGIN}
-#[cfg(all(debug_assertions, feature = "tauri-agent"))]
-fn tauri_agent_builder<R: tauri::Runtime>(
+#[cfg(all(debug_assertions, feature = "pumarejo"))]
+fn pumarejo_builder<R: tauri::Runtime>(
     builder: tauri::Builder<R>,
 ) -> tauri::Builder<R> {
     builder.plugin(tauri_plugin_wdio_webdriver::init())
 }
 
-#[cfg(not(all(debug_assertions, feature = "tauri-agent")))]
-fn tauri_agent_builder<R: tauri::Runtime>(
+#[cfg(not(all(debug_assertions, feature = "pumarejo")))]
+fn pumarejo_builder<R: tauri::Runtime>(
     builder: tauri::Builder<R>,
 ) -> tauri::Builder<R> {
     builder

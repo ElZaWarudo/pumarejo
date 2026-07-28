@@ -11,7 +11,7 @@ const request = {
   command: process.execPath,
   args: ["-e", "setInterval(() => {}, 1000)"],
   cwd: resolve("."),
-  env: { ...process.env, TAURI_AGENT_SESSION_NONCE: NONCE },
+  env: { ...process.env, PUMAREJO_SESSION_NONCE: NONCE },
   shell: false as const,
 };
 

@@ -16,7 +16,7 @@ export class W3cClient {
   constructor(
     port: number,
     host = "127.0.0.1",
-    readonly sessionNonce = process.env.TAURI_AGENT_SESSION_NONCE,
+    readonly sessionNonce = process.env.PUMAREJO_SESSION_NONCE,
   ) {
     if (!Number.isInteger(port) || port < 1024 || port > 65535) {
       throw new Error("W3C port must be an integer in 1024..65535");
@@ -45,7 +45,7 @@ export class W3cClient {
       headers: {
         "content-type": "application/json",
         ...(this.sessionNonce
-          ? { "x-tauri-agent-session-nonce": this.sessionNonce }
+          ? { "x-pumarejo-session-nonce": this.sessionNonce }
           : {}),
         ...(init.headers ?? {}),
       },
