@@ -1,0 +1,92 @@
+[
+  {
+    "name": "button contents",
+    "html": "<button>Save project</button>",
+    "role": "button",
+    "accessibleName": "Save project"
+  },
+  {
+    "name": "aria label precedence",
+    "html": "<button aria-label=\"Explicit name\">Ignored contents</button>",
+    "role": "button",
+    "accessibleName": "Explicit name"
+  },
+  {
+    "name": "hidden referenced label",
+    "html": "<span id=\"hidden-name\" style=\"display:none\">Hidden reference</span><button aria-labelledby=\"hidden-name\">Ignored</button>",
+    "role": "button",
+    "accessibleName": "Hidden reference"
+  },
+  {
+    "name": "associated HTML label",
+    "html": "<label for=\"account\">Account name</label><input id=\"account\">",
+    "role": "textbox",
+    "accessibleName": "Account name"
+  },
+  {
+    "name": "image alternative",
+    "html": "<img alt=\"Build status\">",
+    "role": "img",
+    "accessibleName": "Build status"
+  },
+  {
+    "name": "link contents",
+    "html": "<a href=\"/settings\">Open settings</a>",
+    "role": "link",
+    "accessibleName": "Open settings"
+  },
+  {
+    "name": "multiple labelledby references",
+    "html": "<span id=\"first\">Create</span><span id=\"second\">project</span><button aria-labelledby=\"first second\">Ignored</button>",
+    "role": "button",
+    "accessibleName": "Create project"
+  },
+  {
+    "name": "input title fallback",
+    "html": "<input title=\"Search projects\">",
+    "role": "textbox",
+    "accessibleName": "Search projects"
+  },
+  {
+    "name": "checkbox associated label",
+    "html": "<label><input type=\"checkbox\"> Enable preview</label>",
+    "role": "checkbox",
+    "accessibleName": "Enable preview"
+  },
+  {
+    "name": "select aria label",
+    "html": "<select aria-label=\"Build target\"><option>Debug</option></select>",
+    "role": "combobox",
+    "accessibleName": "Build target"
+  },
+  {
+    "name": "textarea label",
+    "html": "<label for=\"notes\">Release notes</label><textarea id=\"notes\"></textarea>",
+    "role": "textbox",
+    "accessibleName": "Release notes"
+  },
+  {
+    "name": "summary contents",
+    "html": "<details><summary>Advanced options</summary></details>",
+    "role": "button",
+    "accessibleName": "Advanced options"
+  },
+  {
+    "name": "heading aria label",
+    "html": "<h2 aria-label=\"Project overview\">Ignored heading</h2>",
+    "role": "heading",
+    "accessibleName": "Project overview"
+  },
+  {
+    "name": "image labelledby precedence",
+    "html": "<span id=\"diagram-name\">Runtime diagram</span><img alt=\"Ignored\" aria-labelledby=\"diagram-name\">",
+    "role": "img",
+    "accessibleName": "Runtime diagram"
+  },
+  {
+    "name": "button title fallback",
+    "html": "<button title=\"Refresh status\"></button>",
+    "role": "button",
+    "accessibleName": "Refresh status"
+  }
+]
