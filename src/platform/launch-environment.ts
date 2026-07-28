@@ -1,0 +1,133 @@
+const COMMON_KEYS = new Set([
+  "AR",
+  "CARGO_HOME",
+  "CARGO_TARGET_DIR",
+  "CC",
+  "CFLAGS",
+  "CXX",
+  "CXXFLAGS",
+  "HOME",
+  "LANG",
+  "LC_ALL",
+  "LDFLAGS",
+  "LOGNAME",
+  "PATH",
+  "PKG_CONFIG_PATH",
+  "RANLIB",
+  "RUSTC_WRAPPER",
+  "RUSTFLAGS",
+  "RUSTUP_HOME",
+  "RUSTUP_TOOLCHAIN",
+  "SCCACHE_DIR",
+  "SHELL",
+  "TAURI_AGENT_PROVIDER_READY_TIMEOUT_MS",
+  "TEMP",
+  "TMP",
+  "TMPDIR",
+  "USER",
+  "USERNAME",
+]);
+
+const WINDOWS_KEYS = new Set(
+  [
+    "ALLUSERSPROFILE",
+    "APPDATA",
+    "CommandPromptType",
+    "CommonProgramFiles",
+    "CommonProgramFiles(x86)",
+    "CommonProgramW6432",
+    "COMPUTERNAME",
+    "ComSpec",
+    "DevEnvDir",
+    "ExtensionSdkDir",
+    "Framework40Version",
+    "FrameworkDir",
+    "FrameworkDir32",
+    "FrameworkVersion",
+    "FrameworkVersion32",
+    "FSHARPINSTALLDIR",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "HTMLHelpDir",
+    "INCLUDE",
+    "LIB",
+    "LIBPATH",
+    "LOCALAPPDATA",
+    "NETFXSDKDir",
+    "NUMBER_OF_PROCESSORS",
+    "OS",
+    "PATHEXT",
+    "PROCESSOR_ARCHITECTURE",
+    "PROCESSOR_IDENTIFIER",
+    "PROCESSOR_LEVEL",
+    "PROCESSOR_REVISION",
+    "ProgramData",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "ProgramW6432",
+    "PUBLIC",
+    "SystemDrive",
+    "SystemRoot",
+    "UniversalCRTSdkDir",
+    "UCRTVersion",
+    "USERDOMAIN",
+    "USERDOMAIN_ROAMINGPROFILE",
+    "USERPROFILE",
+    "VCIDEInstallDir",
+    "VCINSTALLDIR",
+    "VCToolsInstallDir",
+    "VCToolsVersion",
+    "VisualStudioVersion",
+    "VS170COMNTOOLS",
+    "VSCMD_ARG_app_plat",
+    "VSCMD_ARG_HOST_ARCH",
+    "VSCMD_ARG_TGT_ARCH",
+    "VSCMD_VER",
+    "VSINSTALLDIR",
+    "windir",
+    "WindowsLibPath",
+    "WindowsSdkBinPath",
+    "WindowsSdkDir",
+    "WindowsSDKLibVersion",
+    "WindowsSDKVersion",
+    "__VSCMD_PREINIT_PATH",
+  ].map((key) => key.toUpperCase()),
+);
+
+const LINUX_KEYS = new Set([
+  "DBUS_SESSION_BUS_ADDRESS",
+  "DISPLAY",
+  "GDK_BACKEND",
+  "GTK_PATH",
+  "LD_LIBRARY_PATH",
+  "LIBRARY_PATH",
+  "WAYLAND_DISPLAY",
+  "XAUTHORITY",
+  "XDG_CACHE_HOME",
+  "XDG_CONFIG_DIRS",
+  "XDG_CONFIG_HOME",
+  "XDG_CURRENT_DESKTOP",
+  "XDG_DATA_DIRS",
+  "XDG_DATA_HOME",
+  "XDG_RUNTIME_DIR",
+  "XDG_SESSION_DESKTOP",
+  "XDG_SESSION_TYPE",
+]);
+
+export function sanitizedLaunchEnvironment(
+  platform: "windows" | "linux",
+  environment: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv {
+  const result: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(environment)) {
+    if (value === undefined) continue;
+    const normalized = platform === "windows" ? key.toUpperCase() : key;
+    const allowed =
+      COMMON_KEYS.has(normalized) ||
+      (platform === "windows"
+        ? WINDOWS_KEYS.has(normalized)
+        : LINUX_KEYS.has(normalized) || normalized.startsWith("LC_"));
+    if (allowed) result[key] = value;
+  }
+  return result;
+}
