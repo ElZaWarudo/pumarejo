@@ -1,0 +1,22 @@
+[package]
+name = "tauri-agent-proof-fixture"
+version = "0.1.0"
+description = "Disposable Tauri fixture for isolated WebDriver proof"
+authors = ["Tauri Agent"]
+edition = "2021"
+
+[lib]
+name = "tauri_agent_proof_fixture_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+tauri-agent = ["dep:tauri-plugin-wdio-webdriver"]
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-wdio-webdriver = { path = "../../../../vendor/tauri-plugin-wdio-webdriver", optional = true }

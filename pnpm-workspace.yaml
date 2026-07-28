@@ -1,0 +1,8 @@
+packages:
+  - tests/fixtures/tauri-app
+
+allowBuilds:
+  esbuild: true
+
+overrides:
+  "@hono/node-server": 2.0.12

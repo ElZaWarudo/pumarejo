@@ -1,0 +1,4 @@
+{
+  "tasks": { "tauri": "tauri" },
+  "imports": { "@tauri-apps/cli": "npm:@tauri-apps/cli@^2.8.0" }
+}

@@ -1,0 +1,9 @@
+[package]
+name = "cargo_v1"
+version = "0.1.0"
+
+[build-dependencies]
+tauri-build = "1"
+
+[dependencies]
+tauri = "1"

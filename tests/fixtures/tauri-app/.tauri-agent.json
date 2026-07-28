@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "launch": {
+    "command": "pnpm",
+    "args": [
+      "tauri",
+      "dev",
+      "--features",
+      "tauri-agent",
+      "--config",
+      "{tauriConfig}"
+    ]
+  },
+  "window": "main",
+  "artifactsDirectory": ".tauri-agent/artifacts",
+  "retainArtifacts": false
+}

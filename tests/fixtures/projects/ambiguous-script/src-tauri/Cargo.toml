@@ -1,0 +1,6 @@
+[package]
+name = "ambiguous_script"
+version = "0.1.0"
+
+[dependencies]
+tauri = "2"

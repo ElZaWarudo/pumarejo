@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 3,
+  "date": "2026-07-27",
+  "model": "GPT-5",
+  "prompt": "tests/agent/system-prompt.md",
+  "transcript": "tests/agent/public-mcp-transcript.json",
+  "rubric": "tests/agent/rubric.json",
+  "protocol": {
+    "promptSha256": "0164325e839af686fa31125229d86e4e59ab7520c523a3449d6477c113975c06",
+    "transcriptSha256": "06a8ce97e41df82cd9aa9b4e577f1f5abf80eb16f4ac9a58acd07e16497e5698",
+    "rubricSha256": "e3f354cb774f8197910a3c66849798e2a1ff0899978c6d618356ab072e4bb798"
+  },
+  "sourceAccess": false,
+  "rubricVisibleDuringTrials": false,
+  "execution": {
+    "harness": "Codex subagent trial runner",
+    "harnessVersion": "2026-07-27.1",
+    "agent": "OpenAI Codex",
+    "model": "GPT-5",
+    "invocationMode": "independent transcript-only subagent",
+    "receipts": [
+      {
+        "trialId": "agent_trial_1",
+        "agentTask": "/root/agent_trial_1",
+        "sourceInputs": [
+          "tests/agent/system-prompt.md",
+          "tests/agent/public-mcp-transcript.json"
+        ],
+        "rubricInput": false,
+        "toolCalls": 0,
+        "retries": 0,
+        "answerSha256": "b18c8bd9c711903a7f1dc87e44fe1c383e3c532aa2fb836b7a18359bb5d07fa8"
+      },
+      {
+        "trialId": "agent_trial_2",
+        "agentTask": "/root/agent_trial_2",
+        "sourceInputs": [
+          "tests/agent/system-prompt.md",
+          "tests/agent/public-mcp-transcript.json"
+        ],
+        "rubricInput": false,
+        "toolCalls": 0,
+        "retries": 0,
+        "answerSha256": "c56904aaf2e85c310e517896d8b1d77abc790330b9d5e3c7c19fa4d7a87f964a"
+      },
+      {
+        "trialId": "agent_trial_3",
+        "agentTask": "/root/agent_trial_3",
+        "sourceInputs": [
+          "tests/agent/system-prompt.md",
+          "tests/agent/public-mcp-transcript.json"
+        ],
+        "rubricInput": false,
+        "toolCalls": 0,
+        "retries": 0,
+        "answerSha256": "7eb0d7a45884cf62fa761a31cd088509564bc4045e3b826558849ea7bdf1341f"
+      }
+    ]
+  },
+  "toolBudget": 12,
+  "responseItemBudget": 12,
+  "retriesPerTrial": 0,
+  "independentTrials": 3,
+  "thresholdPerTrial": 9,
+  "aggregateThreshold": 9,
+  "trials": [
+    {
+      "id": "agent_trial_1",
+      "artifact": "tests/agent/trials/agent_trial_1.json",
+      "answerSha256": "b18c8bd9c711903a7f1dc87e44fe1c383e3c532aa2fb836b7a18359bb5d07fa8",
+      "toolCalls": 0,
+      "score": 10,
+      "maximum": 10,
+      "criteria": {
+        "existing-state": true,
+        "existing-transition": true,
+        "existing-validation": true,
+        "existing-outcome": true,
+        "redaction-boundary": true,
+        "untrusted-boundary": true,
+        "public-tools-only": true,
+        "reference-generation": true,
+        "semantic-assertion": true,
+        "cleanup": true
+      }
+    },
+    {
+      "id": "agent_trial_2",
+      "artifact": "tests/agent/trials/agent_trial_2.json",
+      "answerSha256": "c56904aaf2e85c310e517896d8b1d77abc790330b9d5e3c7c19fa4d7a87f964a",
+      "toolCalls": 0,
+      "score": 10,
+      "maximum": 10,
+      "criteria": {
+        "existing-state": true,
+        "existing-transition": true,
+        "existing-validation": true,
+        "existing-outcome": true,
+        "redaction-boundary": true,
+        "untrusted-boundary": true,
+        "public-tools-only": true,
+        "reference-generation": true,
+        "semantic-assertion": true,
+        "cleanup": true
+      }
+    },
+    {
+      "id": "agent_trial_3",
+      "artifact": "tests/agent/trials/agent_trial_3.json",
+      "answerSha256": "7eb0d7a45884cf62fa761a31cd088509564bc4045e3b826558849ea7bdf1341f",
+      "toolCalls": 0,
+      "score": 10,
+      "maximum": 10,
+      "criteria": {
+        "existing-state": true,
+        "existing-transition": true,
+        "existing-validation": true,
+        "existing-outcome": true,
+        "redaction-boundary": true,
+        "untrusted-boundary": true,
+        "public-tools-only": true,
+        "reference-generation": true,
+        "semantic-assertion": true,
+        "cleanup": true
+      }
+    }
+  ],
+  "aggregateScore": 10,
+  "passed": true
+}

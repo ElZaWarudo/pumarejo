@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Isolated control fixture</title>
+  </head>
+  <body>
+    <main aria-labelledby="title">
+      <h1 id="title">Isolated control fixture</h1>
+      <p id="status" role="status" aria-live="polite">Ready</p>
+      <form id="fixture-form">
+        <label for="name">Name</label>
+        <input
+          id="name"
+          name="name"
+          autocomplete="off"
+          aria-describedby="name-help"
+          required
+        />
+        <p id="name-help">Use the account display name.</p>
+        <label for="secret">Password</label>
+        <input id="secret" name="secret" type="password" />
+        <label for="token">Recovery token</label>
+        <input
+          id="token"
+          name="token"
+          value="fixture-sensitive-token"
+          data-tauri-agent-sensitive="true"
+        />
+        <button id="apply" type="submit">Apply</button>
+      </form>
+      <div role="alert" id="validation">No validation errors</div>
+      <ul aria-label="Recent projects">
+        <li>Alpha</li>
+        <li>Beta</li>
+      </ul>
+      <table aria-label="Builds">
+        <thead>
+          <tr>
+            <th>Target</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Desktop</td>
+            <td>Ready</td>
+          </tr>
+        </tbody>
+      </table>
+      <dialog open aria-label="Fixture dialog">
+        <p>Dialog content</p>
+      </dialog>
+      <div id="custom-control" role="button" tabindex="0" aria-pressed="false">
+        Custom action
+      </div>
+      <section id="shadow-fixture" aria-label="Shadow controls"></section>
+      <p style="display: none">Excluded hidden content</p>
+      <button id="focus-probe" type="button">Focus probe</button>
+      <output id="result" aria-live="polite"></output>
+    </main>
+    <script>
+      const status = document.querySelector("#status");
+      const result = document.querySelector("#result");
+      document
+        .querySelector("#fixture-form")
+        .addEventListener("submit", (event) => {
+          event.preventDefault();
+          const name = document.querySelector("#name").value.trim();
+          status.textContent = name
+            ? `Applied for ${name}`
+            : "Validation: name is required";
+          result.textContent = status.textContent;
+        });
+      document
+        .querySelector("#focus-probe")
+        .addEventListener("click", (event) => {
+          status.textContent = `Focused: ${event.currentTarget.id}`;
+        });
+      document.querySelector("#name").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.currentTarget.form.requestSubmit();
+        }
+      });
+      const shadow = document
+        .querySelector("#shadow-fixture")
+        .attachShadow({ mode: "open" });
+      shadow.innerHTML = `
+        <label for="shadow-choice">Shadow choice</label>
+        <input id="shadow-choice" type="checkbox" checked>
+        <p data-tauri-agent-sensitive="true">shadow-sensitive-value</p>
+      `;
+    </script>
+  </body>
+</html>
