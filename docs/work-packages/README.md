@@ -1,4 +1,4 @@
-# Tauri Agent v1 delivery index
+# pumarejo v1 delivery index
 
 The executable work packages are organized one-to-one with the reviewed roadmap:
 

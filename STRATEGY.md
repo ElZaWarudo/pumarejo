@@ -1,69 +1,69 @@
 ---
-name: Tauri Agent
+name: pumarejo
 last_updated: 2026-07-23
 ---
 
-# Tauri Agent Strategy
+# pumarejo Strategy
 
 ## Target problem
 
-Los desarrolladores de aplicaciones Tauri que trabajan con agentes de código no pueden darles acceso directo a la interfaz de la aplicación sin ceder el control del escritorio completo.
-Eso impide trabajar en paralelo y deja al agente sin el contexto visual y funcional necesario para entender los flujos existentes o proponer otros nuevos con sentido.
+Tauri application developers who work with coding agents cannot give them direct access to the application interface without surrendering control of the entire desktop.
+That prevents parallel work and leaves the agent without the visual and functional context needed to understand existing flows or propose meaningful new ones.
 
 ## Our approach
 
-Construir un puente semántico pequeño y reutilizable entre cualquier aplicación Tauri 2 compatible y cualquier agente con soporte MCP.
-El agente observará e interactuará con componentes de la WebView, como en un MCP de navegador, sin utilizar el ratón o el teclado del sistema y sin acoplar la promesa del producto a un mecanismo WebDriver concreto.
+Build a small, reusable semantic bridge between any compatible Tauri 2 application and any MCP-capable agent.
+The agent will observe and interact with WebView components, as it would through a browser MCP, without using the system mouse or keyboard and without coupling the product promise to a specific WebDriver mechanism.
 
 ## Who it's for
 
-**Primary:** Desarrolladores Tauri que trabajan con agentes de código - Contratan Tauri Agent para que el agente pueda revisar libremente la aplicación, comprender sus flujos y fundamentar cambios mientras ellos continúan usando el equipo.
+**Primary:** Tauri developers who work with coding agents. They use pumarejo so the agent can freely inspect the application, understand its flows, and ground proposed changes while they continue using the computer.
 
 ## Key metrics
 
-- **Sesiones utilizables** - Porcentaje de intentos que alcanzan un primer snapshot interactivo en la matriz certificada de Windows 11 y Ubuntu LTS.
-- **Recorridos completados** - Porcentaje de recorridos de referencia que el agente completa mediante observación, clic, escritura y teclado semántico sin intervención humana.
-- **Comprensión de flujos** - Porcentaje de flujos de referencia que el agente identifica y describe correctamente después de explorar la aplicación.
-- **Propuestas aprovechables** - Porcentaje de nuevos flujos propuestos por el agente que encajan con el comportamiento observado sin requerir una corrección conceptual del desarrollador.
-- **Interrupciones del escritorio** - Porcentaje de sesiones que inyectan entrada del sistema o impiden al desarrollador seguir trabajando; el objetivo aceptable es cero.
+- **Usable sessions** - Percentage of attempts that reach a first interactive snapshot on the certified Windows 11 and Ubuntu LTS matrix.
+- **Completed journeys** - Percentage of reference journeys the agent completes through semantic observation, clicking, typing, and keyboard input without human intervention.
+- **Flow comprehension** - Percentage of reference flows the agent correctly identifies and describes after exploring the application.
+- **Actionable proposals** - Percentage of agent-proposed flows that fit observed behavior without requiring conceptual correction from the developer.
+- **Desktop interruptions** - Percentage of sessions that inject system input or prevent the developer from continuing to work; the acceptable target is zero.
 
 ## Tracks
 
-### Observación semántica fiel
+### Faithful semantic observation
 
-Mantener una representación estable y verificable de lo que el usuario ve y de los componentes con los que puede interactuar.
+Maintain a stable, verifiable representation of what the user sees and the components they can interact with.
 
-_Why it serves the approach:_ La comprensión de flujos depende de que snapshots, capturas y referencias reflejen el estado real de la aplicación.
+_Why it serves the approach:_ Flow comprehension depends on snapshots, screenshots, and references reflecting the application's actual state.
 
-### Interacción aislada
+### Isolated interaction
 
-Permitir sesiones visibles y ocultas que operen sobre la WebView sin controlar los dispositivos de entrada del sistema.
+Enable visible and hidden sessions that operate on the WebView without controlling system input devices.
 
-_Why it serves the approach:_ El producto solo resuelve el problema original si el desarrollador conserva el control del escritorio mientras el agente trabaja.
+_Why it serves the approach:_ The product solves the original problem only if the developer keeps control of the desktop while the agent works.
 
-### Integración reutilizable
+### Reusable integration
 
-Sostener una instalación guiada y reversible para Tauri 2.x sobre las líneas Node.js LTS vigentes y Rust estable.
+Support guided, reversible installation for Tauri 2.x on current Node.js LTS lines and stable Rust.
 
-_Why it serves the approach:_ La herramienta debe poder incorporarse a proyectos diferentes sin copiar lógica, mantener una integración propia ni modificar las compilaciones de producción.
+_Why it serves the approach:_ The tool must work across different projects without copied logic, custom integration maintenance, or production-build changes.
 
-### Compatibilidad verificable
+### Verifiable compatibility
 
-Certificar el flujo completo en Windows 11 y Ubuntu LTS, incluidos los modos visible y oculto.
+Certify the complete flow on Windows 11 and Ubuntu LTS, including visible and hidden modes.
 
-_Why it serves the approach:_ La promesa debe depender de comportamiento probado en las plataformas objetivo, no de supuestos sobre WebDriver o la WebView.
+_Why it serves the approach:_ The promise must depend on tested behavior on target platforms, not assumptions about WebDriver or the WebView.
 
 ## Not working on
 
-- Control remoto del escritorio o inyección de ratón y teclado del sistema.
-- Un explorador inteligente dentro del servidor MCP; la inteligencia y la elección del recorrido pertenecen al agente.
-- Una plataforma de QA con grabación de pruebas, assertions, fixtures, mocks, interceptación de IPC o captura de logs.
-- Instrumentación de APIs nativas de Tauri, runtime frontend o una crate Rust propia durante la v1.
-- Soporte certificado para macOS, otras distribuciones Linux, múltiples ventanas o sesiones concurrentes durante la v1.
+- Remote desktop control or system mouse and keyboard injection.
+- An intelligent explorer inside the MCP server; intelligence and journey selection belong to the agent.
+- A QA platform with test recording, assertions, fixtures, mocks, IPC interception, or log capture.
+- Instrumentation of native Tauri APIs, the frontend runtime, or a custom Rust crate during v1.
+- Certified support for macOS, other Linux distributions, multiple windows, or concurrent sessions during v1.
 
 ## Marketing
 
-**One-liner:** Un MCP reutilizable que convierte cualquier aplicación Tauri 2 instrumentada en una interfaz observable y controlable por agentes.
+**One-liner:** A reusable MCP that turns any instrumented Tauri 2 application into an agent-observable and controllable interface.
 
-**Key message:** El agente ve e interactúa con la misma aplicación que el desarrollador, pero lo hace mediante componentes de la WebView.
-El desarrollador conserva el ratón, el teclado y el resto del escritorio para seguir trabajando en paralelo.
+**Key message:** The agent sees and interacts with the same application as the developer, but does so through WebView components.
+The developer keeps the mouse, keyboard, and the rest of the desktop available for parallel work.

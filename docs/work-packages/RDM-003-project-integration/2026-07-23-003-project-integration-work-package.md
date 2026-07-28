@@ -2,10 +2,10 @@
 title: Integrate consumer projects safely
 status: review-passed
 roadmap_item: RDM-003
-origin_roadmap: docs/roadmaps/2026-07-23-001-tauri-agent-roadmap.md
+origin_roadmap: docs/roadmaps/2026-07-23-001-pumarejo-roadmap.md
 origin_brainstorm: STRATEGY.md
 origin_planning_input: docs/product-requirements.md
-origin_plan: docs/plans/2026-07-23-001-feat-tauri-agent-plan.md
+origin_plan: docs/plans/2026-07-23-001-feat-pumarejo-plan.md
 units: [U4, U5, U6]
 unit_alignment: complete
 review_units: [RU1, RU2, RU3]
@@ -73,16 +73,16 @@ Grouping rationale: three independently testable mutation stages. Estimates: RU1
 
 | Review unit | Scope                   | Expected changed surfaces                           | PR base                  | Jira issue/subtask | Size/risk note                           |
 | ----------- | ----------------------- | --------------------------------------------------- | ------------------------ | ------------------ | ---------------------------------------- |
-| RU1         | Read-only project model | detector/config generator/fixtures                  | unresolved-final-release | optional Tarea     | 300-550 human                            |
-| RU2         | Transactional init      | Cargo/Rust/capability/template/manifest/write/tests | unresolved-final-release | optional Tarea     | 500-900 human + templates; mutation risk |
-| RU3         | Doctor and remove       | CLI/diagnostics/reversal/tests                      | unresolved-final-release | optional Tarea     | 350-650 human; destructive-safety review |
+| RU1         | Read-only project model | detector/config generator/fixtures                  | unresolved-final-release | optional Task     | 300-550 human                            |
+| RU2         | Transactional init      | Cargo/Rust/capability/template/manifest/write/tests | unresolved-final-release | optional Task     | 500-900 human + templates; mutation risk |
+| RU3         | Doctor and remove       | CLI/diagnostics/reversal/tests                      | unresolved-final-release | optional Task     | 350-650 human; destructive-safety review |
 
 ## Reviewability Diagnosis
 
 - Reviewer-experience check: yes; discovery, write, and reversal have distinct evidence.
 - Granularity chosen because: safe reversal should not be buried in init logic.
 - Open-stack plan: serial local work; independent final handoff.
-- Jira mapping: optional standalone Tarea per RU.
+- Jira mapping: optional standalone Task per RU.
 - Downstream-fix trace: none.
 - Failure-mode check: avoids one mutation mega-diff.
 
@@ -98,7 +98,7 @@ Grouping rationale: three independently testable mutation stages. Estimates: RU1
   attributable, idempotent consumer integration. The obsolete inert
   `init --scripts` option was removed; package scripts are preserved. RU3 adds
   stable human/JSON diagnostics and conservative dry-run/removal.
-- Consumer scan patterns: `tauri-agent`, `wdio-webdriver`, capability entries, package scripts, config formats.
+- Consumer scan patterns: `pumarejo`, `wdio-webdriver`, capability entries, package scripts, config formats.
 - Consumers found: the root package export, config schema/materializer, packed
   ESM contract, MCP launch stubs, and the pnpm/npm/yarn/bun/deno/cargo fixture
   matrix.
@@ -214,12 +214,12 @@ Mutation gates are mandatory: canonicalize the project root and every target, re
   - Generated Cargo compiles on the stable MSVC toolchain in normal debug,
     agent-feature debug, agent-capability overlay, and normal release forms.
     The optional provider is absent from normal dependency trees and present
-    only with `--features tauri-agent`.
+    only with `--features pumarejo`.
   - U1 structural regression is 11 passed with five live-only skips;
     `pnpm audit --prod` reports zero advisories.
 - Impact Scan: package scripts, unrelated Cargo values/features, source
   capabilities, config formats and ignore rules are preserved. The agent
-  capability is isolated under `.tauri-agent` because adding its plugin
+  capability is isolated under `.pumarejo` because adding its plugin
   permission to the normal Tauri capability makes featureless builds reject
   an unknown permission.
 - Correctness review: passed with no unresolved P0-P2 after fixes for
@@ -301,10 +301,10 @@ Mutation gates are mandatory: canonicalize the project root and every target, re
 
 ## Jira Handoff Inputs
 
-- Jira policy: optional; standalone Tarea per RU.
-- Suggested issue type: Tarea.
+- Jira policy: optional; standalone Task per RU.
+- Suggested issue type: Task.
 - Suggested subtask behavior: shared parent only if final grouped delivery justifies it.
 - PR-to-Jira mapping: one task per RU.
-- Jira summary: Integrar proyectos Tauri de forma reversible
-- Jira description: Detectar proyectos compatibles, aplicar la instrumentación de depuración y retirarla sin afectar cambios ajenos.
+- Jira summary: Integrate Tauri projects reversibly
+- Jira description: Detect compatible projects, apply debug instrumentation, and remove it without affecting unrelated changes.
 - Optional-policy fallback: Jira omitted: no context/config.

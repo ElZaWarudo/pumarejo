@@ -7,7 +7,7 @@ const MAX_MANIFEST_BYTES = 256 * 1024;
 const TAURI_ARGS = [
   "dev",
   "--features",
-  "tauri-agent",
+  "pumarejo",
   "--config",
   "{tauriConfig}",
 ] as const;

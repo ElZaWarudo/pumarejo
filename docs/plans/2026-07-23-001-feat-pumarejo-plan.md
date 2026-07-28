@@ -1,8 +1,8 @@
 ---
-title: Tauri Agent - Plan
+title: pumarejo - Plan
 type: feat
 date: 2026-07-23
-topic: tauri-agent
+topic: pumarejo
 origin: docs/product-requirements.md
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
@@ -10,11 +10,11 @@ product_contract_source: validated-requirements
 execution: code
 ---
 
-# Tauri Agent - Plan
+# pumarejo - Plan
 
 ## Goal Capsule
 
-- **Objective:** Deliver `@cie/tauri-agent` as one reusable npm package that lets MCP agents inspect and operate one instrumented Tauri 2 WebView without taking the developer's operating-system input.
+- **Objective:** Deliver `pumarejo` as one reusable npm package that lets MCP agents inspect and operate one instrumented Tauri 2 WebView without taking the developer's operating-system input.
 - **Product authority:** `STRATEGY.md`, then `docs/product-requirements.md`, then `docs/contracts.md`; this plan decides implementation mechanics only.
 - **Execution profile:** Greenfield, test-first at public contracts, proof-first for platform behavior, serial delivery in roadmap dependency order.
 - **Stop conditions:** Stop before dependent implementation if the embedded provider cannot support the required semantic sequence, loopback ownership, or background rendering on either certified platform.
@@ -27,7 +27,7 @@ execution: code
 
 ### Summary
 
-Tauri Agent is a thin MCP-to-WebDriver bridge for a single debug Tauri 2 application.
+pumarejo is a thin MCP-to-WebDriver bridge for a single debug Tauri 2 application.
 It installs a reversible debug-only integration, launches the app visibly or in the background, exposes meaningful semantic state and screenshots, performs component-level actions, and cleans up every owned resource.
 
 ### Problem Frame
@@ -62,7 +62,7 @@ A Tauri WebView already exposes a browser-shaped semantic surface through WebDri
 
 - R9. Snapshots shall return meaningful visible controls and content in deterministic DOM preorder with containment, accessible names, explicit interactive states, relationships, focus, bounds, timestamp, and a generation-scoped reference table. Covers FR-014 through FR-016, FR-018, BR-002, BR-010, AC-006, and AC-006a.
 - R10. Snapshot extraction shall cover the v1 compatibility profile, including open shadow roots, while excluding closed or cross-origin surfaces with typed limitations. Covers FR-016 and AC-013.
-- R11. Password and `data-tauri-agent-sensitive="true"` values and value-bearing text shall be redacted before results cross the MCP boundary. Covers FR-016a, NFR-010, and AC-006b.
+- R11. Password and `data-pumarejo-sensitive="true"` values and value-bearing text shall be redacted before results cross the MCP boundary. Covers FR-016a, NFR-010, and AC-006b.
 - R12. Screenshots shall return MCP image content plus typed metadata, use fail-closed current-user-only project-local artifacts, recover stale non-retained artifacts safely, and delete them on close unless retention is enabled. Covers FR-017, NFR-009, BR-006, AC-012.
 - R13. Rendered UI content shall remain untrusted data in typed result fields and shall never be interpolated into tool descriptions, server instructions, errors, or recovery guidance. Covers NFR-010.
 
@@ -134,7 +134,7 @@ A Tauri WebView already exposes a browser-shaped semantic surface through WebDri
 - `docs/product-requirements.md`
 - `docs/contracts.md`
 - `docs/architecture.md`
-- `docs/roadmaps/2026-07-23-001-tauri-agent-roadmap.md`
+- `docs/roadmaps/2026-07-23-001-pumarejo-roadmap.md`
 - [Tauri WebDriver guide](https://v2.tauri.app/develop/tests/webdriver/)
 - [WebdriverIO embedded Tauri plugin setup](https://webdriver.io/docs/desktop-testing/tauri/plugin-setup/)
 - [MCP TypeScript SDK v1](https://github.com/modelcontextprotocol/typescript-sdk/tree/v1.x)
@@ -259,22 +259,22 @@ Observation depends on a live session, interaction depends on observation refs, 
 
 ## Implementation Units
 
-| Unit | Title | Primary files | Depends on |
-|---|---|---|---|
-| U1 | Platform and provider proof | package/test harness, `tests/fixtures/tauri-app/`, `tests/platform/` | None |
-| U2 | Publishable contracts | `src/config/`, `src/shared/` | U1 |
-| U3 | Early MCP protocol skeleton | `src/mcp/`, `tests/contract/` | U2 |
-| U4 | Consumer project model | `src/installer/project.ts`, `src/config/` | U2 |
-| U5 | Safe init integration | `src/installer/`, `templates/` | U4 |
-| U6 | Doctor and removal | `src/cli/`, `src/installer/` | U5 |
-| U7 | WebDriver adapter | `src/webdriver/` | U1, U2 |
-| U8 | Session and process lifecycle | `src/session/`, `src/platform/` | U2, U7 |
-| U9 | Visible and background adapters | `src/platform/`, `src/session/` | U1, U8 |
-| U10 | Semantic snapshot engine | `src/observation/` | U7, U8 |
-| U11 | Screenshot and artifact lifecycle | `src/artifacts/`, `src/observation/` | U8, U9 |
-| U12 | Semantic interactions | `src/interaction/` | U10 |
-| U13 | Complete MCP composition | `src/mcp/` | U3, U8, U10, U11, U12 |
-| U14 | Cross-platform certification and docs | `tests/`, `README.md` | U5 through U13 |
+| Unit | Title                                 | Primary files                                                        | Depends on            |
+| ---- | ------------------------------------- | -------------------------------------------------------------------- | --------------------- |
+| U1   | Platform and provider proof           | package/test harness, `tests/fixtures/tauri-app/`, `tests/platform/` | None                  |
+| U2   | Publishable contracts                 | `src/config/`, `src/shared/`                                         | U1                    |
+| U3   | Early MCP protocol skeleton           | `src/mcp/`, `tests/contract/`                                        | U2                    |
+| U4   | Consumer project model                | `src/installer/project.ts`, `src/config/`                            | U2                    |
+| U5   | Safe init integration                 | `src/installer/`, `templates/`                                       | U4                    |
+| U6   | Doctor and removal                    | `src/cli/`, `src/installer/`                                         | U5                    |
+| U7   | WebDriver adapter                     | `src/webdriver/`                                                     | U1, U2                |
+| U8   | Session and process lifecycle         | `src/session/`, `src/platform/`                                      | U2, U7                |
+| U9   | Visible and background adapters       | `src/platform/`, `src/session/`                                      | U1, U8                |
+| U10  | Semantic snapshot engine              | `src/observation/`                                                   | U7, U8                |
+| U11  | Screenshot and artifact lifecycle     | `src/artifacts/`, `src/observation/`                                 | U8, U9                |
+| U12  | Semantic interactions                 | `src/interaction/`                                                   | U10                   |
+| U13  | Complete MCP composition              | `src/mcp/`                                                           | U3, U8, U10, U11, U12 |
+| U14  | Cross-platform certification and docs | `tests/`, `README.md`                                                | U5 through U13        |
 
 ### U1. Prove embedded provider and platform modes
 
@@ -282,7 +282,7 @@ Observation depends on a live session, interaction depends on observation refs, 
 - **Requirements:** R5 through R8, R17; AE2 and AE3.
 - **Dependencies:** None.
 - **Files:** `package.json`, `pnpm-lock.yaml`, `tsconfig.json`, `tsconfig.build.json`, `eslint.config.js`, `vitest.config.ts`, `tests/fixtures/tauri-app/package.json`, `tests/fixtures/tauri-app/src/index.html`, `tests/fixtures/tauri-app/src-tauri/Cargo.toml`, `tests/fixtures/tauri-app/src-tauri/src/lib.rs`, `tests/fixtures/tauri-app/src-tauri/tauri.conf.json`, `tests/platform/provider-proof.test.ts`, `tests/platform/background-proof.test.ts`, `docs/evidence/rdm-001/README.md`.
-- **Approach:** Establish the minimal Node 22/24-compatible package and test harness needed to run the proof. Build the smallest accessible fixture, enable `tauri-plugin-wdio-webdriver` through an optional `tauri-agent` Cargo feature, guard registration with `all(debug_assertions, feature = "tauri-agent")`, connect through the low-level W3C client, and test a generated config overlay for both initial visibility values. Record OS build, display/session type, WebView runtime, provider version, screenshots, focus observations, endpoint binding, and cleanup. Normal release commands omit the feature.
+- **Approach:** Establish the minimal Node 22/24-compatible package and test harness needed to run the proof. Build the smallest accessible fixture, enable `tauri-plugin-wdio-webdriver` through an optional `pumarejo` Cargo feature, guard registration with `all(debug_assertions, feature = "pumarejo")`, connect through the low-level W3C client, and test a generated config overlay for both initial visibility values. Record OS build, display/session type, WebView runtime, provider version, screenshots, focus observations, endpoint binding, and cleanup. Normal release commands omit the feature.
 - **Execution note:** Treat this as an evidence-producing spike. Keep only fixture code and automated proof that remain useful to certification.
 - **Patterns to follow:** Official embedded-provider debug registration and `TAURI_WEBDRIVER_PORT` setup in the Tauri and WebdriverIO sources.
 - **Test scenarios:**
@@ -349,8 +349,8 @@ Observation depends on a live session, interaction depends on observation refs, 
   - Initialize each supported fixture twice without duplicate content.
   - Abort an ambiguous Rust layout before any partial edit.
   - Preserve existing dependency features, capability entries, formatting-sensitive unrelated values, and package scripts.
-  - Verify Cargo uses an optional `tauri-agent = ["dep:tauri-plugin-wdio-webdriver"]` feature rather than a `cfg(debug_assertions)` dependency table, which Cargo does not support.
-  - Verify the generated agent dev argv enables `tauri-agent`, the Rust registration requires both debug assertions and that feature, and normal release commands omit it.
+  - Verify Cargo uses an optional `pumarejo = ["dep:tauri-plugin-wdio-webdriver"]` feature rather than a `cfg(debug_assertions)` dependency table, which Cargo does not support.
+  - Verify the generated agent dev argv enables `pumarejo`, the Rust registration requires both debug assertions and that feature, and normal release commands omit it.
 - **Verification:** Semantic fixture diffs match the integration plan; an agent-enabled debug build registers the provider, while normal debug/release builds omit the optional dependency and registration.
 
 ### U6. Diagnose and remove integration safely
@@ -427,7 +427,7 @@ Observation depends on a live session, interaction depends on observation refs, 
   - Assert preorder and containment for forms, dialogs, lists, tables, and nested open shadow roots.
   - Cover every v1 interactive state and accessible-name source, including duplicate labels, hidden referenced labels, and open-shadow-root controls.
   - Run a checked-in WAI-ARIA/HTML accessible-name and role conformance corpus through the bundled browser script.
-  - Redact password, autocomplete-sensitive, and `data-tauri-agent-sensitive="true"` values and value-bearing text.
+  - Redact password, autocomplete-sensitive, and `data-pumarejo-sensitive="true"` values and value-bearing text.
   - Replace the generation and invalidate every prior ref.
   - Reuse the returned opaque WebDriver handle for actions and prove the implementation never re-queries a different matching element.
   - Preserve malicious instruction-like text as an ordinary node value.
@@ -528,20 +528,20 @@ Observation depends on a live session, interaction depends on observation refs, 
 
 ## Verification Contract
 
-| Gate | Command | Applies to | Done signal |
-|---|---|---|---|
-| Install | `pnpm install --frozen-lockfile` | All units | Clean install on Node 22 and 24 |
-| Types | `pnpm typecheck` | U1 through U14 | Zero TypeScript errors |
-| Lint | `pnpm lint` | U1 through U14 | Zero lint errors |
-| Unit | `pnpm test:unit` | U2 through U13 | All unit and schema tests pass |
-| Contract | `pnpm test:contract` | U2, U3, U7, U13 | CLI, config, errors, and MCP contracts pass |
-| Integration | `pnpm test:integration` | U5 through U13 | Fixture mutation, provider, lifecycle, observation, and interaction pass |
-| Platform Windows | `pnpm test:platform:windows` | U1, U9, U14 | Visible/background evidence passes on certified Windows 11 |
-| Platform Ubuntu | `pnpm test:platform:linux` | U1, U9, U14 | Visible/background evidence passes on Ubuntu 24.04 |
-| Package | `pnpm pack:check` | U2, U14 | Packed tarball contains only intended runtime and docs |
-| Release safety | `pnpm test:release-safety` | U5, U14 | Consumer release build contains no registered provider |
-| Agent outcome | `pnpm test:agent` | U10, U13, U14 | Fixture rubric passes through public MCP only |
-| Full validation | `pnpm validate` | U14 | Every applicable gate passes |
+| Gate             | Command                          | Applies to      | Done signal                                                              |
+| ---------------- | -------------------------------- | --------------- | ------------------------------------------------------------------------ |
+| Install          | `pnpm install --frozen-lockfile` | All units       | Clean install on Node 22 and 24                                          |
+| Types            | `pnpm typecheck`                 | U1 through U14  | Zero TypeScript errors                                                   |
+| Lint             | `pnpm lint`                      | U1 through U14  | Zero lint errors                                                         |
+| Unit             | `pnpm test:unit`                 | U2 through U13  | All unit and schema tests pass                                           |
+| Contract         | `pnpm test:contract`             | U2, U3, U7, U13 | CLI, config, errors, and MCP contracts pass                              |
+| Integration      | `pnpm test:integration`          | U5 through U13  | Fixture mutation, provider, lifecycle, observation, and interaction pass |
+| Platform Windows | `pnpm test:platform:windows`     | U1, U9, U14     | Visible/background evidence passes on certified Windows 11               |
+| Platform Ubuntu  | `pnpm test:platform:linux`       | U1, U9, U14     | Visible/background evidence passes on Ubuntu 24.04                       |
+| Package          | `pnpm pack:check`                | U2, U14         | Packed tarball contains only intended runtime and docs                   |
+| Release safety   | `pnpm test:release-safety`       | U5, U14         | Consumer release build contains no registered provider                   |
+| Agent outcome    | `pnpm test:agent`                | U10, U13, U14   | Fixture rubric passes through public MCP only                            |
+| Full validation  | `pnpm validate`                  | U14             | Every applicable gate passes                                             |
 
 ---
 

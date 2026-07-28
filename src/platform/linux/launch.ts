@@ -20,7 +20,7 @@ import {
 } from "../../config/load.js";
 import type { PreparedLaunch } from "../../session/manager.js";
 import type { RuntimeMode } from "../../session/state.js";
-import { TauriAgentError } from "../../shared/errors.js";
+import { PumarejoError } from "../../shared/errors.js";
 import { sanitizedLaunchEnvironment } from "../launch-environment.js";
 import { createRuntimeOverlay } from "../mode-config.js";
 import { resolveProjectTauriCommand } from "../tauri-command.js";
@@ -78,27 +78,27 @@ async function resolveLinuxCommand(
       const canonical = await realpath(candidate);
       await access(canonical, constants.X_OK);
       if (isInside(resolve(projectRoot), resolve(canonical))) {
-        throw new TauriAgentError("APP_START_FAILED");
+        throw new PumarejoError("APP_START_FAILED");
       }
       return canonical;
     } catch (error) {
-      if (error instanceof TauriAgentError) throw error;
+      if (error instanceof PumarejoError) throw error;
     }
   }
-  throw new TauriAgentError("APP_START_FAILED");
+  throw new PumarejoError("APP_START_FAILED");
 }
 
 async function waitForXvfb(child: ChildProcess, port: number): Promise<void> {
   const started = Date.now();
   while (Date.now() - started < XVFB_READY_TIMEOUT_MS) {
     if (child.exitCode !== null) {
-      throw new TauriAgentError("BACKGROUND_UNAVAILABLE");
+      throw new PumarejoError("BACKGROUND_UNAVAILABLE");
     }
     const listening = await tcpListening(port);
     if (listening) return;
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 25));
   }
-  throw new TauriAgentError("BACKGROUND_UNAVAILABLE");
+  throw new PumarejoError("BACKGROUND_UNAVAILABLE");
 }
 
 async function stopOwnedProcess(child: ChildProcess): Promise<void> {
@@ -119,9 +119,9 @@ async function stopOwnedProcess(child: ChildProcess): Promise<void> {
 
 export async function startOwnedLinuxDisplay(): Promise<OwnedDisplay> {
   if (process.platform !== "linux") {
-    throw new TauriAgentError("PLATFORM_UNSUPPORTED");
+    throw new PumarejoError("PLATFORM_UNSUPPORTED");
   }
-  const directory = await mkdtemp(join(tmpdir(), "tauri-agent-xvfb-"));
+  const directory = await mkdtemp(join(tmpdir(), "pumarejo-xvfb-"));
   let child: ChildProcess | undefined;
   try {
     await chmod(directory, 0o700);
@@ -162,7 +162,7 @@ export async function startOwnedLinuxDisplay(): Promise<OwnedDisplay> {
         await waitForXvfb(child, 6_000 + displayNumber);
         await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
         if (child.exitCode !== null) {
-          throw new TauriAgentError("BACKGROUND_UNAVAILABLE");
+          throw new PumarejoError("BACKGROUND_UNAVAILABLE");
         }
         let closed = false;
         return {
@@ -182,14 +182,14 @@ export async function startOwnedLinuxDisplay(): Promise<OwnedDisplay> {
         }
       }
     }
-    throw new TauriAgentError("BACKGROUND_UNAVAILABLE");
+    throw new PumarejoError("BACKGROUND_UNAVAILABLE");
   } catch (error) {
     await rm(directory, { recursive: true, force: true }).catch(
       () => undefined,
     );
-    throw error instanceof TauriAgentError
+    throw error instanceof PumarejoError
       ? error
-      : new TauriAgentError("BACKGROUND_UNAVAILABLE", { cause: error });
+      : new PumarejoError("BACKGROUND_UNAVAILABLE", { cause: error });
   }
 }
 
@@ -199,16 +199,16 @@ export function linuxDisplayEnvironment(
 ): NodeJS.ProcessEnv {
   if (mode === "visible") {
     if (!environment.DISPLAY) {
-      throw new TauriAgentError("BACKGROUND_UNAVAILABLE");
+      throw new PumarejoError("BACKGROUND_UNAVAILABLE");
     }
     return {
       ...sanitizedLaunchEnvironment("linux", environment),
       GDK_BACKEND: "x11",
     };
   }
-  const display = environment.TAURI_AGENT_BACKGROUND_DISPLAY;
+  const display = environment.PUMAREJO_BACKGROUND_DISPLAY;
   if (display === undefined || !DISPLAY_PATTERN.test(display)) {
-    throw new TauriAgentError("BACKGROUND_UNAVAILABLE");
+    throw new PumarejoError("BACKGROUND_UNAVAILABLE");
   }
   return {
     ...sanitizedLaunchEnvironment("linux", environment),
@@ -224,7 +224,7 @@ export async function prepareLinuxLaunch(
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<PreparedLaunch> {
   if (process.platform !== "linux") {
-    throw new TauriAgentError("PLATFORM_UNSUPPORTED");
+    throw new PumarejoError("PLATFORM_UNSUPPORTED");
   }
   const launchEnvironment = linuxDisplayEnvironment(mode, environment);
   const overlay = await createRuntimeOverlay({
@@ -274,7 +274,7 @@ export async function prepareOwnedLinuxLaunch(
   try {
     const prepared = await prepareLinuxLaunch(loaded, mode, {
       ...environment,
-      TAURI_AGENT_BACKGROUND_DISPLAY: display.display,
+      PUMAREJO_BACKGROUND_DISPLAY: display.display,
       XAUTHORITY: display.xauthority,
     });
     let closed = false;

@@ -68,7 +68,7 @@ export function hostFacts(): HostFacts {
         : ((platformFacts as { sessionType?: string }).sessionType ??
           "unknown"),
     display: process.env.DISPLAY ?? process.env.WAYLAND_DISPLAY ?? "none",
-    webviewRuntime: process.env.TAURI_AGENT_WEBVIEW_RUNTIME ?? "unknown",
+    webviewRuntime: process.env.PUMAREJO_WEBVIEW_RUNTIME ?? "unknown",
     product: "product" in platformFacts ? platformFacts.product : undefined,
     displayVersion:
       "displayVersion" in platformFacts
@@ -78,17 +78,17 @@ export function hostFacts(): HostFacts {
 }
 
 export function providerRunEnabled(): boolean {
-  return process.env.TAURI_AGENT_RUN_PROVIDER === "1";
+  return process.env.PUMAREJO_RUN_PROVIDER === "1";
 }
 
 export function authoritativeHostRequested(): boolean {
-  return process.env.TAURI_AGENT_REQUIRE_AUTH_HOST === "1";
+  return process.env.PUMAREJO_REQUIRE_AUTH_HOST === "1";
 }
 
 export function nonstandardHostAccepted(): boolean {
   return (
-    process.env.TAURI_AGENT_ACCEPT_NONSTANDARD_HOST === "1" &&
-    process.env.TAURI_AGENT_HOST_EXCEPTION_ID === "USER-2026-07-27-WINDOWS-WSL"
+    process.env.PUMAREJO_ACCEPT_NONSTANDARD_HOST === "1" &&
+    process.env.PUMAREJO_HOST_EXCEPTION_ID === "USER-2026-07-27-WINDOWS-WSL"
   );
 }
 

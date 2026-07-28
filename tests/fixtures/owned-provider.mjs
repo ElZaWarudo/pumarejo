@@ -12,9 +12,7 @@ if (
 
 let sessionActive = false;
 const server = createServer((request, response) => {
-  if (
-    request.headers["x-tauri-agent-provider-nonce"] !== providerNonce
-  ) {
+  if (request.headers["x-pumarejo-provider-nonce"] !== providerNonce) {
     response
       .writeHead(401, { "content-type": "application/json" })
       .end('{"value":{"error":"unauthorized"}}');

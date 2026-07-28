@@ -6,12 +6,12 @@
       "tauri",
       "dev",
       "--features",
-      "tauri-agent",
+      "pumarejo",
       "--config",
       "{tauriConfig}"
     ]
   },
   "window": "main",
-  "artifactsDirectory": ".tauri-agent/artifacts",
+  "artifactsDirectory": ".pumarejo/artifacts",
   "retainArtifacts": false
 }

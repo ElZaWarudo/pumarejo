@@ -3,7 +3,7 @@ export {
   type DomainCallContext,
   type DomainResult,
   type ScreenshotDomainResult,
-  type TauriAgentDomainPorts,
+  type PumarejoDomainPorts,
 } from "./domain-ports.js";
 export {
   createMcpServer,
@@ -12,6 +12,6 @@ export {
 } from "./server.js";
 export * from "./schemas.js";
 export {
-  TAURI_AGENT_TOOL_DESCRIPTIONS,
-  TAURI_AGENT_TOOL_NAMES,
+  PUMAREJO_TOOL_DESCRIPTIONS,
+  PUMAREJO_TOOL_NAMES,
 } from "./tools/index.js";

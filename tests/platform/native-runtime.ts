@@ -39,7 +39,7 @@ async function waitForPort(
   output: () => string,
 ): Promise<void> {
   const configuredTimeout = Number(
-    process.env.TAURI_AGENT_PROVIDER_READY_TIMEOUT_MS ?? "60000",
+    process.env.PUMAREJO_PROVIDER_READY_TIMEOUT_MS ?? "60000",
   );
   if (
     !Number.isInteger(configuredTimeout) ||

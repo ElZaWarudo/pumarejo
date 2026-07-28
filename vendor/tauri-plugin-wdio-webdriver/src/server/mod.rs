@@ -21,7 +21,7 @@ use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::{SessionManager, Timeouts};
 
 const PROVIDER_NONCE_ENV: &str = "TAURI_WEBDRIVER_NONCE";
-const PROVIDER_NONCE_HEADER: &str = "x-tauri-agent-provider-nonce";
+const PROVIDER_NONCE_HEADER: &str = "x-pumarejo-provider-nonce";
 
 /// Shared state for the `WebDriver` server
 pub struct AppState<R: Runtime> {

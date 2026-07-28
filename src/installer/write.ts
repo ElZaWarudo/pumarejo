@@ -126,7 +126,7 @@ async function atomicWrite(
 
   const temporaryPath = resolve(
     dirname(change.absolutePath),
-    `.${basename(change.absolutePath)}.tauri-agent-${process.pid}-${randomUUID()}.tmp`,
+    `.${basename(change.absolutePath)}.pumarejo-${process.pid}-${randomUUID()}.tmp`,
   );
   try {
     const handle = await open(temporaryPath, "wx", 0o600);

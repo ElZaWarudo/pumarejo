@@ -15,13 +15,9 @@ const lib = readFileSync(resolve(fixture, "src-tauri/src/lib.rs"), "utf8");
 describe("embedded provider proof", () => {
   it("has a complete accessible fixture and debug/feature-gated provider", () => {
     expect(existsSync(resolve(fixture, "src/index.html"))).toBe(true);
-    expect(cargo).toContain(
-      'tauri-agent = ["dep:tauri-plugin-wdio-webdriver"]',
-    );
+    expect(cargo).toContain('pumarejo = ["dep:tauri-plugin-wdio-webdriver"]');
     expect(cargo).toContain("optional = true");
-    expect(lib).toContain(
-      'cfg(all(debug_assertions, feature = "tauri-agent"))',
-    );
+    expect(lib).toContain('cfg(all(debug_assertions, feature = "pumarejo"))');
   });
 
   it("records host facts without treating them as authoritative provider evidence", () => {
@@ -61,9 +57,9 @@ describe("embedded provider proof", () => {
       const facts = hostFacts();
       const expected = process.platform === "win32" ? "windows" : "ubuntu";
       expect(authoritativeHostValid(expected)).toBe(true);
-      expect(process.env.TAURI_AGENT_OS_BUILD).toBeTruthy();
-      expect(process.env.TAURI_AGENT_DISPLAY_SESSION).toBeTruthy();
-      expect(process.env.TAURI_AGENT_WEBVIEW_RUNTIME).toBeTruthy();
+      expect(process.env.PUMAREJO_OS_BUILD).toBeTruthy();
+      expect(process.env.PUMAREJO_DISPLAY_SESSION).toBeTruthy();
+      expect(process.env.PUMAREJO_WEBVIEW_RUNTIME).toBeTruthy();
       expect(facts.release).toBeTruthy();
     },
   );

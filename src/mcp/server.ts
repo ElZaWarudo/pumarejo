@@ -2,14 +2,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
-import { TauriAgentError, toErrorEnvelope } from "../shared/errors.js";
+import { PumarejoError, toErrorEnvelope } from "../shared/errors.js";
 import { VERSION } from "../version.js";
 import {
   type DomainResult,
   type ScreenshotDomainResult,
-  type TauriAgentDomainPorts,
+  type PumarejoDomainPorts,
 } from "./domain-ports.js";
-import { createTauriAgentRuntime } from "./runtime.js";
+import { createPumarejoRuntime } from "./runtime.js";
 import {
   clickInputSchema,
   emptyInputSchema,
@@ -18,7 +18,7 @@ import {
   screenshotInputSchema,
   typeInputSchema,
 } from "./schemas.js";
-import { TAURI_AGENT_TOOL_DESCRIPTIONS } from "./tools/index.js";
+import { PUMAREJO_TOOL_DESCRIPTIONS } from "./tools/index.js";
 
 const MAX_STRUCTURED_RESULT_BYTES = 1024 * 1024;
 const MAX_IMAGE_DATA_BYTES = 32 * 1024 * 1024;
@@ -26,7 +26,7 @@ const MAX_IMAGE_DATA_BYTES = 32 * 1024 * 1024;
 function serializeResult(value: DomainResult): string {
   const serialized = JSON.stringify(value);
   if (Buffer.byteLength(serialized, "utf8") > MAX_STRUCTURED_RESULT_BYTES) {
-    throw new TauriAgentError("INTERNAL_ERROR");
+    throw new PumarejoError("INTERNAL_ERROR");
   }
   return serialized;
 }
@@ -63,7 +63,7 @@ async function invokeScreenshot(
   try {
     const result = await operation();
     if (Buffer.byteLength(result.image.data, "utf8") > MAX_IMAGE_DATA_BYTES) {
-      throw new TauriAgentError("SCREENSHOT_FAILED");
+      throw new PumarejoError("SCREENSHOT_FAILED");
     }
     return {
       content: [
@@ -81,16 +81,16 @@ async function invokeScreenshot(
   }
 }
 
-export function createMcpServer(ports: TauriAgentDomainPorts): McpServer {
+export function createMcpServer(ports: PumarejoDomainPorts): McpServer {
   const server = new McpServer({
-    name: "@cie/tauri-agent",
+    name: "pumarejo",
     version: VERSION,
   });
 
   server.registerTool(
     "tauri_launch",
     {
-      description: TAURI_AGENT_TOOL_DESCRIPTIONS.tauri_launch,
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_launch,
       inputSchema: launchInputSchema,
     },
     (input, extra) =>
@@ -99,7 +99,7 @@ export function createMcpServer(ports: TauriAgentDomainPorts): McpServer {
   server.registerTool(
     "tauri_snapshot",
     {
-      description: TAURI_AGENT_TOOL_DESCRIPTIONS.tauri_snapshot,
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_snapshot,
       inputSchema: emptyInputSchema,
     },
     (_input, extra) => invoke(() => ports.snapshot({ signal: extra.signal })),
@@ -107,7 +107,7 @@ export function createMcpServer(ports: TauriAgentDomainPorts): McpServer {
   server.registerTool(
     "tauri_screenshot",
     {
-      description: TAURI_AGENT_TOOL_DESCRIPTIONS.tauri_screenshot,
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_screenshot,
       inputSchema: screenshotInputSchema,
     },
     (input, extra) =>
@@ -116,7 +116,7 @@ export function createMcpServer(ports: TauriAgentDomainPorts): McpServer {
   server.registerTool(
     "tauri_click",
     {
-      description: TAURI_AGENT_TOOL_DESCRIPTIONS.tauri_click,
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_click,
       inputSchema: clickInputSchema,
     },
     (input, extra) =>
@@ -125,7 +125,7 @@ export function createMcpServer(ports: TauriAgentDomainPorts): McpServer {
   server.registerTool(
     "tauri_type",
     {
-      description: TAURI_AGENT_TOOL_DESCRIPTIONS.tauri_type,
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_type,
       inputSchema: typeInputSchema,
     },
     (input, extra) => invoke(() => ports.type(input, { signal: extra.signal })),
@@ -133,7 +133,7 @@ export function createMcpServer(ports: TauriAgentDomainPorts): McpServer {
   server.registerTool(
     "tauri_press_key",
     {
-      description: TAURI_AGENT_TOOL_DESCRIPTIONS.tauri_press_key,
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_press_key,
       inputSchema: pressKeyInputSchema,
     },
     (input, extra) =>
@@ -142,7 +142,7 @@ export function createMcpServer(ports: TauriAgentDomainPorts): McpServer {
   server.registerTool(
     "tauri_close",
     {
-      description: TAURI_AGENT_TOOL_DESCRIPTIONS.tauri_close,
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_close,
       inputSchema: emptyInputSchema,
     },
     (_input, extra) => invoke(() => ports.close({ signal: extra.signal })),
@@ -154,7 +154,7 @@ export function createMcpServer(ports: TauriAgentDomainPorts): McpServer {
 export async function serveMcpOverStdio(
   projectPath: string,
 ): Promise<McpServer> {
-  const runtime = await createTauriAgentRuntime(projectPath);
+  const runtime = await createPumarejoRuntime(projectPath);
   const server = createMcpServer(runtime);
   const transport = new StdioServerTransport();
   let handlingSignal = false;
@@ -178,7 +178,7 @@ export async function serveMcpOverStdio(
   const reportCleanupFailure = () => {
     if (!cleanupReported) {
       cleanupReported = true;
-      process.stderr.write("tauri-agent: owned runtime cleanup failed\n");
+      process.stderr.write("pumarejo: owned runtime cleanup failed\n");
     }
     process.exitCode = 1;
   };
@@ -225,6 +225,6 @@ export async function serveMcpOverStdio(
   return server;
 }
 
-export function isExpectedMcpError(error: unknown): error is TauriAgentError {
-  return error instanceof TauriAgentError;
+export function isExpectedMcpError(error: unknown): error is PumarejoError {
+  return error instanceof PumarejoError;
 }

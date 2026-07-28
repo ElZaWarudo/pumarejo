@@ -2,10 +2,10 @@
 title: Serve the complete MCP workflow
 status: passed
 roadmap_item: RDM-007
-origin_roadmap: docs/roadmaps/2026-07-23-001-tauri-agent-roadmap.md
+origin_roadmap: docs/roadmaps/2026-07-23-001-pumarejo-roadmap.md
 origin_brainstorm: STRATEGY.md
 origin_planning_input: docs/product-requirements.md
-origin_plan: docs/plans/2026-07-23-001-feat-tauri-agent-plan.md
+origin_plan: docs/plans/2026-07-23-001-feat-pumarejo-plan.md
 units: [U13]
 unit_alignment: complete
 review_units: [RU1]
@@ -69,14 +69,14 @@ Grouping rationale: one end-to-end protocol integration slice. Estimate 400-750 
 
 | Review unit | Scope                           | Expected changed surfaces   | PR base                  | Jira issue/subtask        | Size/risk note                           |
 | ----------- | ------------------------------- | --------------------------- | ------------------------ | ------------------------- | ---------------------------------------- |
-| RU1         | Runtime and seven real handlers | MCP runtime/tools/e2e tests | unresolved-final-release | optional standalone Tarea | 400-750 human; public/untrusted boundary |
+| RU1         | Runtime and seven real handlers | MCP runtime/tools/e2e tests | unresolved-final-release | optional standalone Task | 400-750 human; public/untrusted boundary |
 
 ## Reviewability Diagnosis
 
 - Reviewer-experience check: yes; all handlers share one runtime and public contract.
 - Granularity chosen because: splitting handlers would duplicate protocol/cancellation review.
 - Open-stack plan: independent, no PR during implementation.
-- Jira mapping: optional standalone Tarea.
+- Jira mapping: optional standalone Task.
 - Downstream-fix trace: none.
 - Failure-mode check: cohesive integration, not a mega-review.
 
@@ -131,9 +131,9 @@ No RU passes with an unresolved P0-P2 security finding. The runtime guard/cancel
 ## Branch and PR Handoff Inputs
 
 - Review unit: RU1 complete MCP workflow.
-- Branch name: `feat/tauri-agent-mcp-runtime`.
+- Branch name: `feat/pumarejo-mcp-runtime`.
 - PR base: unresolved-final-release.
-- Suggested commit grouping for this review unit: `feat(mcp): serve the complete Tauri agent workflow`.
+- Suggested commit grouping for this review unit: `feat(mcp): serve the complete pumarejo workflow`.
 - PR title: Serve the complete semantic Tauri workflow over MCP
 - PR body bullets:
   - Connects all seven public tools to the isolated runtime.
@@ -144,12 +144,12 @@ No RU passes with an unresolved P0-P2 security finding. The runtime guard/cancel
 
 ## Jira Handoff Inputs
 
-- Jira policy: optional; standalone Tarea.
-- Suggested issue type: Tarea.
+- Jira policy: optional; standalone Task.
+- Suggested issue type: Task.
 - Suggested subtask behavior: no parent for one unit.
 - PR-to-Jira mapping: RU1 to one task.
-- Jira summary: Servir el flujo completo de Tauri Agent mediante MCP
-- Jira description: Conectar los siete contratos MCP con la ejecución, observación e interacción reales.
+- Jira summary: Serve the complete pumarejo workflow through MCP
+- Jira description: Connect the seven MCP contracts to real execution, observation, and interaction.
 - Optional-policy fallback: Jira omitted: no context/config.
 
 ## Closeout

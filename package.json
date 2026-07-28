@@ -1,5 +1,5 @@
 {
-  "name": "@cie/tauri-agent",
+  "name": "pumarejo",
   "version": "0.1.0",
   "description": "Semantic MCP control for an instrumented Tauri 2 WebView",
   "private": true,
@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "packageManager": "pnpm@11.9.0",
   "bin": {
-    "tauri-agent": "./dist/cli/index.js"
+    "pumarejo": "./dist/cli/index.js"
   },
   "exports": {
     ".": {
@@ -39,7 +39,7 @@
     "build": "pnpm clean && tsc -p tsconfig.build.json && node scripts/build-browser-bundle.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "format:check": "prettier --check package.json tsconfig.json tsconfig.build.json eslint.config.js vitest.config.ts src tests/platform tests/unit tests/integration tests/contract tests/agent tests/release tests/fixtures/tauri-app/.tauri-agent.json tests/fixtures/tauri-app/package.json tests/fixtures/tauri-app/src tests/fixtures/tauri-app/src-tauri/tauri.conf.json tests/fixtures/tauri-app/src-tauri/capabilities/default.json \"tests/fixtures/projects/**/*.{json,json5}\"",
+    "format:check": "prettier --check package.json tsconfig.json tsconfig.build.json eslint.config.js vitest.config.ts src tests/platform tests/unit tests/integration tests/contract tests/agent tests/release tests/fixtures/tauri-app/.pumarejo.json tests/fixtures/tauri-app/package.json tests/fixtures/tauri-app/src tests/fixtures/tauri-app/src-tauri/tauri.conf.json tests/fixtures/tauri-app/src-tauri/capabilities/default.json \"tests/fixtures/projects/**/*.{json,json5}\"",
     "test:unit": "vitest run tests/unit",
     "test:contract": "pnpm build && vitest run tests/contract",
     "test:integration": "vitest run tests/integration",

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 const enabled =
   process.platform === "win32" &&
-  process.env.TAURI_AGENT_RUN_RUNTIME_MODES === "1";
+  process.env.PUMAREJO_RUN_RUNTIME_MODES === "1";
 
 describe("Windows runtime modes", () => {
   it.runIf(enabled)(

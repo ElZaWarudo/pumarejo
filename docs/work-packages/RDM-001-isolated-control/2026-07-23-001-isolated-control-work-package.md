@@ -2,10 +2,10 @@
 title: Prove isolated Tauri control
 status: review-passed
 roadmap_item: RDM-001
-origin_roadmap: docs/roadmaps/2026-07-23-001-tauri-agent-roadmap.md
+origin_roadmap: docs/roadmaps/2026-07-23-001-pumarejo-roadmap.md
 origin_brainstorm: STRATEGY.md
 origin_planning_input: docs/product-requirements.md
-origin_plan: docs/plans/2026-07-23-001-feat-tauri-agent-plan.md
+origin_plan: docs/plans/2026-07-23-001-feat-pumarejo-plan.md
 units: [U1]
 unit_alignment: complete
 review_units: [RU1]
@@ -65,9 +65,9 @@ evidence bundle.
 
 ## Plan Unit Alignment
 
-| Plan unit | Included | Reason |
-|---|---|---|
-| U1 | yes | Exact feasibility gate |
+| Plan unit | Included | Reason                 |
+| --------- | -------- | ---------------------- |
+| U1        | yes      | Exact feasibility gate |
 
 Grouping rationale: one high-risk proof slice with no reusable runtime. Estimated review size: 350-650 human-authored lines, 0 generated lines, 50-150 evidence/doc lines.
 
@@ -77,16 +77,16 @@ Grouping rationale: one high-risk proof slice with no reusable runtime. Estimate
 
 ## Review Units
 
-| Review unit | Scope | Expected changed surfaces | PR base | Jira issue/subtask | Size/risk note |
-|---|---|---|---|---|---|
-| RU1 | Fixture, harness, provider/background proof | root harness, fixture, platform tests, evidence | unresolved-final-release | optional standalone Tarea | 350-650 human + 50-150 docs; hard endpoint/platform gate |
+| Review unit | Scope                                       | Expected changed surfaces                       | PR base                  | Jira issue/subtask       | Size/risk note                                           |
+| ----------- | ------------------------------------------- | ----------------------------------------------- | ------------------------ | ------------------------ | -------------------------------------------------------- |
+| RU1         | Fixture, harness, provider/background proof | root harness, fixture, platform tests, evidence | unresolved-final-release | optional standalone Task | 350-650 human + 50-150 docs; hard endpoint/platform gate |
 
 ## Reviewability Diagnosis
 
 - Reviewer-experience check: yes; one falsifiable proof question.
 - Granularity chosen because: fixture, commands, and evidence must be read together.
 - Open-stack plan: independent, no PR during implementation.
-- Jira mapping: optional standalone Tarea.
+- Jira mapping: optional standalone Task.
 - Downstream-fix trace: none.
 - Failure-mode check: not a micro-split; no reusable lifecycle is hidden here.
 
@@ -97,7 +97,7 @@ Grouping rationale: one high-risk proof slice with no reusable runtime. Estimate
 ## Impact Scan
 
 - Changed contract: proof harness and fixture only.
-- Consumer scan patterns: `tauri-plugin-wdio-webdriver`, `TAURI_WEBDRIVER_PORT`, `tauri-agent` Cargo feature.
+- Consumer scan patterns: `tauri-plugin-wdio-webdriver`, `TAURI_WEBDRIVER_PORT`, `pumarejo` Cargo feature.
 - Consumers found: fixture only.
 - Contract-drift tests searched: Cargo feature/registration/capability and release omission.
 - Required consumer tests: fixture debug with feature, normal debug without feature, release without feature.
@@ -105,9 +105,9 @@ Grouping rationale: one high-risk proof slice with no reusable runtime. Estimate
 
 ## Verification Gate
 
-| RU | U | Required verification | Evidence | Pass signal |
-|---|---|---|---|---|
-| RU1 | U1 | clean `pnpm install --frozen-lockfile`; `pnpm build`; visible/background proof on the available Windows host and Ubuntu 24.04 WSLg under approved exception `USER-2026-07-27-WINDOWS-WSL`; authenticated competing-client, port-race/TOCTOU, and release-safety scenarios | `docs/evidence/rdm-001/README.md` plus automated results recording OS build, session/display type, WebView runtime, provider version, ownership nonce, and exception id | All scenarios pass on both accepted hosts; the exception is explicit and does not alter the shipping support contract |
+| RU  | U   | Required verification                                                                                                                                                                                                                                                     | Evidence                                                                                                                                                                | Pass signal                                                                                                           |
+| --- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| RU1 | U1  | clean `pnpm install --frozen-lockfile`; `pnpm build`; visible/background proof on the available Windows host and Ubuntu 24.04 WSLg under approved exception `USER-2026-07-27-WINDOWS-WSL`; authenticated competing-client, port-race/TOCTOU, and release-safety scenarios | `docs/evidence/rdm-001/README.md` plus automated results recording OS build, session/display type, WebView runtime, provider version, ownership nonce, and exception id | All scenarios pass on both accepted hosts; the exception is explicit and does not alter the shipping support contract |
 
 ## Review Gate
 
@@ -148,9 +148,9 @@ Grouping rationale: one high-risk proof slice with no reusable runtime. Estimate
 ## Jira Handoff Inputs
 
 - Jira policy: optional.
-- Suggested issue type: Tarea.
+- Suggested issue type: Task.
 - Suggested subtask behavior: standalone task.
-- PR-to-Jira mapping: RU1 to one Tarea.
-- Jira summary: Probar el control aislado de aplicaciones Tauri
-- Jira description: Verificar el proveedor WebDriver, el aislamiento y los modos visible y en segundo plano en Windows y Ubuntu.
+- PR-to-Jira mapping: RU1 to one Task.
+- Jira summary: Test isolated control of Tauri applications
+- Jira description: Verify the WebDriver provider, isolation, and visible and background modes on Windows and Ubuntu.
 - Optional-policy fallback: Jira omitted: no Jira context/config is available.

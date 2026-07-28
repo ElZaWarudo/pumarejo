@@ -1,4 +1,4 @@
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import type {
   ClickInput,
   LaunchInput,
@@ -21,7 +21,7 @@ export interface ScreenshotDomainResult {
   };
 }
 
-export interface TauriAgentDomainPorts {
+export interface PumarejoDomainPorts {
   launch(input: LaunchInput, context: DomainCallContext): Promise<DomainResult>;
   snapshot(context: DomainCallContext): Promise<DomainResult>;
   screenshot(
@@ -38,10 +38,10 @@ export interface TauriAgentDomainPorts {
 }
 
 async function unavailable(): Promise<never> {
-  throw new TauriAgentError("INTEGRATION_INCOMPLETE");
+  throw new PumarejoError("INTEGRATION_INCOMPLETE");
 }
 
-export function createStubDomainPorts(): TauriAgentDomainPorts {
+export function createStubDomainPorts(): PumarejoDomainPorts {
   return {
     launch: unavailable,
     snapshot: unavailable,

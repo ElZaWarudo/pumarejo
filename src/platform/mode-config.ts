@@ -12,7 +12,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import JSON5 from "json5";
 import { parse as parseToml } from "smol-toml";
 
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import type { RuntimeMode } from "../session/state.js";
 
 const MAX_TAURI_CONFIG_BYTES = 1024 * 1024;
@@ -45,7 +45,7 @@ export function modeOverlay(
   configuredWindows: readonly Record<string, unknown>[] = [],
 ): Record<string, unknown> {
   if (windowLabel.trim().length === 0 || windowLabel.length > 128) {
-    throw new TauriAgentError("CONFIG_INVALID");
+    throw new PumarejoError("CONFIG_INVALID");
   }
   if (configuredWindows.length === 0) {
     return {
@@ -71,7 +71,7 @@ export function modeOverlay(
     return isSelected ? { ...window, visible: true } : { ...window };
   });
   if (!selected) {
-    throw new TauriAgentError("CONFIG_INVALID");
+    throw new PumarejoError("CONFIG_INVALID");
   }
   return { app: { windows } };
 }
@@ -91,7 +91,7 @@ function effectiveWindowLabel(
   if (labels.includes(requestedLabel)) return requestedLabel;
   if (configuredWindows.length === 1) return labels[0] ?? "main";
   if (labels.filter((label) => label === "main").length === 1) return "main";
-  throw new TauriAgentError("CONFIG_INVALID");
+  throw new PumarejoError("CONFIG_INVALID");
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -121,12 +121,12 @@ async function configuredWindows(
       metadata.size > MAX_TAURI_CONFIG_BYTES ||
       (await realpath(candidate)) !== candidate
     ) {
-      throw new TauriAgentError("CONFIG_INVALID");
+      throw new PumarejoError("CONFIG_INVALID");
     }
     candidates.push(candidate);
   }
   if (candidates.length > 1) {
-    throw new TauriAgentError("CONFIG_INVALID");
+    throw new PumarejoError("CONFIG_INVALID");
   }
   if (candidates.length === 0) return [];
 
@@ -153,7 +153,7 @@ async function configuredWindows(
       metadata.size > MAX_TAURI_CONFIG_BYTES ||
       (await realpath(path)) !== path
     ) {
-      throw new TauriAgentError("CONFIG_INVALID");
+      throw new PumarejoError("CONFIG_INVALID");
     }
     try {
       const source = await readFile(path, "utf8");
@@ -165,7 +165,7 @@ async function configuredWindows(
         ) ?? {}
       );
     } catch (error) {
-      throw new TauriAgentError("CONFIG_INVALID", { cause: error });
+      throw new PumarejoError("CONFIG_INVALID", { cause: error });
     }
   };
 
@@ -188,17 +188,17 @@ async function configuredWindows(
   const parsed =
     platformConfig === undefined ? base : mergePatch(base, platformConfig);
   if (parsed === undefined) {
-    throw new TauriAgentError("CONFIG_INVALID");
+    throw new PumarejoError("CONFIG_INVALID");
   }
   const windows = record(record(parsed)?.app)?.windows;
   if (windows === undefined) return [];
   if (!Array.isArray(windows) || windows.length === 0) {
-    throw new TauriAgentError("CONFIG_INVALID");
+    throw new PumarejoError("CONFIG_INVALID");
   }
   return windows.map((window) => {
     const parsedWindow = record(window);
     if (parsedWindow === undefined) {
-      throw new TauriAgentError("CONFIG_INVALID");
+      throw new PumarejoError("CONFIG_INVALID");
     }
     return parsedWindow;
   });
@@ -217,7 +217,7 @@ async function assertOwnedRuntimeDirectory(
     directoryMetadata.isSymbolicLink() ||
     !directoryMetadata.isDirectory()
   ) {
-    throw new TauriAgentError("INTEGRATION_INCOMPLETE");
+    throw new PumarejoError("INTEGRATION_INCOMPLETE");
   }
 
   const canonicalAgent = await realpath(agentDirectory);
@@ -227,7 +227,7 @@ async function assertOwnedRuntimeDirectory(
     dirname(canonicalDirectory) !== canonicalAgent ||
     !isInside(canonicalAgent, canonicalDirectory)
   ) {
-    throw new TauriAgentError("INTEGRATION_INCOMPLETE");
+    throw new PumarejoError("INTEGRATION_INCOMPLETE");
   }
 }
 
@@ -238,22 +238,22 @@ export async function createRuntimeOverlay(options: {
   readonly windowLabel: string;
 }): Promise<RuntimeOverlay> {
   const projectRoot = resolve(options.projectRoot);
-  const agentDirectory = resolve(projectRoot, ".tauri-agent");
+  const agentDirectory = resolve(projectRoot, ".pumarejo");
   try {
     if ((await realpath(projectRoot)) !== projectRoot) {
-      throw new TauriAgentError("INTEGRATION_INCOMPLETE");
+      throw new PumarejoError("INTEGRATION_INCOMPLETE");
     }
     const agentMetadata = await lstat(agentDirectory);
     if (agentMetadata.isSymbolicLink() || !agentMetadata.isDirectory()) {
-      throw new TauriAgentError("INTEGRATION_INCOMPLETE");
+      throw new PumarejoError("INTEGRATION_INCOMPLETE");
     }
     const canonicalAgent = await realpath(agentDirectory);
     if (!isInside(projectRoot, canonicalAgent)) {
-      throw new TauriAgentError("INTEGRATION_INCOMPLETE");
+      throw new PumarejoError("INTEGRATION_INCOMPLETE");
     }
   } catch (error) {
-    if (error instanceof TauriAgentError) throw error;
-    throw new TauriAgentError("INTEGRATION_INCOMPLETE", { cause: error });
+    if (error instanceof PumarejoError) throw error;
+    throw new PumarejoError("INTEGRATION_INCOMPLETE", { cause: error });
   }
 
   const windows = await configuredWindows(projectRoot, options.platform);
@@ -279,7 +279,7 @@ export async function createRuntimeOverlay(options: {
     await assertOwnedRuntimeDirectory(projectRoot, agentDirectory, directory)
       .then(() => rm(directory, { recursive: true, force: true }))
       .catch(() => undefined);
-    throw new TauriAgentError("APP_START_FAILED", { cause: error });
+    throw new PumarejoError("APP_START_FAILED", { cause: error });
   }
   let cleaned = false;
   return {

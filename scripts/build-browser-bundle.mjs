@@ -5,7 +5,7 @@ await build({
   outfile: "dist/observation/snapshot-browser.js",
   bundle: true,
   format: "iife",
-  globalName: "TauriAgentSnapshot",
+  globalName: "PumarejoSnapshot",
   platform: "browser",
   target: ["es2022"],
   legalComments: "none",

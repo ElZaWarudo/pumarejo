@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const manifest = resolve("tests/fixtures/tauri-app/src-tauri/Cargo.toml");
 const cargo = readFileSync(manifest, "utf8");
-const runCargo = process.env.TAURI_AGENT_RUN_CARGO === "1";
+const runCargo = process.env.PUMAREJO_RUN_CARGO === "1";
 
 function runCargoCommand(args: string[]): Promise<void> {
   return new Promise((resolvePromise, reject) => {
@@ -38,9 +38,7 @@ describe("Cargo provider feature proof", () => {
       { encoding: "utf8" },
     );
     expect(JSON.parse(metadata).packages).toHaveLength(1);
-    expect(cargo).toContain(
-      'tauri-agent = ["dep:tauri-plugin-wdio-webdriver"]',
-    );
+    expect(cargo).toContain('pumarejo = ["dep:tauri-plugin-wdio-webdriver"]');
   });
 
   it.runIf(runCargo)(
@@ -51,7 +49,7 @@ describe("Cargo provider feature proof", () => {
         "--manifest-path",
         manifest,
         "--features",
-        "tauri-agent",
+        "pumarejo",
       ]);
       await runCargoCommand([
         "check",

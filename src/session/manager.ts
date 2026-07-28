@@ -5,7 +5,7 @@ import {
   type ProcessAdapter,
   type SpawnRequest,
 } from "../platform/types.js";
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import { WebDriverClient } from "../webdriver/client.js";
 import { CleanupStack } from "./cleanup.js";
 import {
@@ -77,9 +77,9 @@ function defaultDependencies(
 }
 
 function launchError(error: unknown): Error {
-  return error instanceof TauriAgentError
+  return error instanceof PumarejoError
     ? error
-    : new TauriAgentError("APP_START_FAILED", { cause: error });
+    : new PumarejoError("APP_START_FAILED", { cause: error });
 }
 
 export class SessionManager {
@@ -109,14 +109,14 @@ export class SessionManager {
 
   get readySession(): ReadySession {
     if (this.#ready === undefined || this.#state !== "ready") {
-      throw new TauriAgentError("SESSION_NOT_ACTIVE");
+      throw new PumarejoError("SESSION_NOT_ACTIVE");
     }
     return this.#ready;
   }
 
   async launch(options: SessionLaunchOptions): Promise<ReadySession> {
     if (this.#state !== "idle") {
-      throw new TauriAgentError("SESSION_ALREADY_ACTIVE");
+      throw new PumarejoError("SESSION_ALREADY_ACTIVE");
     }
     if (
       options.window.trim().length === 0 ||
@@ -124,7 +124,7 @@ export class SessionManager {
       options.signal?.aborted
     ) {
       options.signal?.throwIfAborted();
-      throw new TauriAgentError("CONFIG_INVALID");
+      throw new PumarejoError("CONFIG_INVALID");
     }
     this.setState("starting", {
       mode: options.mode,
@@ -160,7 +160,7 @@ export class SessionManager {
     }
     if (this.#state === "starting" && this.#launchOperation !== undefined) {
       this.#launchAbort?.abort(
-        new TauriAgentError("APP_START_FAILED", {
+        new PumarejoError("APP_START_FAILED", {
           cause: new Error("Launch cancelled by close."),
         }),
       );
@@ -200,7 +200,7 @@ export class SessionManager {
       !/^[a-f0-9]{64}$/u.test(providerNonce) ||
       sessionNonce === providerNonce
     ) {
-      return await this.failLaunch(new TauriAgentError("INTERNAL_ERROR"));
+      return await this.failLaunch(new PumarejoError("INTERNAL_ERROR"));
     }
 
     let lease: ProcessLease | undefined;
@@ -222,7 +222,7 @@ export class SessionManager {
       });
       const window = prepared.window ?? options.window;
       if (window.trim().length === 0 || window.length > 128) {
-        throw new TauriAgentError("CONFIG_INVALID");
+        throw new PumarejoError("CONFIG_INVALID");
       }
 
       await reservation.release();
@@ -232,7 +232,7 @@ export class SessionManager {
           ...prepared.request.env,
           TAURI_WEBDRIVER_PORT: String(reservation.port),
           TAURI_WEBDRIVER_NONCE: providerNonce,
-          TAURI_AGENT_SESSION_NONCE: sessionNonce,
+          PUMAREJO_SESSION_NONCE: sessionNonce,
         },
         shell: false,
       };
@@ -257,7 +257,7 @@ export class SessionManager {
         spawned.commandHash !== expectedHash ||
         spawned.sessionNonce !== sessionNonce
       ) {
-        throw new TauriAgentError("APP_START_FAILED");
+        throw new PumarejoError("APP_START_FAILED");
       }
 
       await spawned.waitUntilProviderReady(reservation.port, options.signal);
@@ -267,14 +267,14 @@ export class SessionManager {
           await this.#dependencies.process.inspect(spawned.pid),
         )
       ) {
-        throw new TauriAgentError("SESSION_CREATE_FAILED");
+        throw new PumarejoError("SESSION_CREATE_FAILED");
       }
       const providerPid = await this.#dependencies.process.providerOwner(
         spawned.pid,
         reservation.port,
       );
       if (providerPid === undefined || providerPid <= 0) {
-        throw new TauriAgentError("SESSION_CREATE_FAILED");
+        throw new PumarejoError("SESSION_CREATE_FAILED");
       }
       let authorizationCheckedAt = Date.now();
       let authorizationAllowed = true;
@@ -319,7 +319,7 @@ export class SessionManager {
           await this.#dependencies.process.inspect(spawned.pid),
         )
       ) {
-        throw new TauriAgentError("SESSION_CREATE_FAILED");
+        throw new PumarejoError("SESSION_CREATE_FAILED");
       }
       const confirmedProviderPid =
         await this.#dependencies.process.providerOwner(
@@ -327,7 +327,7 @@ export class SessionManager {
           reservation.port,
         );
       if (confirmedProviderPid !== providerPid) {
-        throw new TauriAgentError("SESSION_CREATE_FAILED");
+        throw new PumarejoError("SESSION_CREATE_FAILED");
       }
       authorizationAllowed = true;
       authorizationCheckedAt = Date.now();
@@ -389,7 +389,7 @@ export class SessionManager {
     } catch (error) {
       this.#ready = undefined;
       this.setState("failed");
-      throw new TauriAgentError("CLOSE_FAILED", { cause: error });
+      throw new PumarejoError("CLOSE_FAILED", { cause: error });
     }
   }
 }

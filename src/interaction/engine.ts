@@ -2,7 +2,7 @@ import type { ClickInput, PressKeyInput, TypeInput } from "../mcp/schemas.js";
 import type { SnapshotEngine } from "../observation/snapshot.js";
 import type { ReferenceTable, SemanticReference } from "../observation/refs.js";
 import { loadIdentityScript } from "../observation/snapshot-script.js";
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import { W3C_ELEMENT_KEY } from "../webdriver/protocol.js";
 import { webdriverKey } from "./keys.js";
 import { currentIdentitySchema, type CurrentIdentity } from "./schema.js";
@@ -75,7 +75,7 @@ export class InteractionEngine {
   type(input: TypeInput, signal?: AbortSignal): Promise<InteractionResult> {
     return this.#snapshot.interaction(async (refresh) => {
       if (input.text.length > 65_536) {
-        throw new TauriAgentError("ELEMENT_NOT_INTERACTABLE");
+        throw new PumarejoError("ELEMENT_NOT_INTERACTABLE");
       }
       const reference = await this.requireTarget(input.ref, "type", signal);
       let mutationStarted = false;
@@ -130,7 +130,7 @@ export class InteractionEngine {
       );
     } catch (error) {
       if (
-        error instanceof TauriAgentError &&
+        error instanceof PumarejoError &&
         error.code === "STALE_ELEMENT_REF"
       ) {
         this.#references.clear();
@@ -138,19 +138,19 @@ export class InteractionEngine {
       }
       if (signal?.aborted) throw signal.reason;
       this.#references.clear();
-      throw new TauriAgentError("STALE_ELEMENT_REF", { cause: error });
+      throw new PumarejoError("STALE_ELEMENT_REF", { cause: error });
     }
     if (!sameIdentity(reference, current)) {
       this.#references.clear();
-      throw new TauriAgentError("STALE_ELEMENT_REF");
+      throw new PumarejoError("STALE_ELEMENT_REF");
     }
-    if (!current.visible) throw new TauriAgentError("ELEMENT_HIDDEN");
-    if (!current.enabled) throw new TauriAgentError("ELEMENT_DISABLED");
+    if (!current.visible) throw new PumarejoError("ELEMENT_HIDDEN");
+    if (!current.enabled) throw new PumarejoError("ELEMENT_DISABLED");
     if (
       current.kind !== "control" ||
       (action === "type" && !current.editable)
     ) {
-      throw new TauriAgentError("ELEMENT_NOT_INTERACTABLE");
+      throw new PumarejoError("ELEMENT_NOT_INTERACTABLE");
     }
     return reference;
   }

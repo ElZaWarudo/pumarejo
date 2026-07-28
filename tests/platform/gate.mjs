@@ -2,22 +2,21 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const expected = process.argv[2];
-const acceptNonstandard =
-  process.env.TAURI_AGENT_ACCEPT_NONSTANDARD_HOST === "1";
+const acceptNonstandard = process.env.PUMAREJO_ACCEPT_NONSTANDARD_HOST === "1";
 const fail = (message) => {
   console.error(`RU1 authoritative gate blocked: ${message}`);
   process.exit(2);
 };
 
-if (process.env.TAURI_AGENT_RUN_PROVIDER !== "1")
-  fail("TAURI_AGENT_RUN_PROVIDER=1 is required");
-if (process.env.TAURI_AGENT_REQUIRE_AUTH_HOST !== "1")
-  fail("TAURI_AGENT_REQUIRE_AUTH_HOST=1 is required");
-if (process.env.TAURI_AGENT_RUN_CARGO !== "1")
-  fail("TAURI_AGENT_RUN_CARGO=1 is required");
+if (process.env.PUMAREJO_RUN_PROVIDER !== "1")
+  fail("PUMAREJO_RUN_PROVIDER=1 is required");
+if (process.env.PUMAREJO_REQUIRE_AUTH_HOST !== "1")
+  fail("PUMAREJO_REQUIRE_AUTH_HOST=1 is required");
+if (process.env.PUMAREJO_RUN_CARGO !== "1")
+  fail("PUMAREJO_RUN_CARGO=1 is required");
 if (
   acceptNonstandard &&
-  process.env.TAURI_AGENT_HOST_EXCEPTION_ID !== "USER-2026-07-27-WINDOWS-WSL"
+  process.env.PUMAREJO_HOST_EXCEPTION_ID !== "USER-2026-07-27-WINDOWS-WSL"
 )
   fail("recognized nonstandard-host exception id is required");
 

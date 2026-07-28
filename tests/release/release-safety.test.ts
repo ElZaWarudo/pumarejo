@@ -35,16 +35,16 @@ describe("release safety", () => {
     );
 
     expect(cargo).toMatch(
-      /tauri-agent\s*=\s*\["dep:tauri-plugin-wdio-webdriver"\]/,
+      /pumarejo\s*=\s*\["dep:tauri-plugin-wdio-webdriver"\]/,
     );
     expect(cargo).toMatch(
       /tauri-plugin-wdio-webdriver\s*=\s*\{[^}]*optional\s*=\s*true[^}]*\}/,
     );
     expect(rust).toContain(
-      '#[cfg(all(debug_assertions, feature = "tauri-agent"))]',
+      '#[cfg(all(debug_assertions, feature = "pumarejo"))]',
     );
     expect(rust).toContain(
-      '#[cfg(not(all(debug_assertions, feature = "tauri-agent")))]',
+      '#[cfg(not(all(debug_assertions, feature = "pumarejo")))]',
     );
     expect(rust.match(/tauri_plugin_wdio_webdriver::init\(\)/g)).toHaveLength(
       1,

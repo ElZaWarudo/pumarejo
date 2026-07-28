@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import type {
   RawSemanticDescriptor,
   RawSnapshot,
@@ -56,7 +56,7 @@ export class ReferenceTable {
       const ref = refs[index]!;
       const elementId = elementIds[handleIndex];
       if (elementId === undefined) {
-        throw new TauriAgentError("INTERNAL_ERROR");
+        throw new PumarejoError("INTERNAL_ERROR");
       }
       next.set(ref, {
         ref,
@@ -104,7 +104,7 @@ export class ReferenceTable {
   resolve(ref: string): SemanticReference {
     const reference = this.#references.get(ref);
     if (reference === undefined) {
-      throw new TauriAgentError("STALE_ELEMENT_REF");
+      throw new PumarejoError("STALE_ELEMENT_REF");
     }
     return reference;
   }

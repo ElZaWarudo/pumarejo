@@ -179,7 +179,7 @@ export async function removeIntegration(
     options.writeOptions,
   );
 
-  const agentDirectory = resolve(detected.projectRoot, ".tauri-agent");
+  const agentDirectory = resolve(detected.projectRoot, ".pumarejo");
   try {
     if ((await readdir(agentDirectory)).length === 0) {
       await rmdir(agentDirectory);

@@ -6,7 +6,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 
 import { createMcpServer } from "../../src/mcp/index.js";
-import { createTauriAgentRuntime } from "../../src/mcp/runtime.js";
+import { createPumarejoRuntime } from "../../src/mcp/runtime.js";
 import { providerRunEnabled } from "../platform/host.js";
 
 function structured<T>(value: unknown): T {
@@ -18,9 +18,9 @@ describe("real public MCP runtime fixture", () => {
     "completes the seven-tool %s workflow and cleans owned resources",
     async (mode) => {
       const project = resolve(
-        process.env.TAURI_AGENT_FIXTURE_PROJECT ?? "tests/fixtures/tauri-app",
+        process.env.PUMAREJO_FIXTURE_PROJECT ?? "tests/fixtures/tauri-app",
       );
-      const runtime = await createTauriAgentRuntime(project);
+      const runtime = await createPumarejoRuntime(project);
       const server = createMcpServer(runtime);
       const client = new Client({
         name: "runtime-fixture-client",
@@ -102,7 +102,7 @@ describe("real public MCP runtime fixture", () => {
             mimeType: "image/png",
             width: expect.any(Number),
             height: expect.any(Number),
-            path: expect.stringContaining(".tauri-agent/artifacts/"),
+            path: expect.stringContaining(".pumarejo/artifacts/"),
           },
         });
 
@@ -114,7 +114,7 @@ describe("real public MCP runtime fixture", () => {
           structuredContent: { alreadyClosed: false, state: "idle" },
         });
         const artifacts = await readdir(
-          resolve(project, ".tauri-agent/artifacts"),
+          resolve(project, ".pumarejo/artifacts"),
         );
         expect(
           artifacts.filter((entry) => entry.startsWith("session-")),

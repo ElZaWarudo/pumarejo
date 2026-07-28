@@ -1,19 +1,19 @@
 ---
-title: Tauri Agent Architecture
+title: pumarejo Architecture
 date: 2026-07-23
 status: proposed-for-planning
 ---
 
-# Tauri Agent Architecture
+# pumarejo Architecture
 
 ## System shape
 
-Tauri Agent is one ESM TypeScript npm package with one CLI binary.
+pumarejo is one ESM TypeScript npm package with one CLI binary.
 It acts as a domain adapter between MCP clients and the W3C WebDriver server embedded in a debug Tauri application.
 
 ```mermaid
 flowchart TB
-  Host["MCP host / coding agent"] -->|stdio tools| Server["Tauri Agent MCP server"]
+  Host["MCP host / coding agent"] -->|stdio tools| Server["pumarejo MCP server"]
   Server --> Session["Session and reference manager"]
   Session --> Driver["W3C WebDriver adapter"]
   Driver -->|loopback HTTP| Plugin["Embedded WebDriver plugin"]
@@ -87,11 +87,11 @@ This is a planning boundary, not a promise to consumers.
 
 The installer uses the official embedded-provider pattern:
 
-- `tauri-plugin-wdio-webdriver = { version = "1", optional = true }` behind a generated `tauri-agent = ["dep:tauri-plugin-wdio-webdriver"]` Cargo feature; Cargo does not support `cfg(debug_assertions)` dependency tables.
-- plugin registration gated by both debug assertions and the `tauri-agent` feature.
+- `tauri-plugin-wdio-webdriver = { version = "1", optional = true }` behind a generated `pumarejo = ["dep:tauri-plugin-wdio-webdriver"]` Cargo feature; Cargo does not support `cfg(debug_assertions)` dependency tables.
+- plugin registration gated by both debug assertions and the `pumarejo` feature.
 - `wdio-webdriver:default` in the selected capability.
 - `TAURI_WEBDRIVER_PORT` supplied only to the owned application process.
-- a validated executable-plus-arguments launch profile that enables `tauri-agent` and contains a `{tauriConfig}` placeholder so each agent launch receives a mode-specific Tauri configuration overlay.
+- a validated executable-plus-arguments launch profile that enables `pumarejo` and contains a `{tauriConfig}` placeholder so each agent launch receives a mode-specific Tauri configuration overlay.
 
 The integration must not require `tauri-plugin-wdio`, `@wdio/tauri-plugin`, `withGlobalTauri`, frontend imports, IPC interception, or log forwarding for v1.
 
@@ -110,7 +110,7 @@ The first technical roadmap item must build a disposable fixture and prove the f
 - All project changes are planned before the first write.
 - Ambiguous Rust source transformations abort before mutation.
 - Writes use temporary siblings and atomic replacement where the platform permits.
-- An integration manifest under `.tauri-agent/` records inserted markers and attributable values for safe removal.
+- An integration manifest under `.pumarejo/` records inserted markers and attributable values for safe removal.
 - `remove` refuses to delete content whose recorded value has been changed by the developer and reports the manual action required.
 
 ## Security model

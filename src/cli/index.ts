@@ -3,7 +3,7 @@
 import { pathToFileURL } from "node:url";
 
 import { serveMcpOverStdio } from "../mcp/server.js";
-import { TauriAgentError, toErrorEnvelope } from "../shared/errors.js";
+import { PumarejoError, toErrorEnvelope } from "../shared/errors.js";
 import { VERSION } from "../version.js";
 import { runDoctorCommand } from "./doctor.js";
 import { runInitCommand } from "./init.js";
@@ -12,15 +12,15 @@ import { runRemoveCommand } from "./remove.js";
 
 export { VERSION };
 
-export const HELP_TEXT = `tauri-agent
+export const HELP_TEXT = `pumarejo
 
 Usage:
-  tauri-agent init [--project <path>] [--dry-run]
-  tauri-agent doctor [--project <path>] [--json]
-  tauri-agent remove [--project <path>] [--dry-run]
-  tauri-agent mcp --project <path>
-  tauri-agent --version
-  tauri-agent --help`;
+  pumarejo init [--project <path>] [--dry-run]
+  pumarejo doctor [--project <path>] [--json]
+  pumarejo remove [--project <path>] [--dry-run]
+  pumarejo mcp --project <path>
+  pumarejo --version
+  pumarejo --help`;
 
 export type CommandHandler = (
   invocation: Extract<CliInvocation, { kind: "command" }>,
@@ -57,7 +57,7 @@ async function defaultHandler(
     await runDoctorCommand(invocation, channels);
     return;
   }
-  throw new TauriAgentError("INTEGRATION_INCOMPLETE");
+  throw new PumarejoError("INTEGRATION_INCOMPLETE");
 }
 
 export async function runCli(

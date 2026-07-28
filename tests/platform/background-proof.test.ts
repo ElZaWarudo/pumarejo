@@ -15,7 +15,7 @@ describe("background mode proof", () => {
       "utf8",
     );
     expect(config).toContain('"visible": true');
-    expect(config).not.toContain("TAURI_AGENT_BACKGROUND");
+    expect(config).not.toContain("PUMAREJO_BACKGROUND");
   });
 
   it.runIf(providerRunEnabled())(
@@ -39,8 +39,8 @@ describe("background mode proof", () => {
   it.skipIf(!authoritativeHostRequested())(
     "requires active-desktop/focus evidence on the exact host",
     () => {
-      expect(process.env.TAURI_AGENT_NO_TRANSIENT_WINDOW).toBe("1");
-      expect(process.env.TAURI_AGENT_NO_FOCUS_CHANGE).toBe("1");
+      expect(process.env.PUMAREJO_NO_TRANSIENT_WINDOW).toBe("1");
+      expect(process.env.PUMAREJO_NO_FOCUS_CHANGE).toBe("1");
       const expected = process.platform === "win32" ? "windows" : "ubuntu";
       expect(authoritativeHostValid(expected)).toBe(true);
       expect(hostFacts().platform).toMatch(/^(win32|linux)$/);

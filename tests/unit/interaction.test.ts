@@ -10,7 +10,7 @@ import type {
   RawSnapshot,
   SemanticSnapshot,
 } from "../../src/observation/schema.js";
-import { TauriAgentError } from "../../src/shared/errors.js";
+import { PumarejoError } from "../../src/shared/errors.js";
 import { W3C_ELEMENT_KEY } from "../../src/webdriver/protocol.js";
 
 const OWNERSHIP = "root/button:button:Save";
@@ -137,7 +137,7 @@ describe("semantic interactions", () => {
     );
     expect(test.click).toHaveBeenCalledWith("exact-element-id", undefined);
     expect(test.snapshot).toHaveBeenCalledOnce();
-    expect(() => test.references.resolve("e1-1")).toThrowError(TauriAgentError);
+    expect(() => test.references.resolve("e1-1")).toThrowError(PumarejoError);
   });
 
   it.each([
@@ -155,7 +155,7 @@ describe("semantic interactions", () => {
     });
     expect(test.click).not.toHaveBeenCalled();
     expect(test.snapshot).not.toHaveBeenCalled();
-    expect(() => test.references.resolve("e1-1")).toThrowError(TauriAgentError);
+    expect(() => test.references.resolve("e1-1")).toThrowError(PumarejoError);
   });
 
   it.each([
@@ -307,7 +307,7 @@ describe("semantic interactions", () => {
       }),
     );
     test.type.mockRejectedValueOnce(
-      new TauriAgentError("ELEMENT_NOT_INTERACTABLE"),
+      new PumarejoError("ELEMENT_NOT_INTERACTABLE"),
     );
     const table = referenceTable({
       role: "textbox",
@@ -332,7 +332,7 @@ describe("semantic interactions", () => {
     await expect(
       engine.type({ ref: "e1-1", text: "x", clear: true }),
     ).rejects.toMatchObject({ code: "ELEMENT_NOT_INTERACTABLE" });
-    expect(() => table.resolve("e1-1")).toThrowError(TauriAgentError);
+    expect(() => table.resolve("e1-1")).toThrowError(PumarejoError);
     expect(test.snapshot).not.toHaveBeenCalled();
   });
 
@@ -353,28 +353,26 @@ describe("semantic interactions", () => {
 
   it("invalidates references when the click provider fails", async () => {
     const test = harness();
-    test.click.mockRejectedValueOnce(
-      new TauriAgentError("WEBDRIVER_NOT_READY"),
-    );
+    test.click.mockRejectedValueOnce(new PumarejoError("WEBDRIVER_NOT_READY"));
 
     await expect(test.engine.click({ ref: "e1-1" })).rejects.toMatchObject({
       code: "WEBDRIVER_NOT_READY",
     });
-    expect(() => test.references.resolve("e1-1")).toThrowError(TauriAgentError);
+    expect(() => test.references.resolve("e1-1")).toThrowError(PumarejoError);
     expect(test.snapshot).not.toHaveBeenCalled();
   });
 
   it("keeps references invalid when post-action snapshot refresh fails", async () => {
     const test = harness();
     test.snapshot.mockRejectedValueOnce(
-      new TauriAgentError("WEBDRIVER_NOT_READY"),
+      new PumarejoError("WEBDRIVER_NOT_READY"),
     );
 
     await expect(test.engine.click({ ref: "e1-1" })).rejects.toMatchObject({
       code: "WEBDRIVER_NOT_READY",
     });
     expect(test.click).toHaveBeenCalledOnce();
-    expect(() => test.references.resolve("e1-1")).toThrowError(TauriAgentError);
+    expect(() => test.references.resolve("e1-1")).toThrowError(PumarejoError);
   });
 
   it.each(SUPPORTED_KEYS)(
@@ -419,20 +417,18 @@ describe("semantic interactions", () => {
       code: "STALE_ELEMENT_REF",
     });
     expect(test.click).not.toHaveBeenCalled();
-    expect(() => test.references.resolve("e1-1")).toThrowError(TauriAgentError);
+    expect(() => test.references.resolve("e1-1")).toThrowError(PumarejoError);
   });
 
   it("preserves a provider stale-element error from identity capture", async () => {
     const test = harness();
-    test.execute.mockRejectedValueOnce(
-      new TauriAgentError("STALE_ELEMENT_REF"),
-    );
+    test.execute.mockRejectedValueOnce(new PumarejoError("STALE_ELEMENT_REF"));
 
     await expect(test.engine.click({ ref: "e1-1" })).rejects.toMatchObject({
       code: "STALE_ELEMENT_REF",
     });
     expect(test.click).not.toHaveBeenCalled();
-    expect(() => test.references.resolve("e1-1")).toThrowError(TauriAgentError);
+    expect(() => test.references.resolve("e1-1")).toThrowError(PumarejoError);
   });
 
   it("does not invoke WebDriver when already aborted", async () => {

@@ -11,12 +11,12 @@ import {
   projectConfigSchema,
   resolveProjectRoot,
 } from "../../src/config/index.js";
-import { TauriAgentError } from "../../src/shared/errors.js";
+import { PumarejoError } from "../../src/shared/errors.js";
 
 const temporaryDirectories: string[] = [];
 
 async function createProject(): Promise<string> {
-  const project = await mkdtemp(join(tmpdir(), "tauri-agent-config-"));
+  const project = await mkdtemp(join(tmpdir(), "pumarejo-config-"));
   temporaryDirectories.push(project);
   await mkdir(join(project, "src-tauri"));
   return project;
@@ -34,13 +34,13 @@ async function writeConfig(
         "tauri",
         "dev",
         "--features",
-        "tauri-agent",
+        "pumarejo",
         "--config",
         "{tauriConfig}",
       ],
     },
     window: "main",
-    artifactsDirectory: ".tauri-agent/artifacts",
+    artifactsDirectory: ".pumarejo/artifacts",
     ...overrides,
   };
 
@@ -69,7 +69,7 @@ describe("projectConfigSchema", () => {
         args: ["tauri", "dev", "--config", "{tauriConfig}"],
       },
       window: "main",
-      artifactsDirectory: ".tauri-agent/artifacts",
+      artifactsDirectory: ".pumarejo/artifacts",
     });
 
     expect(parsed.retainArtifacts).toBe(false);
@@ -124,7 +124,7 @@ describe("projectConfigSchema", () => {
         args: ["tauri", "dev", "--config", "{tauriConfig}"],
       },
       window: "main",
-      artifactsDirectory: ".tauri-agent/artifacts",
+      artifactsDirectory: ".pumarejo/artifacts",
       ...override,
     });
 
@@ -144,7 +144,7 @@ describe("loadProjectConfig", () => {
 
     expect(loaded.projectRoot).toBe(await resolveProjectRoot(project));
     expect(loaded.artifactsPath).toBe(
-      join(loaded.projectRoot, ".tauri-agent", "artifacts"),
+      join(loaded.projectRoot, ".pumarejo", "artifacts"),
     );
     expect(loaded.config.retainArtifacts).toBe(false);
   });
@@ -179,12 +179,12 @@ describe("loadProjectConfig", () => {
 
   it("rejects an existing symlink in the artifact path", async () => {
     const project = await createProject();
-    const outside = await mkdtemp(join(tmpdir(), "tauri-agent-outside-"));
+    const outside = await mkdtemp(join(tmpdir(), "pumarejo-outside-"));
     temporaryDirectories.push(outside);
-    await mkdir(join(project, ".tauri-agent"));
+    await mkdir(join(project, ".pumarejo"));
     await symlink(
       outside,
-      join(project, ".tauri-agent", "artifacts"),
+      join(project, ".pumarejo", "artifacts"),
       process.platform === "win32" ? "junction" : "dir",
     );
     await writeConfig(project);
@@ -205,13 +205,13 @@ describe("loadProjectConfig", () => {
     );
 
     await expect(resolveProjectRoot(link)).rejects.toBeInstanceOf(
-      TauriAgentError,
+      PumarejoError,
     );
   });
 
   it("rejects a project path reached through a linked parent", async () => {
     const project = await createProject();
-    const container = await mkdtemp(join(tmpdir(), "tauri-agent-parent-"));
+    const container = await mkdtemp(join(tmpdir(), "pumarejo-parent-"));
     temporaryDirectories.push(container);
     const link = join(container, "linked-parent");
     await symlink(
@@ -222,14 +222,14 @@ describe("loadProjectConfig", () => {
 
     await expect(
       resolveProjectRoot(join(link, "src-tauri")),
-    ).rejects.toBeInstanceOf(TauriAgentError);
+    ).rejects.toBeInstanceOf(PumarejoError);
   });
 });
 
 describe("materializeLaunchProfile", () => {
   it("replaces only the approved placeholder and preserves argv literally", () => {
     const projectRoot = resolve("safe project");
-    const configPath = join(projectRoot, ".tauri-agent", "background.json");
+    const configPath = join(projectRoot, ".pumarejo", "background.json");
     const command = materializeLaunchProfile(
       {
         command: "pnpm",
@@ -270,6 +270,6 @@ describe("materializeLaunchProfile", () => {
         resolve("outside", "background.json"),
         resolve("project"),
       ),
-    ).toThrowError(TauriAgentError);
+    ).toThrowError(PumarejoError);
   });
 });

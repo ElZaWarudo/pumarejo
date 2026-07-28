@@ -11,7 +11,7 @@ import {
   createMcpServer,
   createStubDomainPorts,
   SUPPORTED_KEYS,
-  type TauriAgentDomainPorts,
+  type PumarejoDomainPorts,
 } from "../../src/mcp/index.js";
 
 const EXPECTED_TOOLS = [
@@ -26,7 +26,7 @@ const EXPECTED_TOOLS = [
 
 const temporaryDirectories: string[] = [];
 
-function createPorts(): TauriAgentDomainPorts {
+function createPorts(): PumarejoDomainPorts {
   return {
     launch: vi.fn(async (input) => ({ sessionId: "s1", ...input })),
     snapshot: vi.fn(async () => ({ generation: 1 })),
@@ -41,7 +41,7 @@ function createPorts(): TauriAgentDomainPorts {
   };
 }
 
-async function connectInMemory(ports: TauriAgentDomainPorts) {
+async function connectInMemory(ports: PumarejoDomainPorts) {
   const server = createMcpServer(ports);
   const client = new Client({ name: "contract-client", version: "1.0.0" });
   const [clientTransport, serverTransport] =
@@ -309,11 +309,11 @@ describe("MCP server contract", () => {
   });
 
   it("connects as an independent stdio client with protocol-clean stdout", async () => {
-    const project = await mkdtemp(join(tmpdir(), "tauri-agent-mcp-"));
+    const project = await mkdtemp(join(tmpdir(), "pumarejo-mcp-"));
     temporaryDirectories.push(project);
     await mkdir(join(project, "src-tauri"));
     await writeFile(
-      join(project, ".tauri-agent.json"),
+      join(project, ".pumarejo.json"),
       JSON.stringify({
         version: 1,
         launch: {
@@ -321,7 +321,7 @@ describe("MCP server contract", () => {
           args: ["tauri", "dev", "--config", "{tauriConfig}"],
         },
         window: "main",
-        artifactsDirectory: ".tauri-agent/artifacts",
+        artifactsDirectory: ".pumarejo/artifacts",
       }),
       "utf8",
     );

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { TauriAgentError } from "../../src/shared/errors.js";
+import { PumarejoError } from "../../src/shared/errors.js";
 import { WebDriverClient } from "../../src/webdriver/client.js";
 
 const NONCE = "a".repeat(64);
@@ -40,13 +40,13 @@ describe("WebDriverClient", () => {
           port: 49_152,
           nonce: NONCE,
         }),
-    ).toThrowError(TauriAgentError);
+    ).toThrowError(PumarejoError);
     expect(() => new WebDriverClient({ port: 80, nonce: NONCE })).toThrowError(
-      TauriAgentError,
+      PumarejoError,
     );
     expect(
       () => new WebDriverClient({ port: 49_152, nonce: "short" }),
-    ).toThrowError(TauriAgentError);
+    ).toThrowError(PumarejoError);
     expect(
       new WebDriverClient({ host: "::1", port: 49_152, nonce: NONCE }).baseUrl
         .hostname,
@@ -56,9 +56,9 @@ describe("WebDriverClient", () => {
   it("retries status readiness within a bounded deadline", async () => {
     let attempts = 0;
     const fetchImplementation = vi.fn(async (_input, init) => {
-      expect(
-        new Headers(init?.headers).get("x-tauri-agent-session-nonce"),
-      ).toBe(NONCE);
+      expect(new Headers(init?.headers).get("x-pumarejo-session-nonce")).toBe(
+        NONCE,
+      );
       attempts += 1;
       return attempts < 3
         ? jsonResponse(
@@ -450,7 +450,7 @@ describe("WebDriverClient", () => {
     await webdriver.createSession();
 
     await expect(webdriver.deleteSession()).rejects.toBeInstanceOf(
-      TauriAgentError,
+      PumarejoError,
     );
     expect(webdriver.sessionId).toBe("session-1");
     await expect(webdriver.deleteSession()).resolves.toBeUndefined();

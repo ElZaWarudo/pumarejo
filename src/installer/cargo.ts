@@ -3,17 +3,17 @@ import { parse as parseToml } from "smol-toml";
 import { IntegrationPlanError } from "./plan-error.js";
 
 const DEPENDENCY_NAME = "tauri-plugin-wdio-webdriver";
-const FEATURE_NAME = "tauri-agent";
+const FEATURE_NAME = "pumarejo";
 const FEATURE_VALUE = `dep:${DEPENDENCY_NAME}`;
-const DEPENDENCY_MARKER = "# <tauri-agent:cargo-dependency>";
-const FEATURE_CREATED_MARKER = "# <tauri-agent:cargo-feature-created>";
-const FEATURE_VALUE_MARKER = "# <tauri-agent:cargo-feature-value>";
+const DEPENDENCY_MARKER = "# <pumarejo:cargo-dependency>";
+const FEATURE_CREATED_MARKER = "# <pumarejo:cargo-feature-created>";
+const FEATURE_VALUE_MARKER = "# <pumarejo:cargo-feature-value>";
 export const CARGO_DEPENDENCY_ATTRIBUTION =
   "dependency:tauri-plugin-wdio-webdriver:optional";
 export const CARGO_FEATURE_CREATED_ATTRIBUTION =
-  "feature:tauri-agent:created:dep:tauri-plugin-wdio-webdriver";
+  "feature:pumarejo:created:dep:tauri-plugin-wdio-webdriver";
 export const CARGO_FEATURE_VALUE_ATTRIBUTION =
-  "feature:tauri-agent:value:dep:tauri-plugin-wdio-webdriver";
+  "feature:pumarejo:value:dep:tauri-plugin-wdio-webdriver";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -58,7 +58,7 @@ function insertSectionValue(
 }
 
 function replaceFeatureLine(source: string, values: readonly string[]): string {
-  const pattern = /^\s*tauri-agent\s*=\s*\[[^\r\n]*\]\s*(?:#.*)?$/gmu;
+  const pattern = /^\s*pumarejo\s*=\s*\[[^\r\n]*\]\s*(?:#.*)?$/gmu;
   const matches = [...source.matchAll(pattern)];
   if (matches.length !== 1) {
     throw new IntegrationPlanError("CARGO_FEATURE_AMBIGUOUS");
@@ -117,7 +117,7 @@ export function planCargoEdit(source: string): string {
         FEATURE_VALUE,
       ]);
       next = withValue.replace(
-        /^(\s*tauri-agent\s*=)/mu,
+        /^(\s*pumarejo\s*=)/mu,
         `${FEATURE_VALUE_MARKER}\n$1`,
       );
     }

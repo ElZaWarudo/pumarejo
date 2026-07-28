@@ -24,7 +24,7 @@ const PNG = Buffer.from(
 const temporaryDirectories: string[] = [];
 
 async function project(): Promise<string> {
-  const path = await mkdtemp(join(tmpdir(), "tauri-agent-artifacts-"));
+  const path = await mkdtemp(join(tmpdir(), "pumarejo-artifacts-"));
   temporaryDirectories.push(path);
   return path;
 }
@@ -50,7 +50,7 @@ describe("ArtifactStore", () => {
     };
     const store = new ArtifactStore({
       projectRoot: root,
-      artifactsRoot: join(root, ".tauri-agent", "artifacts"),
+      artifactsRoot: join(root, ".pumarejo", "artifacts"),
       retainArtifacts: true,
       sessionId: SESSION_ID,
       permissions,
@@ -67,7 +67,7 @@ describe("ArtifactStore", () => {
 
   it("deletes non-retained artifacts and keeps explicitly retained artifacts", async () => {
     const root = await project();
-    const artifactsRoot = join(root, ".tauri-agent", "artifacts");
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
     const disposable = new ArtifactStore({
       projectRoot: root,
       artifactsRoot,
@@ -104,7 +104,7 @@ describe("ArtifactStore", () => {
 
   it("recovers interrupted non-retained sessions from durable manifests", async () => {
     const root = await project();
-    const artifactsRoot = join(root, ".tauri-agent", "artifacts");
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
     const interrupted = new ArtifactStore({
       projectRoot: root,
       artifactsRoot,
@@ -127,7 +127,7 @@ describe("ArtifactStore", () => {
 
   it("finishes recovery after a crash between directory and manifest deletion", async () => {
     const root = await project();
-    const artifactsRoot = join(root, ".tauri-agent", "artifacts");
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
     const interrupted = new ArtifactStore({
       projectRoot: root,
       artifactsRoot,
@@ -178,7 +178,7 @@ describe("ArtifactStore", () => {
 
   it("does not write bytes when file permission establishment fails", async () => {
     const root = await project();
-    const artifactsRoot = join(root, ".tauri-agent", "artifacts");
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
     let fileCalls = 0;
     const permissions: ArtifactPermissionEnforcer = {
       async ensureOwnerOnly(_path, kind) {
@@ -207,7 +207,7 @@ describe("ArtifactStore", () => {
 
   it("serializes concurrent writes into distinct durable entries", async () => {
     const root = await project();
-    const artifactsRoot = join(root, ".tauri-agent", "artifacts");
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
     const store = new ArtifactStore({
       projectRoot: root,
       artifactsRoot,
@@ -235,7 +235,7 @@ describe("ArtifactStore", () => {
 
   it("validates the complete session before deleting known content", async () => {
     const root = await project();
-    const artifactsRoot = join(root, ".tauri-agent", "artifacts");
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
     const store = new ArtifactStore({
       projectRoot: root,
       artifactsRoot,
@@ -260,7 +260,7 @@ describe("ArtifactStore", () => {
   it("rejects linked content even for retained sessions", async () => {
     const root = await project();
     const outside = await project();
-    const artifactsRoot = join(root, ".tauri-agent", "artifacts");
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
     const retained = new ArtifactStore({
       projectRoot: root,
       artifactsRoot,

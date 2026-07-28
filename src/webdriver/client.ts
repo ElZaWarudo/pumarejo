@@ -1,6 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 
-import { TauriAgentError } from "../shared/errors.js";
+import { PumarejoError } from "../shared/errors.js";
 import { createWryCapabilities } from "./capabilities.js";
 import {
   isInvalidSessionError,
@@ -101,7 +101,7 @@ export class WebDriverClient {
       options.port > 65_535 ||
       !LOOPBACK_HOSTS.has(host)
     ) {
-      throw new TauriAgentError("CONFIG_INVALID");
+      throw new PumarejoError("CONFIG_INVALID");
     }
     if (
       !/^[a-f0-9]{64}$/u.test(options.nonce) ||
@@ -110,7 +110,7 @@ export class WebDriverClient {
           options.requestTimeoutMs < 100 ||
           options.requestTimeoutMs > 120_000))
     ) {
-      throw new TauriAgentError("CONFIG_INVALID");
+      throw new PumarejoError("CONFIG_INVALID");
     }
     const normalizedHost = host === "::1" ? "[::1]" : host;
     this.baseUrl = new URL(`http://${normalizedHost}:${options.port}`);
@@ -135,7 +135,7 @@ export class WebDriverClient {
       !route.startsWith("/") ||
       new URL(route, this.baseUrl).origin !== this.baseUrl.origin
     ) {
-      throw new TauriAgentError("INTERNAL_ERROR");
+      throw new PumarejoError("INTERNAL_ERROR");
     }
     let response: Response;
     let body: unknown;
@@ -145,7 +145,7 @@ export class WebDriverClient {
         body: payload === undefined ? undefined : JSON.stringify(payload),
         headers: {
           "content-type": "application/json",
-          "x-tauri-agent-session-nonce": this.nonce,
+          "x-pumarejo-session-nonce": this.nonce,
         },
         redirect: "error",
         signal: abortSignal(timeoutMs, signal),
@@ -170,7 +170,7 @@ export class WebDriverClient {
     signal?: AbortSignal,
   ): Promise<JsonObject> {
     if (this.#sessionId === undefined) {
-      throw new TauriAgentError("SESSION_NOT_ACTIVE");
+      throw new PumarejoError("SESSION_NOT_ACTIVE");
     }
     return await this.request(
       method,
@@ -191,7 +191,7 @@ export class WebDriverClient {
       intervalMs < 10 ||
       intervalMs > deadlineMs
     ) {
-      throw new TauriAgentError("CONFIG_INVALID");
+      throw new PumarejoError("CONFIG_INVALID");
     }
     const deadline = Date.now() + deadlineMs;
     let lastError: unknown;
@@ -229,7 +229,7 @@ export class WebDriverClient {
 
   async createSession(signal?: AbortSignal): Promise<void> {
     if (this.#sessionId !== undefined || this.#sessionCreationPending) {
-      throw new TauriAgentError("SESSION_ALREADY_ACTIVE");
+      throw new PumarejoError("SESSION_ALREADY_ACTIVE");
     }
     this.#sessionCreationPending = true;
     try {
@@ -296,7 +296,7 @@ export class WebDriverClient {
     const handles = await this.windowHandles(signal);
     const handle = handles.find((candidate) => candidate === label);
     if (handle === undefined) {
-      throw new TauriAgentError("WINDOW_NOT_FOUND");
+      throw new PumarejoError("WINDOW_NOT_FOUND");
     }
     if (handles.length === 1) {
       return;
@@ -358,7 +358,7 @@ export class WebDriverClient {
       rect.width < 0 ||
       rect.height < 0
     ) {
-      throw new TauriAgentError("INTERNAL_ERROR");
+      throw new PumarejoError("INTERNAL_ERROR");
     }
     return rect;
   }
@@ -369,7 +369,7 @@ export class WebDriverClient {
     signal?: AbortSignal,
   ): Promise<T> {
     if (script.length === 0 || script.length > MAX_SCRIPT_LENGTH) {
-      throw new TauriAgentError("INTERNAL_ERROR");
+      throw new PumarejoError("INTERNAL_ERROR");
     }
     try {
       const body = await this.sessionCommand(
@@ -386,7 +386,7 @@ export class WebDriverClient {
 
   async findElement(selector: string, signal?: AbortSignal): Promise<string> {
     if (selector.length === 0 || selector.length > MAX_SELECTOR_LENGTH) {
-      throw new TauriAgentError("ELEMENT_NOT_FOUND");
+      throw new PumarejoError("ELEMENT_NOT_FOUND");
     }
     try {
       const body = await this.sessionCommand(
@@ -408,7 +408,7 @@ export class WebDriverClient {
     signal?: AbortSignal,
   ): Promise<readonly string[]> {
     if (selector.length === 0 || selector.length > MAX_SELECTOR_LENGTH) {
-      throw new TauriAgentError("ELEMENT_NOT_FOUND");
+      throw new PumarejoError("ELEMENT_NOT_FOUND");
     }
     try {
       const value = responseValue(
@@ -467,7 +467,7 @@ export class WebDriverClient {
     signal?: AbortSignal,
   ): Promise<readonly string[]> {
     if (selector.length === 0 || selector.length > MAX_SELECTOR_LENGTH) {
-      throw new TauriAgentError("ELEMENT_NOT_FOUND");
+      throw new PumarejoError("ELEMENT_NOT_FOUND");
     }
     try {
       const value = responseValue(
@@ -497,7 +497,7 @@ export class WebDriverClient {
       signal === undefined ? deadline : AbortSignal.any([signal, deadline]);
     const handles = [...(await this.findElements("*", boundedSignal))];
     if (handles.length > 10_000) {
-      throw new TauriAgentError("INTERNAL_ERROR");
+      throw new PumarejoError("INTERNAL_ERROR");
     }
     let scanned = 0;
     while (scanned < handles.length) {
@@ -518,20 +518,20 @@ export class WebDriverClient {
         shadowHosts.length !== batch.length ||
         shadowHosts.some((value) => typeof value !== "boolean")
       ) {
-        throw new TauriAgentError("INTERNAL_ERROR");
+        throw new PumarejoError("INTERNAL_ERROR");
       }
       for (let index = 0; index < batch.length; index += 1) {
         if (shadowHosts[index] !== true) continue;
         const shadow = await this.shadowRoot(batch[index]!, boundedSignal);
         if (shadow === undefined) {
-          throw new TauriAgentError("INTERNAL_ERROR");
+          throw new PumarejoError("INTERNAL_ERROR");
         }
         handles.push(
           ...(await this.findElementsInShadow(shadow, "*", boundedSignal)),
         );
       }
       if (handles.length > 10_000) {
-        throw new TauriAgentError("INTERNAL_ERROR");
+        throw new PumarejoError("INTERNAL_ERROR");
       }
       scanned = end;
     }
@@ -573,10 +573,10 @@ export class WebDriverClient {
   async click(elementId: string, signal?: AbortSignal): Promise<void> {
     try {
       if (!(await this.elementBoolean(elementId, "displayed", signal))) {
-        throw new TauriAgentError("ELEMENT_HIDDEN");
+        throw new PumarejoError("ELEMENT_HIDDEN");
       }
       if (!(await this.elementBoolean(elementId, "enabled", signal))) {
-        throw new TauriAgentError("ELEMENT_DISABLED");
+        throw new PumarejoError("ELEMENT_DISABLED");
       }
       await this.sessionCommand(
         "POST",
@@ -621,7 +621,7 @@ export class WebDriverClient {
     signal?: AbortSignal,
   ): Promise<void> {
     if (text.length > MAX_SCRIPT_LENGTH) {
-      throw new TauriAgentError("ELEMENT_NOT_INTERACTABLE");
+      throw new PumarejoError("ELEMENT_NOT_INTERACTABLE");
     }
     try {
       await this.sessionCommand(
@@ -637,7 +637,7 @@ export class WebDriverClient {
 
   async pressKey(value: string, signal?: AbortSignal): Promise<void> {
     if (value.length === 0 || value.length > 16) {
-      throw new TauriAgentError("UNSUPPORTED_KEY");
+      throw new PumarejoError("UNSUPPORTED_KEY");
     }
     try {
       await this.sessionCommand(
@@ -647,7 +647,7 @@ export class WebDriverClient {
           actions: [
             {
               type: "key",
-              id: "tauri-agent-keyboard",
+              id: "pumarejo-keyboard",
               actions: [
                 { type: "keyDown", value },
                 { type: "keyUp", value },

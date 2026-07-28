@@ -33,7 +33,7 @@ async function fakeProvider() {
     readonly body: string;
   }> = [];
   const server = createHttpServer((request, response) => {
-    if (request.headers["x-tauri-agent-provider-nonce"] !== PROVIDER_NONCE) {
+    if (request.headers["x-pumarejo-provider-nonce"] !== PROVIDER_NONCE) {
       response.writeHead(401).end();
       return;
     }
@@ -116,7 +116,7 @@ describe("owned loopback endpoint", () => {
     expect(provider.accepted()).toBe(0);
 
     const accepted = await fetch(`${base}/status`, {
-      headers: { "x-tauri-agent-session-nonce": SESSION_NONCE },
+      headers: { "x-pumarejo-session-nonce": SESSION_NONCE },
     });
     expect(accepted.status).toBe(200);
     await expect(accepted.json()).resolves.toMatchObject({
@@ -133,7 +133,7 @@ describe("owned loopback endpoint", () => {
         method,
         headers: {
           "content-type": "application/json",
-          "x-tauri-agent-session-nonce": SESSION_NONCE,
+          "x-pumarejo-session-nonce": SESSION_NONCE,
         },
         body: method === "POST" ? "{}" : undefined,
       });
@@ -160,7 +160,7 @@ describe("owned loopback endpoint", () => {
         method,
         headers: {
           "content-type": "application/json",
-          "x-tauri-agent-session-nonce": SESSION_NONCE,
+          "x-pumarejo-session-nonce": SESSION_NONCE,
         },
         body: method === "POST" ? "{}" : undefined,
       });
@@ -200,7 +200,7 @@ describe("owned loopback endpoint", () => {
     proxies.push(proxy);
     const requestStatus = async () =>
       await fetch(`http://127.0.0.1:${proxy.port}/status`, {
-        headers: { "x-tauri-agent-session-nonce": SESSION_NONCE },
+        headers: { "x-pumarejo-session-nonce": SESSION_NONCE },
       });
 
     expect((await requestStatus()).status).toBe(200);
