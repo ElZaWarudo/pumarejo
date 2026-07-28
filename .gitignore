@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build and test output
+dist/
+target/
+coverage/
+.proof-target/
+*.log
+*.tgz
+
+# Runtime state and generated integration artifacts
+**/.tauri-agent/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
