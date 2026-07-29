@@ -1,3 +1,7 @@
+import { delimiter } from "node:path";
+
+import type { LaunchProfile } from "../config/schema.js";
+
 const COMMON_KEYS = new Set([
   "AR",
   "CARGO_HOME",
@@ -129,5 +133,45 @@ export function sanitizedLaunchEnvironment(
         : LINUX_KEYS.has(normalized) || normalized.startsWith("LC_"));
     if (allowed) result[key] = value;
   }
+  return result;
+}
+
+function assignEnvironment(
+  target: NodeJS.ProcessEnv,
+  source: NodeJS.ProcessEnv,
+  platform: "windows" | "linux",
+): void {
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined) continue;
+    if (platform === "windows") {
+      const existing = Object.keys(target).find(
+        (candidate) => candidate.toUpperCase() === key.toUpperCase(),
+      );
+      if (existing !== undefined && existing !== key) delete target[existing];
+    }
+    target[key] = value;
+  }
+}
+
+export function resolvedLaunchEnvironment(
+  platform: "windows" | "linux",
+  hostEnvironment: NodeJS.ProcessEnv,
+  profile: LaunchProfile,
+  internalEnvironment: NodeJS.ProcessEnv = {},
+): NodeJS.ProcessEnv {
+  const result = sanitizedLaunchEnvironment(platform, hostEnvironment);
+  assignEnvironment(result, profile.environment ?? {}, platform);
+  if ((profile.pathPrepend?.length ?? 0) > 0) {
+    const pathKey =
+      platform === "windows"
+        ? (Object.keys(result).find((key) => key.toUpperCase() === "PATH") ??
+          "PATH")
+        : "PATH";
+    result[pathKey] = [
+      ...(profile.pathPrepend ?? []),
+      ...(result[pathKey] ? [result[pathKey]] : []),
+    ].join(platform === "windows" ? ";" : delimiter);
+  }
+  assignEnvironment(result, internalEnvironment, platform);
   return result;
 }

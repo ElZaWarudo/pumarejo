@@ -47,8 +47,8 @@
     "test:agent": "vitest run tests/agent",
     "pack:check": "pnpm build && npm pack --dry-run --json",
     "test:platform:structural": "vitest run tests/platform/ownership-proof.test.ts tests/platform/owned-launch.test.ts tests/platform/host-exception.test.ts tests/platform/provider-proof.test.ts tests/platform/background-proof.test.ts tests/platform/cargo-proof.test.ts",
-    "test:platform:windows": "node tests/platform/gate.mjs windows && vitest run --no-file-parallelism tests/platform/provider-proof.test.ts tests/platform/background-proof.test.ts tests/platform/cargo-proof.test.ts",
-    "test:platform:linux": "node tests/platform/gate.mjs ubuntu && vitest run --no-file-parallelism tests/platform/provider-proof.test.ts tests/platform/background-proof.test.ts tests/platform/cargo-proof.test.ts",
+    "test:platform:windows": "node tests/platform/gate.mjs windows && vitest run --no-file-parallelism tests/platform/provider-proof.test.ts tests/platform/background-proof.test.ts tests/platform/snapshot-proof.test.ts tests/platform/public-journey.test.ts tests/platform/cargo-proof.test.ts",
+    "test:platform:linux": "node tests/platform/gate.mjs ubuntu && vitest run --no-file-parallelism tests/platform/provider-proof.test.ts tests/platform/background-proof.test.ts tests/platform/public-journey.test.ts tests/platform/cargo-proof.test.ts",
     "test": "vitest run",
     "validate": "pnpm build && pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm pack:check"
   },

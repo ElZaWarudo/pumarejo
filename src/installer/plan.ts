@@ -2,8 +2,16 @@ import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { generateProjectConfig } from "../config/generate.js";
-import { planCapabilityEdit, capabilityMatchesWindow } from "./capabilities.js";
-import { cargoIntegrationAttribution, planCargoEdit } from "./cargo.js";
+import {
+  AGENT_PERMISSIONS,
+  planCapabilityEdit,
+  capabilityMatchesWindow,
+} from "./capabilities.js";
+import {
+  cargoIntegrationAttribution,
+  cargoPluginIntegration,
+  planCargoEdit,
+} from "./cargo.js";
 import {
   contentHash,
   createIntegrationManifest,
@@ -12,8 +20,10 @@ import {
   serializeIntegrationManifest,
   type IntegrationChangeKind,
   type IntegrationManifest,
+  type IntegrationManifestChange,
 } from "./manifest.js";
 import { IntegrationPlanError } from "./plan-error.js";
+import { TAURI_WEBDRIVER_PLUGIN_VERSION, VERSION } from "../version.js";
 import { detectTauriProject } from "./project.js";
 import { planRustEdit, rustBuilderOccurrences } from "./rust.js";
 import {
@@ -141,6 +151,7 @@ async function existingIntegration(
       throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
     }
     validateAppliedManifest(manifest);
+    const currentByPath = new Map<string, string>();
     for (const entry of manifest.changes) {
       const path = resolve(projectRoot, entry.relativePath);
       if (!isInside(projectRoot, path)) {
@@ -150,6 +161,95 @@ async function existingIntegration(
       if (current === null || contentHash(current) !== entry.afterHash) {
         throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
       }
+      currentByPath.set(entry.relativePath, current);
+    }
+    const currentVersion =
+      manifest.version === 2 &&
+      manifest.pumarejoVersion === VERSION &&
+      manifest.pluginVersion === TAURI_WEBDRIVER_PLUGIN_VERSION;
+    if (!currentVersion) {
+      const cargoEntry = manifest.changes.find(
+        (entry) => entry.kind === "cargo",
+      );
+      if (cargoEntry !== undefined) {
+        const installed = cargoPluginIntegration(
+          currentByPath.get(cargoEntry.relativePath) ?? "",
+        );
+        if (
+          !installed.registered ||
+          installed.version !== TAURI_WEBDRIVER_PLUGIN_VERSION
+        ) {
+          throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
+        }
+      }
+      const capabilityEntry = manifest.changes.find(
+        (entry) => entry.kind === "capability",
+      );
+      if (capabilityEntry === undefined) {
+        throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
+      }
+      const currentCapability =
+        currentByPath.get(capabilityEntry.relativePath) ?? "";
+      const nextCapability = planCapabilityEdit(currentCapability, "json");
+      const capabilityChange =
+        currentCapability === nextCapability
+          ? undefined
+          : change(
+              projectRoot,
+              capabilityEntry.relativePath,
+              "capability",
+              currentCapability,
+              nextCapability,
+              [
+                capabilityEntry.attribution[0]!,
+                ...AGENT_PERMISSIONS.map(
+                  (permission) => `permission:${permission}`,
+                ),
+              ],
+            );
+      const manifestChanges: IntegrationManifestChange[] = manifest.changes.map(
+        (entry) =>
+          entry === capabilityEntry
+            ? {
+                ...entry,
+                afterHash:
+                  capabilityChange?.afterHash ?? capabilityEntry.afterHash,
+                attribution: [
+                  capabilityEntry.attribution[0]!,
+                  ...AGENT_PERMISSIONS.map(
+                    (permission) => `permission:${permission}`,
+                  ),
+                ],
+              }
+            : entry,
+      );
+      const applyingSource = serializeIntegrationManifest(
+        createIntegrationManifest(manifestChanges, "applying"),
+      );
+      const appliedSource = serializeIntegrationManifest(
+        createIntegrationManifest(manifestChanges, "applied"),
+      );
+      return {
+        projectRoot,
+        status: "planned",
+        changes: capabilityChange === undefined ? [] : [capabilityChange],
+        manifestChange: change(
+          projectRoot,
+          INTEGRATION_MANIFEST_RELATIVE_PATH,
+          "config",
+          source,
+          applyingSource,
+          ["upgrade:integration-manifest:v2"],
+        ),
+        finalManifestChange: change(
+          projectRoot,
+          INTEGRATION_MANIFEST_RELATIVE_PATH,
+          "config",
+          applyingSource,
+          appliedSource,
+          ["state:integration-manifest:applied"],
+        ),
+      };
     }
     return {
       projectRoot,
@@ -205,12 +305,17 @@ export function validateAppliedManifest(manifest: IntegrationManifest): void {
   const capabilityAttribution = entries.get(
     ".pumarejo/agent-capability.json",
   )?.attribution;
+  const expectedPermissions =
+    manifest.version === 1 ? ["wdio-webdriver:default"] : AGENT_PERMISSIONS;
   if (
-    capabilityAttribution?.length !== 2 ||
+    capabilityAttribution?.length !== 1 + expectedPermissions.length ||
     !/^derived-from:src-tauri\/capabilities\/[^/]+\.(?:json|toml)$/u.test(
       capabilityAttribution[0] ?? "",
     ) ||
-    capabilityAttribution[1] !== "permission:wdio-webdriver:default"
+    !expectedPermissions.every(
+      (permission, index) =>
+        capabilityAttribution[index + 1] === `permission:${permission}`,
+    )
   ) {
     throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
   }
@@ -429,7 +534,7 @@ export async function planIntegration(
       planCapabilityEdit(capability.source, capability.format),
       [
         `derived-from:${capability.relativePath}`,
-        "permission:wdio-webdriver:default",
+        ...AGENT_PERMISSIONS.map((permission) => `permission:${permission}`),
       ],
     ),
     change(

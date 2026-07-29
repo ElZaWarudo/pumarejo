@@ -89,6 +89,32 @@ describe("standards-derived browser snapshot", () => {
     });
   });
 
+  it("keeps identity revalidable through filtered semantic ancestors and a subtree root", () => {
+    document.body.innerHTML = `
+      <main aria-label="Workspace">
+        <section id="root" aria-label="Account panel">
+          <p>Filtered context</p>
+          <button>Save</button>
+        </section>
+      </main>
+    `;
+    const root = document.querySelector("#root")!;
+    const button = root.querySelector("button")!;
+
+    const snapshot = collectSnapshot({ roles: ["button"] }, root);
+    const descriptor = snapshot.nodes[0]!.descriptor;
+
+    expect(snapshot.nodes).toHaveLength(1);
+    expect(descriptor.parentIndex).toBeNull();
+    expect(descriptor.identity).toMatchObject({
+      name: "Save",
+      ownershipContext: collectIdentity(button).ownershipContext,
+    });
+    expect(
+      (descriptor.identity as { ownershipContext: string }).ownershipContext,
+    ).toContain("section:");
+  });
+
   it("passes the checked-in accessible name and role corpus", async () => {
     const corpus = JSON.parse(
       await readFile(
@@ -201,6 +227,78 @@ describe("standards-derived browser snapshot", () => {
     ).toHaveLength(13);
   });
 
+  it("fails closed when a sensitive accessible-name reference follows the public relationship limit", () => {
+    const publicLabels = Array.from(
+      { length: 32 },
+      (_, index) => `<span id="label-${index}">Public ${index}</span>`,
+    ).join("");
+    const references = [
+      ...Array.from({ length: 32 }, (_, index) => `label-${index}`),
+      "secret-label",
+    ].join(" ");
+    document.body.innerHTML = `
+      ${publicLabels}
+      <span id="secret-label" data-pumarejo-sensitive="true">unique secret label</span>
+      <button aria-labelledby="${references}">Fallback</button>
+    `;
+
+    const snapshot = collectSnapshot();
+    const button = snapshot.nodes.find(
+      (node) => node.descriptor.role === "button",
+    )!.descriptor;
+
+    expect(button).toMatchObject({ redacted: true });
+    expect(button).not.toHaveProperty("name");
+    expect(button.relationships.labelledBy).toHaveLength(32);
+    expect(snapshot.truncation).toMatchObject({
+      truncated: true,
+      reasons: expect.arrayContaining(["fieldBudget"]),
+    });
+    expect(JSON.stringify(snapshot.nodes)).not.toContain("unique secret label");
+  });
+
+  it("fails closed when a sensitive relationship follows the attribute-length bound", () => {
+    const padding = `${Array.from(
+      { length: 8_193 },
+      (_, index) => `missing-${index}`,
+    ).join(" ")} `;
+    expect(padding.length).toBeGreaterThan(65_536);
+    document.body.innerHTML = `
+      <span id="secret-after-bound" data-pumarejo-sensitive="true">length-bound secret</span>
+      <button id="long-relation">Fallback</button>
+    `;
+    const button = document.querySelector("#long-relation")!;
+    button.setAttribute("aria-labelledby", `${padding}secret-after-bound`);
+
+    const snapshot = collectSnapshot();
+    const descriptor = snapshot.nodes.find(
+      (node) => node.descriptor.role === "button",
+    )!.descriptor;
+
+    expect(descriptor).toMatchObject({ redacted: true });
+    expect(descriptor).not.toHaveProperty("name");
+    expect(JSON.stringify(snapshot.nodes)).not.toContain("length-bound secret");
+  });
+
+  it("reports content omitted after exact public-string budget exhaustion", () => {
+    document.body.innerHTML = `
+      <p>${"a".repeat(65_536)}</p>
+      <button>Following action</button>
+    `;
+
+    const snapshot = collectSnapshot({
+      includeNames: false,
+      maxTextLength: 65_536,
+    });
+
+    expect(snapshot.truncation.reasons).toContain("fieldBudget");
+    expect(
+      snapshot.nodes.some(
+        (node) => node.descriptor.name === "Following action",
+      ),
+    ).toBe(false);
+  });
+
   it("uses effective native disabled state and only applicable ARIA states", () => {
     document.body.innerHTML = `
       <fieldset disabled><button aria-checked="true">Disabled child</button></fieldset>
@@ -269,12 +367,264 @@ describe("standards-derived browser snapshot", () => {
     ).toEqual([[1], [3]]);
   });
 
+  it("captures explicit ARIA states and relationships while omitting unknown states", () => {
+    document.body.innerHTML = `
+      <span id="label">Save changes</span>
+      <p id="description">Persists the current form</p>
+      <section id="panel">Account panel</section>
+      <div id="owned" role="status">Ready</div>
+      <button aria-labelledby="label" aria-describedby="description"
+        aria-controls="panel" aria-owns="owned" aria-pressed="true">Fallback</button>
+      <div role="tab" aria-selected="false" aria-expanded="true" tabindex="0">Details</div>
+      <a href="#panel" aria-current="page">Account</a>
+      <div role="checkbox" aria-checked="mixed" tabindex="0">Remember</div>
+      <div role="textbox" aria-required="true" aria-invalid="spelling"
+        aria-readonly="false" tabindex="0">Name</div>
+      <button>No explicit state</button>
+    `;
+
+    const snapshot = collectSnapshot();
+    const controlledButtonIndex = snapshot.nodes.findIndex(
+      (node) => node.descriptor.name === "Save changes",
+    );
+    const descriptor = snapshot.nodes[controlledButtonIndex]!.descriptor;
+    const indexForId = (id: string) =>
+      snapshot.nodes.findIndex(
+        (node) =>
+          snapshot.handles[node.handleIndex] ===
+          document.querySelector(`#${id}`),
+      );
+
+    expect(descriptor).toMatchObject({
+      pressed: true,
+      relationships: {
+        labelledBy: [indexForId("label")],
+        describedBy: [indexForId("description")],
+        controls: [indexForId("panel")],
+        owns: [indexForId("owned")],
+      },
+    });
+    expect(
+      snapshot.nodes.find((node) => node.descriptor.role === "tab")?.descriptor,
+    ).toMatchObject({ selected: false, expanded: true });
+    expect(
+      snapshot.nodes.find((node) => node.descriptor.role === "link")
+        ?.descriptor,
+    ).toMatchObject({ current: "page" });
+    expect(
+      snapshot.nodes.find((node) => node.descriptor.role === "checkbox")
+        ?.descriptor,
+    ).toMatchObject({ checked: "mixed" });
+    expect(
+      snapshot.nodes.find((node) => node.descriptor.role === "textbox")
+        ?.descriptor,
+    ).toMatchObject({
+      required: true,
+      invalid: "spelling",
+      readOnly: false,
+    });
+    const unknown = snapshot.nodes.find(
+      (node) => node.descriptor.name === "No explicit state",
+    )!.descriptor;
+    expect(unknown).not.toHaveProperty("pressed");
+    expect(unknown).not.toHaveProperty("expanded");
+    expect(unknown).not.toHaveProperty("current");
+  });
+
+  it("supports field omission without weakening mandatory redaction or private identity", () => {
+    document.body.innerHTML = `
+      <button aria-label="Save account">Visible button text</button>
+      <input aria-label="Account name" value="Ada">
+      <input type="password" aria-label="Password" value="hunter2">
+      <div data-pumarejo-sensitive="true">private instruction</div>
+    `;
+
+    const snapshot = collectSnapshot({
+      includeNames: false,
+      includeText: false,
+      includeValues: false,
+    });
+    const descriptors = snapshot.nodes.map((node) => node.descriptor);
+
+    expect(descriptors.every((descriptor) => !("name" in descriptor))).toBe(
+      true,
+    );
+    expect(descriptors.every((descriptor) => !("text" in descriptor))).toBe(
+      true,
+    );
+    expect(descriptors.every((descriptor) => !("value" in descriptor))).toBe(
+      true,
+    );
+    expect(
+      descriptors.find(
+        (descriptor) =>
+          (descriptor.identity as { name?: string }).name === "Save account",
+      ),
+    ).toBeDefined();
+    expect(descriptors.some((descriptor) => descriptor.redacted)).toBe(true);
+    expect(JSON.stringify(snapshot.nodes)).not.toContain("hunter2");
+    expect(JSON.stringify(snapshot.nodes)).not.toContain("private instruction");
+  });
+
+  it("keeps private identity stable when public names use a smaller text limit", () => {
+    const accessibleName = "Account ".repeat(128).trim();
+    document.body.innerHTML = `<button aria-label="${accessibleName}">Save</button>`;
+    const button = document.querySelector("button")!;
+
+    const snapshot = collectSnapshot({ maxTextLength: 32 });
+    const current = collectIdentity(button);
+    const descriptor = snapshot.nodes[0]?.descriptor as unknown as {
+      readonly name?: string;
+      readonly identity: { readonly name?: string };
+    };
+
+    expect(descriptor.name?.length).toBeLessThanOrEqual(32);
+    expect(descriptor.identity.name).toBe(current.name);
+    expect(descriptor.identity.name?.length).toBeGreaterThan(32);
+  });
+
   it("bounds browser-side strings before WebDriver serialization", () => {
     document.body.innerHTML = `<p>${"x".repeat(2 * 1024 * 1024)}</p>`;
 
-    const snapshot = collectSnapshot();
+    const snapshot = collectSnapshot({ maxTextLength: 512 });
 
-    expect(snapshot.nodes[0]?.descriptor.text).toHaveLength(65_536);
-    expect(JSON.stringify(snapshot).length).toBeLessThan(100_000);
+    expect(snapshot.nodes[0]?.descriptor.text).toHaveLength(512);
+    expect(snapshot.truncation).toMatchObject({
+      truncated: true,
+      reasons: expect.arrayContaining(["maxTextLength"]),
+      counts: { returned: 1 },
+      refineWith: expect.arrayContaining(["rootRef", "maxTextLength"]),
+    });
+    expect(JSON.stringify(snapshot).length).toBeLessThan(10_000);
+  });
+
+  it("keeps adversarial UTF-8 content and relationships below the MCP framing cap", () => {
+    const ids = Array.from({ length: 32 }, (_, index) => `target-${index}`);
+    const relationshipAttributes = [
+      `aria-labelledby="${ids.join(" ")}"`,
+      `aria-describedby="${ids.join(" ")}"`,
+      `aria-controls="${ids.join(" ")}"`,
+      `aria-owns="${ids.join(" ")}"`,
+    ].join(" ");
+    document.body.innerHTML = `
+      ${ids.map((id) => `<span id="${id}">Target</span>`).join("")}
+      ${Array.from(
+        { length: 500 },
+        (_, index) =>
+          `<button aria-label="${"😀".repeat(index < 10 ? 8_192 : 1)}" ${relationshipAttributes}>Action</button>`,
+      ).join("")}
+    `;
+
+    const snapshot = collectSnapshot({ maxNodes: 500, maxTextLength: 65_536 });
+    const refs = snapshot.nodes.map((_node, index) => `e1-${index + 1}`);
+    const nodes = snapshot.nodes.map(({ descriptor }, index) => {
+      const {
+        parentIndex,
+        identity: _identity,
+        nameSafe: _nameSafe,
+        ...rest
+      } = descriptor;
+      const publicParentIndex = parentIndex as number | null;
+      const relationshipRefs = (indices: readonly number[]) =>
+        indices.map((target) => refs[target]!);
+      return {
+        ref: refs[index],
+        ...(publicParentIndex === null
+          ? {}
+          : { parentRef: refs[publicParentIndex] }),
+        ...rest,
+        relationships: {
+          labelledBy: relationshipRefs(descriptor.relationships.labelledBy),
+          describedBy: relationshipRefs(descriptor.relationships.describedBy),
+          controls: relationshipRefs(descriptor.relationships.controls),
+          owns: relationshipRefs(descriptor.relationships.owns),
+        },
+      };
+    });
+    const projectedResult = {
+      generation: 1,
+      observedAt: "2026-07-28T00:00:00.000Z",
+      window: {
+        label: "main",
+        title: "Adversarial snapshot",
+        width: 1920,
+        height: 1080,
+      },
+      nodes,
+      truncation: snapshot.truncation,
+    };
+
+    expect(snapshot.truncation.reasons).toContain("fieldBudget");
+    expect(
+      new TextEncoder().encode(JSON.stringify(projectedResult)).byteLength,
+    ).toBeLessThan(1024 * 1024);
+  });
+
+  it("returns a deterministic bounded result for an oversized tree", () => {
+    document.body.innerHTML = Array.from(
+      { length: 10_050 },
+      (_, index) => `<button>Action ${index}</button>`,
+    ).join("");
+
+    const snapshot = collectSnapshot({ maxNodes: 5 });
+
+    expect(snapshot.nodes).toHaveLength(5);
+    expect(snapshot.nodes.map((node) => node.descriptor.name)).toEqual([
+      "Action 0",
+      "Action 1",
+      "Action 2",
+      "Action 3",
+      "Action 4",
+    ]);
+    expect(snapshot.handles).toHaveLength(5);
+    expect(snapshot.truncation).toMatchObject({
+      truncated: true,
+      reasons: expect.arrayContaining(["maxNodes", "traversalLimit"]),
+      counts: {
+        visited: 10_000,
+        returned: 5,
+      },
+      refineWith: expect.arrayContaining(["rootRef", "filters"]),
+    });
+  });
+
+  it("applies subtree, depth, visibility and semantic filters before assigning handles", () => {
+    document.body.innerHTML = `
+      <section id="outside"><button>Outside action</button></section>
+      <section id="root">
+        <button>Save account</button>
+        <button hidden>Save hidden</button>
+        <div><input type="email" aria-label="Save email"></div>
+      </section>
+    `;
+    const root = document.querySelector("#root")!;
+
+    const visible = collectSnapshot(
+      {
+        maxDepth: 1,
+        visibleOnly: true,
+        roles: ["button"],
+        name: "save",
+      },
+      root,
+    );
+    expect(visible.nodes.map((node) => node.descriptor.name)).toEqual([
+      "Save account",
+    ]);
+    expect(visible.handles).toEqual([document.querySelector("#root button")]);
+    expect(visible.truncation.reasons).toContain("maxDepth");
+
+    const typed = collectSnapshot(
+      {
+        maxDepth: 2,
+        visibleOnly: false,
+        types: ["email"],
+      },
+      root,
+    );
+    expect(typed.nodes.map((node) => node.descriptor.name)).toEqual([
+      "Save email",
+    ]);
+    expect(typed.nodes[0]?.descriptor.visible).toBe(true);
   });
 });

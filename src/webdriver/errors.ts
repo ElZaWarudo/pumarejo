@@ -1,6 +1,40 @@
 import { PumarejoError } from "../shared/errors.js";
 import { jsonObject } from "./protocol.js";
 
+type WebDriverFallbackCode =
+  | "WEBDRIVER_NOT_READY"
+  | "SESSION_CREATE_FAILED"
+  | "SESSION_NOT_ACTIVE"
+  | "WINDOW_NOT_FOUND"
+  | "ELEMENT_NOT_FOUND"
+  | "ELEMENT_NOT_INTERACTABLE"
+  | "UNSUPPORTED_ACTION"
+  | "SCREENSHOT_FAILED"
+  | "INTERNAL_ERROR";
+
+function providerErrorCode(
+  providerCode: string,
+  fallback: WebDriverFallbackCode,
+) {
+  if (providerCode.includes("stale element")) return "STALE_ELEMENT_REF";
+  if (providerCode.includes("no such element")) return "ELEMENT_NOT_FOUND";
+  if (
+    providerCode.includes("not interactable") ||
+    providerCode.includes("click intercepted")
+  ) {
+    return "ELEMENT_NOT_INTERACTABLE";
+  }
+  if (providerCode.includes("invalid session")) return "SESSION_NOT_ACTIVE";
+  if (providerCode.includes("no such window")) return "WINDOW_NOT_FOUND";
+  if (
+    providerCode.includes("unknown command") ||
+    providerCode.includes("unsupported operation")
+  ) {
+    return "UNSUPPORTED_ACTION";
+  }
+  return fallback;
+}
+
 export class WebDriverTransportError extends Error {
   constructor(
     readonly status: number,
@@ -29,15 +63,7 @@ export function isInvalidSessionError(error: unknown): boolean {
 
 export function normalizeWebDriverError(
   error: unknown,
-  fallback:
-    | "WEBDRIVER_NOT_READY"
-    | "SESSION_CREATE_FAILED"
-    | "SESSION_NOT_ACTIVE"
-    | "WINDOW_NOT_FOUND"
-    | "ELEMENT_NOT_FOUND"
-    | "ELEMENT_NOT_INTERACTABLE"
-    | "SCREENSHOT_FAILED"
-    | "INTERNAL_ERROR" = "ELEMENT_NOT_INTERACTABLE",
+  fallback: WebDriverFallbackCode = "ELEMENT_NOT_INTERACTABLE",
 ): Error {
   if (error instanceof WebDriverCancellationError) {
     return error.reason instanceof Error
@@ -53,18 +79,7 @@ export function normalizeWebDriverError(
   if (error instanceof WebDriverTransportError) {
     const value = jsonObject(jsonObject(error.body)?.value);
     const providerCode = String(value?.error ?? "").toLowerCase();
-    const code = providerCode.includes("stale element")
-      ? "STALE_ELEMENT_REF"
-      : providerCode.includes("no such element")
-        ? "ELEMENT_NOT_FOUND"
-        : providerCode.includes("not interactable") ||
-            providerCode.includes("click intercepted")
-          ? "ELEMENT_NOT_INTERACTABLE"
-          : providerCode.includes("invalid session")
-            ? "SESSION_NOT_ACTIVE"
-            : providerCode.includes("no such window")
-              ? "WINDOW_NOT_FOUND"
-              : fallback;
+    const code = providerErrorCode(providerCode, fallback);
     return new PumarejoError(code, { cause: error });
   }
   return new PumarejoError(fallback, { cause: error });

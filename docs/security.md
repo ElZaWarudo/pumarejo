@@ -22,6 +22,20 @@ are invoked from fixed system paths or are resolved canonically outside the
 project. Child processes never use a shell, and their environment is an
 allowlist that excludes credentials and unrelated variables.
 
+Project launch configuration may add an absolute executable, absolute `PATH`
+prefixes, and only the documented Rust/C toolchain variables. Precedence is
+internal session values, explicit project values, sanitized host values, then
+defaults. `doctor` reports only executable basenames, allowlisted/redacted
+arguments, provenance, and confidence. Its successful-launch record contains
+only package/plugin versions, platform, executable basename, and a verified
+flag.
+
+`init` derives `.pumarejo/agent-capability.json` without changing the source
+application capability. The runtime validates and embeds that capability only
+in its private Tauri overlay. It grants the WebDriver plugin and the exact
+window resize/maximize/maximized-state/unmaximize permissions required by the
+public tools.
+
 Linux background mode owns an Xvfb server and a mode-0600 Xauthority file with
 a random MIT-MAGIC-COOKIE. In the accepted WSL environment, the WSLg X socket
 directory is not suitable for a private Unix socket, so Xvfb uses its
@@ -41,6 +55,14 @@ generation. Actions revalidate generation, element identity, ownership,
 visibility, enabled state, role, kind, and input compatibility. Mutations
 invalidate references. No OS input, coordinates, selectors, text search, or
 desktop automation is used.
+
+When the embedded provider cannot serialize element handles nested inside the
+semantic payload, Pumarejo reconstructs them from a separately bounded W3C
+handle list in provider traversal order. Window mutation fallbacks execute
+fixed Tauri API scripts, compensate for native frame decoration, and confirm
+the effective WebDriver rectangle. Native option selection uses a fixed script
+that validates its owning visible/enabled select before dispatching input and
+change events.
 
 ## Artifacts
 

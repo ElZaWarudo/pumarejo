@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { PumarejoError } from "../shared/errors.js";
+import { elementIdFrom } from "../webdriver/protocol.js";
 import type {
   RawSemanticDescriptor,
   RawSnapshot,
@@ -14,6 +15,7 @@ export interface SemanticReference {
   readonly fingerprint: string;
   readonly identity: {
     readonly kind: RawSemanticDescriptor["kind"];
+    readonly tag: string;
     readonly role?: string;
     readonly name?: string;
     readonly inputType?: string;
@@ -43,10 +45,8 @@ export class ReferenceTable {
     return this.#generation;
   }
 
-  replace(
-    snapshot: RawSnapshot,
-    elementIds: readonly string[],
-  ): readonly SemanticNode[] {
+  replace(snapshot: RawSnapshot): readonly SemanticNode[] {
+    const elementIds = snapshot.handles.map(elementIdFrom);
     const generation = this.#generation + 1;
     const refs = snapshot.nodes.map(
       (_node, index) => `e${generation}-${index + 1}`,
@@ -65,6 +65,7 @@ export class ReferenceTable {
         fingerprint: fingerprint(descriptor),
         identity: {
           kind: descriptor.kind,
+          tag: descriptor.tag,
           ...(descriptor.role === undefined ? {} : { role: descriptor.role }),
           ...(descriptor.identity.name === undefined
             ? {}
@@ -91,6 +92,7 @@ export class ReferenceTable {
         relationships: {
           labelledBy: relationshipRefs(descriptor.relationships.labelledBy),
           describedBy: relationshipRefs(descriptor.relationships.describedBy),
+          controls: relationshipRefs(descriptor.relationships.controls),
           owns: relationshipRefs(descriptor.relationships.owns),
         },
       };
@@ -107,6 +109,12 @@ export class ReferenceTable {
       throw new PumarejoError("STALE_ELEMENT_REF");
     }
     return reference;
+  }
+
+  advance(): number {
+    this.#references = new Map();
+    this.#generation += 1;
+    return this.#generation;
   }
 
   clear(): void {

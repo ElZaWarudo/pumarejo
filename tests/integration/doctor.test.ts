@@ -7,6 +7,7 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -19,6 +20,11 @@ import {
   type DoctorDependencies,
 } from "../../src/installer/doctor.js";
 import { initializeProject } from "../../src/installer/plan.js";
+import {
+  readLaunchVerification,
+  recordLaunchVerification,
+} from "../../src/installer/launch-verification.js";
+import { loadProjectConfig } from "../../src/config/load.js";
 
 const FIXTURE = join(
   import.meta.dirname,
@@ -65,6 +71,7 @@ describe("pumarejo doctor", () => {
       "integration.manifest",
       "integration.debug-registration",
       "integration.capability-permission",
+      "integration.version-alignment",
       "toolchain.node",
       "toolchain.rust",
       "toolchain.launch",
@@ -74,7 +81,7 @@ describe("pumarejo doctor", () => {
       "port.available",
       "residue.owned",
     ]);
-    expect(new Set(report.diagnostics.map((item) => item.id))).toHaveLength(13);
+    expect(new Set(report.diagnostics.map((item) => item.id))).toHaveLength(14);
   });
 
   it("keeps independent failures visible when the project and platform are unavailable", async () => {
@@ -239,4 +246,252 @@ describe("pumarejo doctor", () => {
     expect(human).toContain("[ERROR] port.available:");
     expect(human).toContain("Action:");
   });
+
+  it("classifies a launch command that is absent from the effective PATH", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const report = await doctorProject(project, {
+      ...READY_DEPENDENCIES,
+      executableAvailable: async (command) => command !== "pnpm",
+    });
+
+    expect(report.diagnostics).toContainEqual(
+      expect.objectContaining({
+        id: "toolchain.launch",
+        status: "error",
+        classification: "not_on_path",
+        evidence: expect.objectContaining({
+          executable: "pnpm",
+          provenance: "host-path",
+        }),
+      }),
+    );
+  });
+
+  it("reports integration version drift independently", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const manifestPath = join(
+      project,
+      ".pumarejo",
+      "integration-manifest.json",
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      pumarejoVersion: string;
+    };
+    manifest.pumarejoVersion = "0.0.0";
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const report = await doctorProject(project, READY_DEPENDENCIES);
+    expect(report.diagnostics).toContainEqual(
+      expect.objectContaining({
+        id: "integration.version-alignment",
+        status: "error",
+        classification: "version_drift",
+      }),
+    );
+  });
+
+  it("detects generated Tauri plugin drift even when recorded hashes are updated", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const cargoPath = join(project, "src-tauri", "Cargo.toml");
+    const changedCargo = (await readFile(cargoPath, "utf8")).replace(
+      'tauri-plugin-wdio-webdriver = { version = "1"',
+      'tauri-plugin-wdio-webdriver = { version = "2"',
+    );
+    await writeFile(cargoPath, changedCargo);
+    const manifestPath = join(
+      project,
+      ".pumarejo",
+      "integration-manifest.json",
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      changes: Array<{ relativePath: string; afterHash: string }>;
+    };
+    const cargoEntry = manifest.changes.find(
+      (entry) => entry.relativePath === "src-tauri/Cargo.toml",
+    );
+    expect(cargoEntry).toBeDefined();
+    cargoEntry!.afterHash = createHash("sha256")
+      .update(changedCargo, "utf8")
+      .digest("hex");
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const report = await doctorProject(project, READY_DEPENDENCIES);
+    expect(report.diagnostics).toContainEqual(
+      expect.objectContaining({
+        id: "integration.version-alignment",
+        status: "error",
+        classification: "version_drift",
+      }),
+    );
+  });
+
+  it("rejects an installed plugin dependency whose version cannot be verified", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const cargoPath = join(project, "src-tauri", "Cargo.toml");
+    const changedCargo = (await readFile(cargoPath, "utf8")).replace(
+      'tauri-plugin-wdio-webdriver = { version = "1"',
+      'tauri-plugin-wdio-webdriver = { path = "../wdio-webdriver"',
+    );
+    await writeFile(cargoPath, changedCargo);
+    const manifestPath = join(
+      project,
+      ".pumarejo",
+      "integration-manifest.json",
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      changes: Array<{ relativePath: string; afterHash: string }>;
+    };
+    const cargoEntry = manifest.changes.find(
+      (entry) => entry.relativePath === "src-tauri/Cargo.toml",
+    );
+    expect(cargoEntry).toBeDefined();
+    cargoEntry!.afterHash = createHash("sha256")
+      .update(changedCargo, "utf8")
+      .digest("hex");
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const report = await doctorProject(project, READY_DEPENDENCIES);
+    expect(report.diagnostics).toContainEqual(
+      expect.objectContaining({
+        id: "integration.version-alignment",
+        status: "error",
+        classification: "version_drift",
+      }),
+    );
+  });
+
+  it("lets successful launch evidence qualify earlier executable and WebView heuristics", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    await writeFile(
+      join(project, ".pumarejo", "launch-verification.json"),
+      `${JSON.stringify(
+        {
+          version: 1,
+          pumarejoVersion: "0.1.0",
+          pluginVersion: "1",
+          executable: "pnpm",
+          platform: "win32",
+          verified: true,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const report = await doctorProject(project, {
+      ...READY_DEPENDENCIES,
+      executableAvailable: async (command) => command !== "pnpm",
+      webviewAvailable: async () => false,
+    });
+    expect(report.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "toolchain.launch",
+          status: "ready",
+          classification: "verified",
+        }),
+        expect.objectContaining({
+          id: "platform.webview",
+          status: "ready",
+          classification: "verified",
+        }),
+      ]),
+    );
+  });
+
+  it("records only versioned, sanitized successful-launch evidence", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const loaded = await loadProjectConfig(project);
+    await recordLaunchVerification(loaded, "win32");
+
+    await expect(readLaunchVerification(loaded)).resolves.toMatchObject({
+      version: 1,
+      pumarejoVersion: "0.1.0",
+      pluginVersion: "1",
+      executable: "pnpm",
+      platform: "win32",
+      verified: true,
+    });
+    const source = await readFile(
+      join(project, ".pumarejo", "launch-verification.json"),
+      "utf8",
+    );
+    expect(source).not.toContain(project);
+    expect(source).not.toContain("tauri");
+  });
+
+  it("redacts unapproved launch arguments and full explicit paths in human and JSON output", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const configPath = join(project, ".pumarejo.json");
+    const config = JSON.parse(await readFile(configPath, "utf8")) as {
+      launch: {
+        executablePath?: string;
+        args: string[];
+      };
+    };
+    config.launch.executablePath = "/opt/private-user/bin/pnpm";
+    config.launch.args.splice(1, 0, "fixture-super-secret");
+    await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
+
+    const report = await doctorProject(project, {
+      ...READY_DEPENDENCIES,
+      executableAvailable: async () => false,
+    });
+    const output = `${JSON.stringify(report)}\n${formatDoctorReport(report)}`;
+    expect(output).not.toContain("fixture-super-secret");
+    expect(output).not.toContain("/opt/private-user");
+    expect(output).toContain("<redacted>");
+    expect(output).toContain("executable=pnpm");
+    expect(output).toContain("provenance=project-config");
+  });
+
+  it.each(["codex", "claude-code", "cursor"] as const)(
+    "prints copyable %s stdio configuration without writing host settings",
+    async (host) => {
+      const project = await projectCopy();
+      await initializeProject(project);
+      const stdout: string[] = [];
+      await expect(
+        runCli(
+          ["mcp", "print-config", "--host", host, "--project", project],
+          undefined,
+          {
+            stdout: (text) => stdout.push(text),
+            stderr: () => undefined,
+          },
+        ),
+      ).resolves.toBe(0);
+
+      const output = stdout.join("");
+      expect(output).toContain("pumarejo");
+      expect(output).toContain("mcp");
+      expect(output).toContain("--project");
+      if (host === "codex") {
+        expect(output).toContain("[mcp_servers.pumarejo]");
+        expect(output).toContain(JSON.stringify(project));
+      } else {
+        expect(JSON.parse(output)).toMatchObject({
+          mcpServers: {
+            pumarejo: {
+              command: "pumarejo",
+              args: ["mcp", "--project", project],
+            },
+          },
+        });
+      }
+      await expect(
+        readFile(join(project, ".cursor", "mcp.json"), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(
+        readFile(join(project, ".mcp.json"), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    },
+  );
 });

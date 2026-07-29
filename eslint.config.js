@@ -5,6 +5,7 @@ export default [
   {
     ignores: [
       "dist/**",
+      ".proof-target/**",
       "node_modules/**",
       "tests/fixtures/tauri-app/src-tauri/target/**",
     ],

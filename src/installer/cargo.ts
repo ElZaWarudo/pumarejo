@@ -1,6 +1,7 @@
 import { parse as parseToml } from "smol-toml";
 
 import { IntegrationPlanError } from "./plan-error.js";
+import { TAURI_WEBDRIVER_PLUGIN_VERSION } from "../version.js";
 
 const DEPENDENCY_NAME = "tauri-plugin-wdio-webdriver";
 const FEATURE_NAME = "pumarejo";
@@ -92,7 +93,7 @@ export function planCargoEdit(source: string): string {
     next = insertSectionValue(
       next,
       "dependencies",
-      `${DEPENDENCY_MARKER}\n${DEPENDENCY_NAME} = { version = "1", optional = true }`,
+      `${DEPENDENCY_MARKER}\n${DEPENDENCY_NAME} = { version = "${TAURI_WEBDRIVER_PLUGIN_VERSION}", optional = true }`,
     );
   }
 
@@ -138,6 +139,24 @@ export function planCargoEdit(source: string): string {
   return next;
 }
 
+export function cargoPluginIntegration(source: string): {
+  readonly registered: boolean;
+  readonly version?: string;
+} {
+  const cargo = parseCargo(source);
+  const dependency = record(record(cargo.dependencies)?.[DEPENDENCY_NAME]);
+  const feature = record(cargo.features)?.[FEATURE_NAME];
+  return {
+    registered:
+      dependency?.optional === true &&
+      Array.isArray(feature) &&
+      feature.includes(FEATURE_VALUE),
+    ...(typeof dependency?.version === "string"
+      ? { version: dependency.version }
+      : {}),
+  };
+}
+
 export function cargoIntegrationAttribution(source: string): readonly string[] {
   const cargo = parseCargo(source);
   const dependencies = record(cargo.dependencies);
@@ -174,12 +193,15 @@ export function planCargoRemoval(
 
   let next = source;
   if (attribution.includes(CARGO_DEPENDENCY_ATTRIBUTION)) {
-    if (dependency?.optional !== true || dependency.version !== "1") {
+    if (
+      dependency?.optional !== true ||
+      dependency.version !== TAURI_WEBDRIVER_PLUGIN_VERSION
+    ) {
       throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
     }
     next = removeExactBlock(
       next,
-      `${DEPENDENCY_MARKER}\n${DEPENDENCY_NAME} = { version = "1", optional = true }\n`,
+      `${DEPENDENCY_MARKER}\n${DEPENDENCY_NAME} = { version = "${TAURI_WEBDRIVER_PLUGIN_VERSION}", optional = true }\n`,
     );
   }
 

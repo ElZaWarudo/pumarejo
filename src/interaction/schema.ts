@@ -8,6 +8,7 @@ export const currentIdentitySchema = z
     visible: z.boolean(),
     enabled: z.boolean(),
     editable: z.boolean(),
+    tag: z.string().min(1).max(128).optional(),
     kind: semanticKindSchema.optional(),
     role: z.string().max(128).optional(),
     name: z.string().max(65_536).optional(),

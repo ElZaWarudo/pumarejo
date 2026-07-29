@@ -138,7 +138,7 @@ export function materializeLaunchProfile(
   }
 
   return {
-    command: parsedProfile.command,
+    command: parsedProfile.executablePath ?? parsedProfile.command,
     args: parsedProfile.args.map((argument) =>
       argument.replace(MODE_CONFIG_PLACEHOLDER, canonicalConfigPath),
     ),

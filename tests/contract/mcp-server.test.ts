@@ -16,11 +16,16 @@ import {
 
 const EXPECTED_TOOLS = [
   "tauri_launch",
+  "tauri_status",
   "tauri_snapshot",
   "tauri_screenshot",
   "tauri_click",
   "tauri_type",
   "tauri_press_key",
+  "tauri_window",
+  "tauri_pointer",
+  "tauri_scroll",
+  "tauri_select_option",
   "tauri_close",
 ] as const;
 
@@ -29,6 +34,7 @@ const temporaryDirectories: string[] = [];
 function createPorts(): PumarejoDomainPorts {
   return {
     launch: vi.fn(async (input) => ({ sessionId: "s1", ...input })),
+    status: vi.fn(async () => ({ state: "idle" })),
     snapshot: vi.fn(async () => ({ generation: 1 })),
     screenshot: vi.fn(async (input) => ({
       metadata: { generation: 1, ...input },
@@ -37,6 +43,10 @@ function createPorts(): PumarejoDomainPorts {
     click: vi.fn(async (input) => ({ generation: 2, ...input })),
     type: vi.fn(async (input) => ({ generation: 2, ...input })),
     pressKey: vi.fn(async (input) => ({ dispatched: true, ...input })),
+    window: vi.fn(async (input) => ({ generation: 2, ...input })),
+    pointer: vi.fn(async (input) => ({ generation: 2, ...input })),
+    scroll: vi.fn(async (input) => ({ generation: 2, ...input })),
+    selectOption: vi.fn(async (input) => ({ generation: 2, ...input })),
     close: vi.fn(async () => ({ alreadyClosed: false })),
   };
 }
@@ -60,7 +70,7 @@ afterEach(async () => {
 });
 
 describe("MCP server contract", () => {
-  it("enumerates exactly seven strict public tools", async () => {
+  it("enumerates exactly twelve strict public tools", async () => {
     const { client, server } = await connectInMemory(createPorts());
     try {
       const { tools } = await client.listTools();
@@ -80,25 +90,79 @@ describe("MCP server contract", () => {
             enum: ["visible", "background"],
             default: "visible",
           },
+          waitMs: {
+            type: "integer",
+            minimum: 0,
+            maximum: 30000,
+            default: 5000,
+          },
         },
       });
+      expect(byName.tauri_status).toMatchObject({ properties: {} });
       expect(byName.tauri_snapshot).toMatchObject({
-        properties: {},
+        properties: {
+          rootRef: { type: "string" },
+          maxNodes: { type: "integer", default: 500 },
+          maxDepth: { type: "integer", default: 32 },
+          maxTextLength: { type: "integer", default: 4096 },
+          visibleOnly: { type: "boolean", default: true },
+          includeNames: { type: "boolean", default: true },
+          includeText: { type: "boolean", default: true },
+          includeValues: { type: "boolean", default: true },
+          roles: { type: "array" },
+          name: { type: "string" },
+          types: { type: "array" },
+        },
       });
       expect(byName.tauri_screenshot).toMatchObject({
         properties: { save: { type: "boolean", default: true } },
       });
       expect(byName.tauri_click).toMatchObject({
         required: ["ref"],
+        properties: {
+          snapshotAfter: { type: "boolean", default: true },
+          settleMs: {
+            type: "integer",
+            minimum: 0,
+            maximum: 2000,
+            default: 250,
+          },
+        },
       });
       expect(byName.tauri_type).toMatchObject({
         required: ["ref", "text"],
         properties: { clear: { type: "boolean", default: true } },
       });
       expect(byName.tauri_press_key).toMatchObject({
-        properties: { key: { enum: [...SUPPORTED_KEYS] } },
+        properties: {
+          key: { enum: [...SUPPORTED_KEYS] },
+          modifiers: { type: "array", maxItems: 4, default: [] },
+        },
         required: ["key"],
       });
+      expect(byName.tauri_window).toMatchObject({
+        properties: {
+          action: { enum: ["resize", "maximize", "restore"] },
+          width: { type: "integer", minimum: 200, maximum: 8192 },
+          height: { type: "integer", minimum: 200, maximum: 8192 },
+        },
+        required: ["action"],
+      });
+      expect(byName.tauri_pointer).toMatchObject({
+        properties: {
+          action: { enum: ["hover", "double_click", "context_menu"] },
+        },
+        required: ["action", "ref"],
+      });
+      expect(byName.tauri_scroll).toMatchObject({
+        required: ["ref", "deltaX", "deltaY"],
+      });
+      expect(byName.tauri_select_option).toMatchObject({
+        required: ["ref"],
+      });
+      expect(
+        tools.find((tool) => tool.name === "tauri_select_option")?.description,
+      ).toContain("visibleOnly:false");
       expect(byName.tauri_close).toMatchObject({
         properties: {},
       });
@@ -114,11 +178,27 @@ describe("MCP server contract", () => {
     try {
       for (const [name, args] of [
         ["tauri_launch", {}],
-        ["tauri_snapshot", {}],
+        ["tauri_status", {}],
+        [
+          "tauri_snapshot",
+          {
+            maxNodes: 25,
+            maxDepth: 4,
+            maxTextLength: 256,
+            includeNames: false,
+            includeText: false,
+            includeValues: false,
+            roles: ["button"],
+          },
+        ],
         ["tauri_screenshot", {}],
         ["tauri_click", { ref: "e1-1" }],
         ["tauri_type", { ref: "e1-2", text: "Product Pass" }],
         ["tauri_press_key", { key: "ENTER" }],
+        ["tauri_window", { action: "resize", width: 800, height: 600 }],
+        ["tauri_pointer", { action: "hover", ref: "e1-1" }],
+        ["tauri_scroll", { ref: "e1-1", deltaX: 0, deltaY: 480 }],
+        ["tauri_select_option", { ref: "e1-2" }],
         ["tauri_close", {}],
       ] as const) {
         const result = await client.callTool({ name, arguments: args });
@@ -126,7 +206,23 @@ describe("MCP server contract", () => {
       }
 
       expect(ports.launch).toHaveBeenCalledWith(
-        { mode: "visible" },
+        { mode: "visible", waitMs: 5000 },
+        expect.objectContaining({ signal: expect.anything() }),
+      );
+      expect(ports.status).toHaveBeenCalledWith(
+        expect.objectContaining({ signal: expect.anything() }),
+      );
+      expect(ports.snapshot).toHaveBeenCalledWith(
+        {
+          maxNodes: 25,
+          maxDepth: 4,
+          maxTextLength: 256,
+          visibleOnly: true,
+          includeNames: false,
+          includeText: false,
+          includeValues: false,
+          roles: ["button"],
+        },
         expect.objectContaining({ signal: expect.anything() }),
       );
       expect(ports.screenshot).toHaveBeenCalledWith(
@@ -138,6 +234,8 @@ describe("MCP server contract", () => {
           ref: "e1-2",
           text: "Product Pass",
           clear: true,
+          snapshotAfter: true,
+          settleMs: 250,
         },
         expect.objectContaining({ signal: expect.anything() }),
       );
@@ -149,11 +247,25 @@ describe("MCP server contract", () => {
 
   it.each([
     ["tauri_launch", { mode: "hidden" }],
+    ["tauri_launch", { waitMs: -1 }],
+    ["tauri_launch", { waitMs: 30001 }],
+    ["tauri_status", { unexpected: true }],
     ["tauri_snapshot", { unexpected: true }],
+    ["tauri_snapshot", { maxNodes: 0 }],
+    ["tauri_snapshot", { maxDepth: 257 }],
+    ["tauri_snapshot", { maxTextLength: 65_537 }],
+    ["tauri_snapshot", { roles: [] }],
     ["tauri_screenshot", { save: "yes" }],
     ["tauri_click", { ref: "" }],
     ["tauri_type", { ref: "e1-1", text: "x".repeat(65_537) }],
     ["tauri_press_key", { key: "ALT_F4" }],
+    ["tauri_press_key", { key: "D", modifiers: ["CONTROL", "CONTROL"] }],
+    ["tauri_window", { action: "resize", width: 800 }],
+    ["tauri_window", { action: "maximize", width: 800, height: 600 }],
+    ["tauri_pointer", { action: "drag", ref: "e1-1" }],
+    ["tauri_scroll", { ref: "e1-1", deltaX: 0, deltaY: 0 }],
+    ["tauri_scroll", { ref: "e1-1", deltaX: 0, deltaY: 10_001 }],
+    ["tauri_select_option", { ref: "" }],
     ["tauri_close", { unexpected: true }],
   ])("rejects invalid input for %s", async (name, args) => {
     const ports = createPorts();

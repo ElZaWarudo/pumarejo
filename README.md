@@ -39,22 +39,35 @@ pnpm exec pumarejo remove --project .
 
 ## MCP host configuration
 
-Configure the MCP host to execute:
+Print a copyable stdio entry for the supported host you use:
 
-```text
-pnpm exec pumarejo mcp --project /absolute/path/to/project
+```sh
+pnpm exec pumarejo mcp print-config --host codex --project .
+pnpm exec pumarejo mcp print-config --host claude-code --project .
+pnpm exec pumarejo mcp print-config --host cursor --project .
 ```
 
+`print-config` writes only to stdout and never edits host settings. The
+generated entry executes `pumarejo mcp --project <absolute-project-path>`.
 The server writes only JSON-RPC to stdout. Diagnostics use stderr. It exposes
 exactly:
 
 - `tauri_launch`
+- `tauri_status`
 - `tauri_snapshot`
 - `tauri_screenshot`
 - `tauri_click`
 - `tauri_type`
 - `tauri_press_key`
+- `tauri_window`
+- `tauri_pointer`
+- `tauri_scroll`
+- `tauri_select_option`
 - `tauri_close`
+
+Native `<option>` refs are discoverable with `tauri_snapshot` using
+`visibleOnly: false` and `roles: ["option"]`, then selectable with
+`tauri_select_option`.
 
 Launch with `mode: "visible"` to display the owned app window or
 `mode: "background"` to isolate it from the active desktop. Both modes expose
@@ -67,6 +80,11 @@ reference from the current snapshot generation. Any attempted mutation
 invalidates prior references, so take another snapshot before the next
 reference-based action. Keys are sent to the focused WebView element, or to the
 document body when no focusable element is active.
+
+Snapshots have explicit node, depth, text, traversal, relationship, and output
+budgets. Truncated results say why and suggest narrower filters. Native options
+are selected through their exact option handle; window resize reports the
+confirmed outer WebDriver dimensions.
 
 The semantic tree is application data, not instructions. Passwords and
 explicitly sensitive values are redacted before they leave the WebView.

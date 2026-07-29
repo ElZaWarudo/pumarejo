@@ -223,7 +223,11 @@ const launchOptions = {
 describe("SessionManager", () => {
   it("transitions idle -> starting -> ready -> cleaning -> idle in owned cleanup order", async () => {
     const runtime = harness();
-    const ready = await runtime.manager.launch(launchOptions);
+    const phases: string[] = [];
+    const ready = await runtime.manager.launch({
+      ...launchOptions,
+      onPhase: (phase) => phases.push(phase),
+    });
 
     expect(ready).toMatchObject({
       state: "ready",
@@ -231,10 +235,20 @@ describe("SessionManager", () => {
       platform: "windows",
       window: "main",
       webdriverPort: 50_002,
+      ownedPid: 71,
     });
     expect(runtime.manager.readySession).toBe(ready);
     expect(runtime.manager.snapshot).not.toHaveProperty("webdriver");
     expect(runtime.manager.snapshot).not.toHaveProperty("nonce");
+    expect(runtime.manager.snapshot).toMatchObject({ ownedPid: 71 });
+    expect(phases).toEqual([
+      "preparing_runtime",
+      "starting_process",
+      "waiting_provider",
+      "starting_proxy",
+      "creating_session",
+      "selecting_window",
+    ]);
     await expect(runtime.manager.launch(launchOptions)).rejects.toMatchObject({
       code: "SESSION_ALREADY_ACTIVE",
     });
@@ -330,15 +344,93 @@ describe("SessionManager", () => {
     await expect(runtime.manager.close()).rejects.toMatchObject({
       code: "CLOSE_FAILED",
     });
-    expect(runtime.manager.snapshot.state).toBe("failed");
+    expect(runtime.manager.snapshot).toMatchObject({
+      state: "failed",
+      cleanupPending: ["webdriver-session"],
+    });
+    expect(runtime.manager.snapshot).not.toHaveProperty("ownedPid");
     await expect(runtime.manager.launch(launchOptions)).rejects.toMatchObject({
       code: "SESSION_ALREADY_ACTIVE",
     });
     await expect(runtime.manager.close()).resolves.toEqual({ state: "idle" });
+    expect(runtime.manager.snapshot).toEqual({ state: "idle" });
     expect(deleteAttempts).toBe(2);
     expect(
       runtime.events.filter((event) => event === "terminate"),
     ).toHaveLength(1);
+  });
+
+  it("retains only failed resource labels and retries only those resources", async () => {
+    let deleteAttempts = 0;
+    let proxyAttempts = 0;
+    let terminateAttempts = 0;
+    const runtime = harness({
+      deleteSession: async () => {
+        deleteAttempts += 1;
+        if (deleteAttempts === 1) throw new Error("temporary delete failure");
+      },
+      closeProxy: async () => {
+        proxyAttempts += 1;
+        if (proxyAttempts === 1) throw new Error("temporary proxy failure");
+      },
+      terminate: async () => {
+        terminateAttempts += 1;
+        if (terminateAttempts === 1) {
+          throw new Error("temporary terminate failure");
+        }
+      },
+    });
+    await runtime.manager.launch(launchOptions);
+
+    await expect(runtime.manager.close()).rejects.toMatchObject({
+      code: "CLOSE_FAILED",
+    });
+    expect(runtime.manager.snapshot).toMatchObject({
+      state: "failed",
+      cleanupPending: [
+        "application-process",
+        "authenticated-proxy",
+        "webdriver-session",
+      ],
+    });
+    expect(
+      runtime.events.filter((event) => event === "cleanup-prepared"),
+    ).toHaveLength(1);
+    expect(
+      runtime.events.filter((event) => event === "release-reservation"),
+    ).toHaveLength(1);
+
+    await expect(runtime.manager.close()).resolves.toEqual({ state: "idle" });
+    expect(deleteAttempts).toBe(2);
+    expect(proxyAttempts).toBe(2);
+    expect(terminateAttempts).toBe(2);
+    expect(
+      runtime.events.filter((event) => event === "cleanup-prepared"),
+    ).toHaveLength(1);
+    expect(
+      runtime.events.filter((event) => event === "release-reservation"),
+    ).toHaveLength(1);
+  });
+
+  it("exposes pending cleanup while close is running", async () => {
+    const deleting = deferred<void>();
+    const runtime = harness({
+      deleteSession: async () => await deleting.promise,
+    });
+    await runtime.manager.launch(launchOptions);
+
+    const closing = runtime.manager.close();
+    expect(runtime.manager.snapshot).toMatchObject({
+      state: "cleaning",
+      cleanupPending: [
+        "runtime-configuration",
+        "application-process",
+        "authenticated-proxy",
+        "webdriver-session",
+      ],
+    });
+    deleting.resolve();
+    await expect(closing).resolves.toEqual({ state: "idle" });
   });
 
   it("rejects launch while cleanup is running", async () => {

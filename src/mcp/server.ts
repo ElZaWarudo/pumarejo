@@ -14,9 +14,14 @@ import {
   clickInputSchema,
   emptyInputSchema,
   launchInputSchema,
+  pointerInputSchema,
   pressKeyInputSchema,
+  scrollInputSchema,
+  selectOptionInputSchema,
   screenshotInputSchema,
+  snapshotInputSchema,
   typeInputSchema,
+  windowInputSchema,
 } from "./schemas.js";
 import { PUMAREJO_TOOL_DESCRIPTIONS } from "./tools/index.js";
 
@@ -97,12 +102,21 @@ export function createMcpServer(ports: PumarejoDomainPorts): McpServer {
       invoke(() => ports.launch(input, { signal: extra.signal })),
   );
   server.registerTool(
+    "tauri_status",
+    {
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_status,
+      inputSchema: emptyInputSchema,
+    },
+    (_input, extra) => invoke(() => ports.status({ signal: extra.signal })),
+  );
+  server.registerTool(
     "tauri_snapshot",
     {
       description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_snapshot,
-      inputSchema: emptyInputSchema,
+      inputSchema: snapshotInputSchema,
     },
-    (_input, extra) => invoke(() => ports.snapshot({ signal: extra.signal })),
+    (input, extra) =>
+      invoke(() => ports.snapshot(input, { signal: extra.signal })),
   );
   server.registerTool(
     "tauri_screenshot",
@@ -138,6 +152,42 @@ export function createMcpServer(ports: PumarejoDomainPorts): McpServer {
     },
     (input, extra) =>
       invoke(() => ports.pressKey(input, { signal: extra.signal })),
+  );
+  server.registerTool(
+    "tauri_window",
+    {
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_window,
+      inputSchema: windowInputSchema,
+    },
+    (input, extra) =>
+      invoke(() => ports.window(input, { signal: extra.signal })),
+  );
+  server.registerTool(
+    "tauri_pointer",
+    {
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_pointer,
+      inputSchema: pointerInputSchema,
+    },
+    (input, extra) =>
+      invoke(() => ports.pointer(input, { signal: extra.signal })),
+  );
+  server.registerTool(
+    "tauri_scroll",
+    {
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_scroll,
+      inputSchema: scrollInputSchema,
+    },
+    (input, extra) =>
+      invoke(() => ports.scroll(input, { signal: extra.signal })),
+  );
+  server.registerTool(
+    "tauri_select_option",
+    {
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_select_option,
+      inputSchema: selectOptionInputSchema,
+    },
+    (input, extra) =>
+      invoke(() => ports.selectOption(input, { signal: extra.signal })),
   );
   server.registerTool(
     "tauri_close",

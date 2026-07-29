@@ -18,6 +18,7 @@ export const PUMAREJO_ERROR_CODES = [
   "ELEMENT_DISABLED",
   "ELEMENT_NOT_INTERACTABLE",
   "UNSUPPORTED_KEY",
+  "UNSUPPORTED_ACTION",
   "SCREENSHOT_FAILED",
   "CLOSE_FAILED",
   "INTERNAL_ERROR",
@@ -162,6 +163,12 @@ const ERROR_DEFINITIONS: Record<
     phase: "interaction",
     retryable: false,
     suggestion: "Use a key from the documented v1 set.",
+  },
+  UNSUPPORTED_ACTION: {
+    message: "The requested WebDriver action is unsupported by this surface.",
+    phase: "interaction",
+    retryable: false,
+    suggestion: "Use a documented WebView action or inspect another surface.",
   },
   SCREENSHOT_FAILED: {
     message: "The WebView screenshot could not be captured.",

@@ -11,7 +11,7 @@ import type { PreparedLaunch } from "../../session/manager.js";
 import type { RuntimeMode } from "../../session/state.js";
 import { PumarejoError } from "../../shared/errors.js";
 import { createRuntimeOverlay } from "../mode-config.js";
-import { sanitizedLaunchEnvironment } from "../launch-environment.js";
+import { resolvedLaunchEnvironment } from "../launch-environment.js";
 import { resolveProjectTauriCommand } from "../tauri-command.js";
 
 const execFileAsync = promisify(execFile);
@@ -26,9 +26,15 @@ function isInside(root: string, candidate: string): boolean {
   );
 }
 
-async function located(command: string): Promise<readonly string[]> {
+async function located(
+  command: string,
+  environment: NodeJS.ProcessEnv,
+): Promise<readonly string[]> {
   try {
-    const { stdout } = await execFileAsync("where.exe", [command]);
+    const { stdout } = await execFileAsync("where.exe", [command], {
+      env: environment,
+      windowsHide: true,
+    });
     return stdout
       .split(/\r?\n/u)
       .map((value) => value.trim())
@@ -58,14 +64,50 @@ function expandShimPath(value: string, shimPath: string): string {
   return resolve(value.replace(/^%~dp0/iu, `${shimDirectory}${sep}`));
 }
 
+async function resolveWindowsShim(
+  shimCandidate: string,
+  normalized: string,
+  args: readonly string[],
+  projectRoot: string,
+): Promise<{ command: string; args: readonly string[] }> {
+  const shimPath = await safeExecutable(shimCandidate, projectRoot);
+  const source = await readFile(shimPath, "utf8");
+  if (
+    source.length > 64 * 1024 ||
+    /[&|<>]/u.test(source.replaceAll("%ERRORLEVEL%", ""))
+  ) {
+    throw new PumarejoError("APP_START_FAILED");
+  }
+  const quoted = [...source.matchAll(/"([^"\r\n]+)"/gu)].map(
+    (match) => match[1]!,
+  );
+  const cliToken = quoted.find((token) => /\.(?:cjs|mjs|js)$/iu.test(token));
+  if (cliToken === undefined) throw new PumarejoError("APP_START_FAILED");
+  const cliPath = await safeExecutable(
+    expandShimPath(cliToken, shimPath),
+    projectRoot,
+  );
+  const cliIdentity = cliPath.toLowerCase();
+  if (!cliIdentity.includes(normalized) && !cliIdentity.includes("corepack")) {
+    throw new PumarejoError("APP_START_FAILED");
+  }
+  const nodeToken = quoted.find((token) => /node\.exe$/iu.test(token));
+  const nodePath =
+    nodeToken === undefined
+      ? await safeExecutable(process.execPath, projectRoot)
+      : await safeExecutable(expandShimPath(nodeToken, shimPath), projectRoot);
+  return { command: nodePath, args: [cliPath, ...args] };
+}
+
 export async function resolveWindowsLaunch(
   command: string,
   args: readonly string[],
   projectRoot: string,
+  environment: NodeJS.ProcessEnv = process.env,
 ): Promise<{ command: string; args: readonly string[] }> {
   const normalized = command.toLowerCase().replace(/\.cmd$/u, "");
   if (["cargo", "bun", "deno"].includes(normalized)) {
-    for (const candidate of await located(`${normalized}.exe`)) {
+    for (const candidate of await located(`${normalized}.exe`, environment)) {
       try {
         return {
           command: await safeExecutable(candidate, projectRoot),
@@ -81,43 +123,14 @@ export async function resolveWindowsLaunch(
     throw new PumarejoError("APP_START_FAILED");
   }
 
-  for (const shimCandidate of await located(`${normalized}.cmd`)) {
+  for (const shimCandidate of await located(`${normalized}.cmd`, environment)) {
     try {
-      const shimPath = await safeExecutable(shimCandidate, projectRoot);
-      const source = await readFile(shimPath, "utf8");
-      if (
-        source.length > 64 * 1024 ||
-        /[&|<>]/u.test(source.replaceAll("%ERRORLEVEL%", ""))
-      ) {
-        continue;
-      }
-      const quoted = [...source.matchAll(/"([^"\r\n]+)"/gu)].map(
-        (match) => match[1]!,
-      );
-      const cliToken = quoted.find((token) =>
-        /\.(?:cjs|mjs|js)$/iu.test(token),
-      );
-      if (cliToken === undefined) continue;
-      const cliPath = await safeExecutable(
-        expandShimPath(cliToken, shimPath),
+      return await resolveWindowsShim(
+        shimCandidate,
+        normalized,
+        args,
         projectRoot,
       );
-      const cliIdentity = cliPath.toLowerCase();
-      if (
-        !cliIdentity.includes(normalized) &&
-        !cliIdentity.includes("corepack")
-      ) {
-        continue;
-      }
-      const nodeToken = quoted.find((token) => /node\.exe$/iu.test(token));
-      const nodePath =
-        nodeToken === undefined
-          ? await safeExecutable(process.execPath, projectRoot)
-          : await safeExecutable(
-              expandShimPath(nodeToken, shimPath),
-              projectRoot,
-            );
-      return { command: nodePath, args: [cliPath, ...args] };
     } catch {
       continue;
     }
@@ -140,27 +153,46 @@ export async function prepareWindowsLaunch(
     windowLabel: loaded.config.window,
   });
   try {
+    const launchEnvironment = resolvedLaunchEnvironment(
+      "windows",
+      environment,
+      loaded.config.launch,
+    );
     const profile = materializeLaunchProfile(
       loaded.config.launch,
       overlay.path,
       loaded.projectRoot,
     );
+    const explicit =
+      loaded.config.launch.executablePath === undefined
+        ? undefined
+        : await safeExecutable(profile.command, loaded.projectRoot);
     const launch =
-      (await resolveProjectTauriCommand(
-        profile.command,
-        profile.args,
-        loaded.projectRoot,
-      )) ??
-      (await resolveWindowsLaunch(
-        profile.command,
-        profile.args,
-        loaded.projectRoot,
-      ));
+      explicit !== undefined
+        ? explicit.toLowerCase().endsWith(".cmd")
+          ? await resolveWindowsShim(
+              explicit,
+              loaded.config.launch.command.toLowerCase().replace(/\.cmd$/u, ""),
+              profile.args,
+              loaded.projectRoot,
+            )
+          : { command: explicit, args: profile.args }
+        : ((await resolveProjectTauriCommand(
+            profile.command,
+            profile.args,
+            loaded.projectRoot,
+          )) ??
+          (await resolveWindowsLaunch(
+            profile.command,
+            profile.args,
+            loaded.projectRoot,
+            launchEnvironment,
+          )));
     return {
       request: {
         ...launch,
         cwd: loaded.projectRoot,
-        env: sanitizedLaunchEnvironment("windows", environment),
+        env: launchEnvironment,
       },
       window: overlay.windowLabel,
       cleanup: overlay.cleanup,

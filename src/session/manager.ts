@@ -21,6 +21,7 @@ import {
 } from "./process-lease.js";
 import type {
   ReadySession,
+  LaunchPhase,
   RuntimeMode,
   SessionSnapshot,
   SessionState,
@@ -44,6 +45,7 @@ export interface SessionLaunchOptions {
   readonly window: string;
   readonly webdriverPort?: number;
   readonly signal?: AbortSignal;
+  readonly onPhase?: (phase: LaunchPhase) => void;
 }
 
 export interface SessionManagerDependencies {
@@ -84,7 +86,6 @@ function launchError(error: unknown): Error {
 
 export class SessionManager {
   readonly #dependencies: SessionManagerDependencies;
-  #state: SessionState = "idle";
   #snapshot: SessionSnapshot = { state: "idle" };
   #ready: ReadySession | undefined;
   #cleanup = new CleanupStack();
@@ -104,18 +105,25 @@ export class SessionManager {
   }
 
   get snapshot(): SessionSnapshot {
-    return { ...this.#snapshot };
+    const cleanupPending =
+      this.#snapshot.state === "cleaning" || this.#snapshot.state === "failed"
+        ? this.#cleanup.pendingLabels
+        : undefined;
+    return {
+      ...this.#snapshot,
+      ...(cleanupPending === undefined ? {} : { cleanupPending }),
+    };
   }
 
   get readySession(): ReadySession {
-    if (this.#ready === undefined || this.#state !== "ready") {
+    if (this.#ready === undefined || this.#snapshot.state !== "ready") {
       throw new PumarejoError("SESSION_NOT_ACTIVE");
     }
     return this.#ready;
   }
 
   async launch(options: SessionLaunchOptions): Promise<ReadySession> {
-    if (this.#state !== "idle") {
+    if (this.#snapshot.state !== "idle") {
       throw new PumarejoError("SESSION_ALREADY_ACTIVE");
     }
     if (
@@ -158,7 +166,10 @@ export class SessionManager {
     if (this.#closeOperation !== undefined) {
       return await this.#closeOperation;
     }
-    if (this.#state === "starting" && this.#launchOperation !== undefined) {
+    if (
+      this.#snapshot.state === "starting" &&
+      this.#launchOperation !== undefined
+    ) {
       this.#launchAbort?.abort(
         new PumarejoError("APP_START_FAILED", {
           cause: new Error("Launch cancelled by close."),
@@ -169,7 +180,7 @@ export class SessionManager {
     if (this.#closeOperation !== undefined) {
       return await this.#closeOperation;
     }
-    if (this.#state === "idle") return this.snapshot;
+    if (this.#snapshot.state === "idle") return this.snapshot;
 
     const operation = this.closeTransaction();
     this.#closeOperation = operation;
@@ -186,8 +197,19 @@ export class SessionManager {
     state: SessionState,
     details: Partial<Omit<SessionSnapshot, "state">> = {},
   ): void {
-    this.#state = state;
     this.#snapshot = { ...this.#snapshot, ...details, state };
+  }
+
+  private setCleanupFailed(): void {
+    const { ownedPid, ...details } = this.#snapshot;
+    const processPending = this.#cleanup.pendingLabels.includes(
+      "application-process",
+    );
+    this.#snapshot = {
+      ...details,
+      ...(processPending && ownedPid !== undefined ? { ownedPid } : {}),
+      state: "failed",
+    };
   }
 
   private async launchTransaction(
@@ -205,6 +227,7 @@ export class SessionManager {
 
     let lease: ProcessLease | undefined;
     try {
+      options.onPhase?.("preparing_runtime");
       const reservation = await this.#dependencies.reservePort(
         options.webdriverPort,
       );
@@ -226,6 +249,8 @@ export class SessionManager {
       }
 
       await reservation.release();
+      this.#cleanup.complete("provider-port-reservation");
+      options.onPhase?.("starting_process");
       const request: SpawnRequest = {
         ...prepared.request,
         env: {
@@ -259,7 +284,9 @@ export class SessionManager {
       ) {
         throw new PumarejoError("APP_START_FAILED");
       }
+      this.setState("starting", { ownedPid: spawned.pid });
 
+      options.onPhase?.("waiting_provider");
       await spawned.waitUntilProviderReady(reservation.port, options.signal);
       if (
         !processIdentityMatches(
@@ -303,6 +330,7 @@ export class SessionManager {
         return await authorizationPending;
       };
 
+      options.onPhase?.("starting_proxy");
       const proxy = await this.#dependencies.startProxy({
         providerPort: reservation.port,
         sessionNonce,
@@ -336,11 +364,13 @@ export class SessionManager {
         port: proxy.port,
         nonce: sessionNonce,
       });
+      options.onPhase?.("creating_session");
       await webdriver.waitUntilReady({ signal: options.signal });
       await webdriver.createSession(options.signal);
       this.#cleanup.add("webdriver-session", async () => {
         await webdriver.deleteSession();
       });
+      options.onPhase?.("selecting_window");
       await webdriver.selectWindow(window, options.signal);
 
       const ready: ReadySession = {
@@ -349,6 +379,7 @@ export class SessionManager {
         platform: options.platform,
         window,
         webdriverPort: proxy.port,
+        ownedPid: spawned.pid,
         webdriver,
       };
       this.#ready = ready;
@@ -357,6 +388,7 @@ export class SessionManager {
         platform: ready.platform,
         window: ready.window,
         webdriverPort: ready.webdriverPort,
+        ownedPid: ready.ownedPid,
       });
       return ready;
     } catch (error) {
@@ -370,10 +402,9 @@ export class SessionManager {
       await this.#cleanup.run();
       this.#ready = undefined;
       this.#snapshot = { state: "idle" };
-      this.#state = "idle";
     } catch {
       this.#ready = undefined;
-      this.setState("failed");
+      this.setCleanupFailed();
     }
     throw error;
   }
@@ -384,11 +415,10 @@ export class SessionManager {
       await this.#cleanup.run();
       this.#ready = undefined;
       this.#snapshot = { state: "idle" };
-      this.#state = "idle";
       return this.snapshot;
     } catch (error) {
       this.#ready = undefined;
-      this.setState("failed");
+      this.setCleanupFailed();
       throw new PumarejoError("CLOSE_FAILED", { cause: error });
     }
   }

@@ -12,10 +12,12 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import JSON5 from "json5";
 import { parse as parseToml } from "smol-toml";
 
+import { AGENT_PERMISSIONS } from "../installer/capabilities.js";
 import { PumarejoError } from "../shared/errors.js";
 import type { RuntimeMode } from "../session/state.js";
 
 const MAX_TAURI_CONFIG_BYTES = 1024 * 1024;
+const AGENT_CAPABILITY_FILE = "agent-capability.json";
 const TAURI_CONFIG_FILES = [
   "tauri.conf.json",
   "tauri.conf.json5",
@@ -43,6 +45,7 @@ export function modeOverlay(
   mode: RuntimeMode,
   windowLabel: string,
   configuredWindows: readonly Record<string, unknown>[] = [],
+  agentCapability?: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> {
   if (windowLabel.trim().length === 0 || windowLabel.length > 128) {
     throw new PumarejoError("CONFIG_INVALID");
@@ -51,6 +54,9 @@ export function modeOverlay(
     return {
       app: {
         windows: [{ label: windowLabel, visible: mode === "visible" }],
+        ...(agentCapability === undefined
+          ? {}
+          : { security: { capabilities: [agentCapability] } }),
       },
     };
   }
@@ -73,7 +79,14 @@ export function modeOverlay(
   if (!selected) {
     throw new PumarejoError("CONFIG_INVALID");
   }
-  return { app: { windows } };
+  return {
+    app: {
+      windows,
+      ...(agentCapability === undefined
+        ? {}
+        : { security: { capabilities: [agentCapability] } }),
+    },
+  };
 }
 
 function effectiveWindowLabel(
@@ -98,6 +111,49 @@ function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
+}
+
+async function readAgentCapability(
+  projectRoot: string,
+  agentDirectory: string,
+  windowLabel: string,
+): Promise<Readonly<Record<string, unknown>> | undefined> {
+  const path = join(agentDirectory, AGENT_CAPABILITY_FILE);
+  const metadata = await lstat(path).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (metadata === undefined) return undefined;
+  if (
+    metadata.isSymbolicLink() ||
+    !metadata.isFile() ||
+    metadata.size > MAX_TAURI_CONFIG_BYTES ||
+    (await realpath(path)) !== path ||
+    !isInside(projectRoot, path)
+  ) {
+    throw new PumarejoError("INTEGRATION_INCOMPLETE");
+  }
+
+  try {
+    const capability = record(JSON.parse(await readFile(path, "utf8")));
+    const windows = capability?.windows;
+    const permissions = capability?.permissions;
+    if (
+      capability?.identifier !== "pumarejo-agent" ||
+      !Array.isArray(windows) ||
+      !windows.every((window) => typeof window === "string") ||
+      !windows.some((window) => window === "*" || window === windowLabel) ||
+      !Array.isArray(permissions) ||
+      !permissions.every((permission) => typeof permission === "string") ||
+      !AGENT_PERMISSIONS.every((permission) => permissions.includes(permission))
+    ) {
+      throw new PumarejoError("INTEGRATION_INCOMPLETE");
+    }
+    return capability;
+  } catch (error) {
+    if (error instanceof PumarejoError) throw error;
+    throw new PumarejoError("INTEGRATION_INCOMPLETE", { cause: error });
+  }
 }
 
 async function configuredWindows(
@@ -258,6 +314,11 @@ export async function createRuntimeOverlay(options: {
 
   const windows = await configuredWindows(projectRoot, options.platform);
   const windowLabel = effectiveWindowLabel(windows, options.windowLabel);
+  const agentCapability = await readAgentCapability(
+    projectRoot,
+    agentDirectory,
+    windowLabel,
+  );
   const directory = await mkdtemp(join(agentDirectory, "runtime-"));
   const path = join(directory, "mode-overlay.json");
   try {
@@ -269,7 +330,7 @@ export async function createRuntimeOverlay(options: {
       `${JSON.stringify(
         // Tauri applies --config with RFC 7396, so app.windows must contain
         // the complete base array rather than a partial replacement entry.
-        modeOverlay(options.mode, windowLabel, windows),
+        modeOverlay(options.mode, windowLabel, windows, agentCapability),
         null,
         2,
       )}\n`,

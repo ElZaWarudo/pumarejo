@@ -16,10 +16,34 @@ const MAX_TRAVERSED_ELEMENTS = 10_000;
 const MAX_FIELD_SOURCE_LENGTH = 131_072;
 const MAX_FIELD_LENGTH = 65_536;
 // Four UTF-8 bytes per UTF-16 code unit is the conservative serialization
-// bound used here; object framing remains covered by the transport cap.
-const MAX_PUBLIC_STRING_BUDGET = 256 * 1024;
-const MAX_IDENTITY_STRING_BUDGET = 256 * 1024;
+// bound used here. The remaining MCP transport budget covers node framing and
+// the separately bounded relationship references.
+const MAX_PUBLIC_STRING_BUDGET = 64 * 1024;
+const MAX_PUBLIC_RELATIONSHIP_TARGETS = 8_192;
+const MAX_IDENTITY_NAME_LENGTH = 512;
 const MAX_OWNERSHIP_CONTEXT_LENGTH = 64;
+const MAX_RELATIONSHIP_TARGETS = 32;
+const MAX_SECURITY_RELATIONSHIP_TARGETS = 256;
+
+export interface BrowserSnapshotOptions {
+  readonly maxNodes?: number;
+  readonly maxDepth?: number;
+  readonly maxTextLength?: number;
+  readonly visibleOnly?: boolean;
+  readonly includeNames?: boolean;
+  readonly includeText?: boolean;
+  readonly includeValues?: boolean;
+  readonly roles?: readonly string[];
+  readonly name?: string;
+  readonly types?: readonly string[];
+}
+
+type TruncationReason =
+  | "maxNodes"
+  | "maxDepth"
+  | "maxTextLength"
+  | "fieldBudget"
+  | "traversalLimit";
 const NON_EDITABLE_INPUT_TYPES = new Set([
   "button",
   "checkbox",
@@ -39,12 +63,14 @@ interface CollectedNode {
     relationships: {
       labelledBy: number[];
       describedBy: number[];
+      controls: number[];
       owns: number[];
     };
   };
   readonly relationshipIds: {
     readonly labelledBy: readonly string[];
     readonly describedBy: readonly string[];
+    readonly controls: readonly string[];
     readonly owns: readonly string[];
   };
 }
@@ -266,13 +292,42 @@ function triState(value: string | null): boolean | "mixed" | undefined {
   return undefined;
 }
 
-function relationshipIds(element: Element, name: string): readonly string[] {
-  return (element.getAttribute(name) ?? "")
-    .slice(0, MAX_FIELD_LENGTH)
-    .split(/\s+/u)
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .slice(0, 256);
+function relationshipTokens(
+  element: Element,
+  name: string,
+): { readonly ids: readonly string[]; readonly complete: boolean } {
+  const source = element.getAttribute(name) ?? "";
+  return {
+    ids: source
+      .slice(0, MAX_FIELD_LENGTH)
+      .split(/\s+/u)
+      .map((value) => value.trim())
+      .filter(Boolean),
+    complete: source.length <= MAX_FIELD_LENGTH,
+  };
+}
+
+function relationshipIds(
+  element: Element,
+  name: string,
+): { readonly ids: readonly string[]; readonly complete: boolean } {
+  const tokens = relationshipTokens(element, name);
+  return {
+    ids: tokens.ids.slice(0, MAX_RELATIONSHIP_TARGETS),
+    complete: tokens.complete && tokens.ids.length <= MAX_RELATIONSHIP_TARGETS,
+  };
+}
+
+function securityRelationshipIds(
+  element: Element,
+  name: string,
+): { readonly ids: readonly string[]; readonly complete: boolean } {
+  const tokens = relationshipTokens(element, name);
+  return {
+    ids: tokens.ids.slice(0, MAX_SECURITY_RELATIONSHIP_TARGETS),
+    complete:
+      tokens.complete && tokens.ids.length <= MAX_SECURITY_RELATIONSHIP_TARGETS,
+  };
 }
 
 function isSensitive(element: Element): boolean {
@@ -294,9 +349,12 @@ function isSensitive(element: Element): boolean {
 }
 
 function idReference(element: Element, id: string): Element | undefined {
+  return relationshipRoot(element).getElementById(id) ?? undefined;
+}
+
+function relationshipRoot(element: Element): Document | ShadowRoot {
   const root = element.getRootNode();
-  if (root instanceof ShadowRoot) return root.getElementById(id) ?? undefined;
-  return element.ownerDocument?.getElementById(id) ?? undefined;
+  return root instanceof ShadowRoot ? root : element.ownerDocument;
 }
 
 function nameGraphContainsSensitive(
@@ -307,10 +365,10 @@ function nameGraphContainsSensitive(
   if (visited.size >= MAX_TRAVERSED_ELEMENTS) return true;
   visited.add(element);
   if (isSensitive(element)) return true;
-  const referencedIds = [
-    ...relationshipIds(element, "aria-labelledby"),
-    ...relationshipIds(element, "aria-owns"),
-  ];
+  const labelledBy = securityRelationshipIds(element, "aria-labelledby");
+  const owns = securityRelationshipIds(element, "aria-owns");
+  if (!labelledBy.complete || !owns.complete) return true;
+  const referencedIds = [...labelledBy.ids, ...owns.ids];
   if (
     referencedIds.some((id) => {
       const referenced = idReference(element, id);
@@ -338,14 +396,15 @@ function nameGraphContainsSensitive(
 }
 
 function sensitiveNameSource(element: Element): boolean {
-  const labelledBy = relationshipIds(element, "aria-labelledby");
-  const owns = relationshipIds(element, "aria-owns");
+  const labelledBy = securityRelationshipIds(element, "aria-labelledby");
+  const owns = securityRelationshipIds(element, "aria-owns");
+  if (!labelledBy.complete || !owns.complete) return true;
   const labels =
     "labels" in element
       ? (element.labels as NodeListOf<HTMLLabelElement> | null)
       : null;
   if (
-    [...labelledBy, ...owns].some((id) => {
+    [...labelledBy.ids, ...owns.ids].some((id) => {
       const referenced = idReference(element, id);
       return referenced !== undefined && nameGraphContainsSensitive(referenced);
     }) ||
@@ -361,7 +420,7 @@ function sensitiveNameSource(element: Element): boolean {
   }
   return (
     isSensitive(element) &&
-    labelledBy.length === 0 &&
+    labelledBy.ids.length === 0 &&
     (labels === null || labels.length === 0)
   );
 }
@@ -434,6 +493,36 @@ function childElements(element: Element): readonly Element[] {
   return [...element.children];
 }
 
+function providerHandleIndices(
+  targets: ReadonlySet<Element>,
+): ReadonlyMap<Element, number> {
+  const remaining = new Set(targets);
+  const indices = new Map<Element, number>();
+  let roots: readonly (Document | ShadowRoot)[] = [document];
+  let index = 0;
+  while (remaining.size > 0 && roots.length > 0) {
+    const nextRoots: ShadowRoot[] = [];
+    for (const root of roots) {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+      for (
+        let node = walker.nextNode();
+        node !== null;
+        node = walker.nextNode()
+      ) {
+        const element = node as Element;
+        if (remaining.delete(element)) indices.set(element, index);
+        index += 1;
+        if (remaining.size === 0) return indices;
+        if (element.shadowRoot?.mode === "open") {
+          nextRoots.push(element.shadowRoot);
+        }
+      }
+    }
+    roots = nextRoots;
+  }
+  return indices;
+}
+
 function editable(element: Element): boolean {
   if (element.getAttribute("aria-readonly") === "true") return false;
   if (element instanceof HTMLInputElement) {
@@ -460,12 +549,87 @@ function stableName(
       );
 }
 
+function boundedIdentityName(
+  element: Element,
+  nameSensitive = sensitiveNameSource(element),
+  includeHidden = false,
+): string | undefined {
+  return stableName(element, nameSensitive, includeHidden)?.slice(
+    0,
+    MAX_IDENTITY_NAME_LENGTH,
+  );
+}
+
 function ownershipSegment(
   element: Element,
   role: string | null,
   name: string | undefined,
 ): string {
   return `${element.localName}:${role ?? ""}:${(name ?? "").slice(0, 64)}`;
+}
+
+interface SemanticIdentityItem {
+  readonly element: Element;
+  readonly role: string | null;
+  readonly kind: SemanticKind;
+  readonly name: string | undefined;
+}
+
+function semanticIdentityChain(
+  element: Element,
+  currentNameSensitive?: boolean,
+  nameSensitiveFor: (candidate: Element) => boolean = sensitiveNameSource,
+  identityNameFor: (
+    candidate: Element,
+    nameSensitive: boolean,
+    includeHidden: boolean,
+  ) => string | undefined = boundedIdentityName,
+): readonly SemanticIdentityItem[] {
+  const chain: SemanticIdentityItem[] = [];
+  let traversed = 0;
+  for (
+    let candidate: Element | undefined = element;
+    candidate;
+    candidate = composedParent(candidate)
+  ) {
+    traversed += 1;
+    if (traversed > MAX_TRAVERSED_ELEMENTS) {
+      throw new Error("identity traversal limit exceeded");
+    }
+    const role = getRole(candidate);
+    const rawText =
+      candidate instanceof HTMLElement
+        ? normalize(candidate.innerText || candidate.textContent)
+        : normalize(candidate.textContent);
+    const kind = semanticKind(candidate, role, rawText);
+    if (kind !== undefined) {
+      chain.push({
+        element: candidate,
+        role,
+        kind,
+        name: identityNameFor(
+          candidate,
+          candidate === element
+            ? (currentNameSensitive ?? nameSensitiveFor(candidate))
+            : nameSensitiveFor(candidate),
+          !visible(candidate),
+        ),
+      });
+    }
+  }
+  chain.reverse();
+  return chain;
+}
+
+function ownershipContextFor(chain: readonly SemanticIdentityItem[]): string {
+  let context = "root";
+  for (const item of chain) {
+    context =
+      `${context}/${ownershipSegment(item.element, item.role, item.name)}`.slice(
+        -MAX_OWNERSHIP_CONTEXT_LENGTH,
+      );
+  }
+  return context;
 }
 
 function invalidState(
@@ -497,60 +661,142 @@ function currentState(
   return true;
 }
 
-export function collectSnapshot(elements?: readonly Element[]): {
+export function collectSnapshot(
+  options: BrowserSnapshotOptions = {},
+  rootElement?: Element,
+): {
   readonly scriptVersion: typeof SNAPSHOT_SCRIPT_VERSION;
   readonly viewport: { readonly width: number; readonly height: number };
+  readonly handles: readonly Element[];
   readonly nodes: readonly {
     readonly handleIndex: number;
+    readonly providerHandleIndex: number;
     readonly descriptor: CollectedNode["descriptor"];
   }[];
+  readonly truncation: {
+    readonly truncated: boolean;
+    readonly reasons: readonly TruncationReason[];
+    readonly counts: {
+      readonly visited: number;
+      readonly candidates: number;
+      readonly matched: number;
+      readonly returned: number;
+      readonly filtered: number;
+    };
+    readonly refineWith: readonly (
+      | "rootRef"
+      | "maxNodes"
+      | "maxDepth"
+      | "maxTextLength"
+      | "filters"
+    )[];
+  };
 } {
+  const maxNodes = Math.min(Math.max(options.maxNodes ?? 500, 1), 500);
+  const maxDepth = Math.min(Math.max(options.maxDepth ?? 32, 0), 256);
+  const maxTextLength = Math.min(
+    Math.max(options.maxTextLength ?? 4096, 1),
+    MAX_FIELD_LENGTH,
+  );
+  const visibleOnly = options.visibleOnly ?? true;
+  const includeNames = options.includeNames ?? true;
+  const includeText = options.includeText ?? true;
+  const includeValues = options.includeValues ?? true;
+  const roleFilter = new Set(
+    options.roles?.map((role) => role.trim().toLowerCase()).filter(Boolean) ??
+      [],
+  );
+  const typeFilter = new Set(
+    options.types?.map((type) => type.trim().toLowerCase()).filter(Boolean) ??
+      [],
+  );
+  const nameFilter = options.name?.trim().toLocaleLowerCase();
   const collected: CollectedNode[] = [];
   const included = new Map<Element, number>();
   const allIds = new Map<Document | ShadowRoot, Map<string, Element>>();
   const visited = new Set<Element>();
-  const automaticHandles = elements === undefined;
-  const handles = [...(elements ?? [])];
-  const handleIndices = new Map(
-    handles.map((element, index) => [element, index] as const),
-  );
+  const handles: Element[] = [];
+  const reasons = new Set<TruncationReason>();
+  let traversalExhausted = false;
+  let candidates = 0;
+  let matched = 0;
+  let filtered = 0;
   let publicStringBudget = MAX_PUBLIC_STRING_BUDGET;
-  let identityStringBudget = MAX_IDENTITY_STRING_BUDGET;
+  let publicRelationshipBudget = MAX_PUBLIC_RELATIONSHIP_TARGETS;
+  const nameSensitivityCache = new WeakMap<Element, boolean>();
+  const identityNameCache = new WeakMap<
+    Element,
+    Map<boolean, string | undefined>
+  >();
+  const cachedNameSensitivity = (element: Element): boolean => {
+    const cached = nameSensitivityCache.get(element);
+    if (cached !== undefined) return cached;
+    const result = sensitiveNameSource(element);
+    nameSensitivityCache.set(element, result);
+    return result;
+  };
+  const cachedIdentityName = (
+    element: Element,
+    nameSensitive: boolean,
+    includeHidden: boolean,
+  ): string | undefined => {
+    let byVisibility = identityNameCache.get(element);
+    if (byVisibility === undefined) {
+      byVisibility = new Map();
+      identityNameCache.set(element, byVisibility);
+    }
+    if (byVisibility.has(includeHidden)) return byVisibility.get(includeHidden);
+    const result = boundedIdentityName(element, nameSensitive, includeHidden);
+    byVisibility.set(includeHidden, result);
+    return result;
+  };
   const consumeString = (
     value: string | null | undefined,
   ): string | undefined => {
     const normalized = normalize(value);
-    if (normalized === undefined || publicStringBudget === 0) return undefined;
-    const result = normalized.slice(0, publicStringBudget);
+    if (normalized === undefined) return undefined;
+    if (publicStringBudget === 0) {
+      reasons.add("fieldBudget");
+      return undefined;
+    }
+    const fieldBounded = normalized.slice(0, maxTextLength);
+    if (fieldBounded.length < normalized.length) reasons.add("maxTextLength");
+    const result = fieldBounded.slice(0, publicStringBudget);
+    if (result.length < fieldBounded.length) reasons.add("fieldBudget");
     publicStringBudget -= result.length;
     return result || undefined;
   };
-  const consumeIdentityString = (
-    value: string | undefined,
-  ): string | undefined => {
-    if (value === undefined) return undefined;
-    if (value.length > identityStringBudget) {
-      throw new Error("snapshot identity string budget exceeded");
+  const consumeRelationshipIds = (
+    element: Element,
+    name: string,
+  ): readonly string[] => {
+    const relationship = relationshipIds(element, name);
+    const result = relationship.ids.slice(0, publicRelationshipBudget);
+    if (!relationship.complete || result.length < relationship.ids.length) {
+      reasons.add("fieldBudget");
     }
-    identityStringBudget -= value.length;
-    return value;
+    publicRelationshipBudget -= result.length;
+    return result;
   };
 
-  const visit = (element: Element, parentIndex: number | null): void => {
-    if (visited.has(element)) return;
+  const visit = (
+    element: Element,
+    parentIndex: number | null,
+    depth: number,
+  ): void => {
+    if (traversalExhausted || visited.has(element)) return;
     if (visited.size >= MAX_TRAVERSED_ELEMENTS) {
-      throw new Error("snapshot traversal limit exceeded");
+      reasons.add("traversalLimit");
+      traversalExhausted = true;
+      return;
+    }
+    if (depth > maxDepth) {
+      reasons.add("maxDepth");
+      return;
     }
     visited.add(element);
-    if (automaticHandles && !handleIndices.has(element)) {
-      handleIndices.set(element, handles.length);
-      handles.push(element);
-    }
-    const root = element.getRootNode();
-    if (
-      element.id &&
-      (root instanceof Document || root instanceof ShadowRoot)
-    ) {
+    const root = relationshipRoot(element);
+    if (element.id) {
       const rootIds = allIds.get(root) ?? new Map<string, Element>();
       if (!rootIds.has(element.id)) rootIds.set(element.id, element);
       allIds.set(root, rootIds);
@@ -562,26 +808,69 @@ export function collectSnapshot(elements?: readonly Element[]): {
       element instanceof HTMLElement
         ? normalize(element.innerText || element.textContent)
         : normalize(element.textContent);
-    const kind = isVisible ? semanticKind(element, role, rawText) : undefined;
+    const kind =
+      !visibleOnly || isVisible
+        ? semanticKind(element, role, rawText)
+        : undefined;
     let nextParent = parentIndex;
 
     if (kind !== undefined) {
-      const contentSensitive = isSensitive(element);
-      const nameSensitive = sensitiveNameSource(element);
-      const sensitive = contentSensitive || nameSensitive;
-      const identityName = consumeIdentityString(
-        stableName(element, nameSensitive),
-      );
-      const name = consumeString(identityName);
-      const text = sensitive ? undefined : consumeString(rawText);
-      const value = sensitive
-        ? undefined
-        : consumeString(elementValue(element));
-      const rect = element.getBoundingClientRect();
+      candidates += 1;
       const inputType =
         element instanceof HTMLInputElement
           ? element.type.toLowerCase()
           : undefined;
+      const cheapFilterMatches =
+        (roleFilter.size === 0 || roleFilter.has(role ?? "")) &&
+        (typeFilter.size === 0 ||
+          (inputType !== undefined && typeFilter.has(inputType)));
+      let nameSensitive: boolean | undefined;
+      let rawIdentityName: string | undefined;
+      if (cheapFilterMatches && nameFilter !== undefined) {
+        nameSensitive = cachedNameSensitivity(element);
+        rawIdentityName = cachedIdentityName(element, nameSensitive, false);
+      }
+      const filterMatches =
+        cheapFilterMatches &&
+        (nameFilter === undefined ||
+          (rawIdentityName?.toLocaleLowerCase().includes(nameFilter) ?? false));
+      if (!filterMatches) {
+        filtered += 1;
+        for (const child of childElements(element)) {
+          visit(child, nextParent, depth + 1);
+          if (traversalExhausted) break;
+        }
+        return;
+      }
+      matched += 1;
+      if (collected.length >= maxNodes) {
+        reasons.add("maxNodes");
+        for (const child of childElements(element)) {
+          visit(child, nextParent, depth + 1);
+          if (traversalExhausted) break;
+        }
+        return;
+      }
+      nameSensitive ??= cachedNameSensitivity(element);
+      const identityChain = semanticIdentityChain(
+        element,
+        nameSensitive,
+        cachedNameSensitivity,
+        cachedIdentityName,
+      );
+      const identityName =
+        identityChain.at(-1)?.element === element
+          ? identityChain.at(-1)?.name
+          : undefined;
+      const sensitive = isSensitive(element) || nameSensitive;
+      const name = includeNames ? consumeString(identityName) : undefined;
+      const text =
+        sensitive || !includeText ? undefined : consumeString(rawText);
+      const value =
+        sensitive || !includeValues
+          ? undefined
+          : consumeString(elementValue(element));
+      const rect = element.getBoundingClientRect();
       const checkedValue =
         element instanceof HTMLInputElement &&
         (element.type === "checkbox" || element.type === "radio")
@@ -625,21 +914,9 @@ export function collectSnapshot(elements?: readonly Element[]): {
               : undefined,
           )
         : undefined;
-      const context =
-        parentIndex === null
-          ? "root"
-          : String(
-              collected[parentIndex]?.descriptor.identity &&
-                (
-                  collected[parentIndex]!.descriptor.identity as {
-                    ownershipContext?: string;
-                  }
-                ).ownershipContext,
-            );
-      const ownershipContext =
-        `${context}/${ownershipSegment(element, role, identityName)}`.slice(
-          -MAX_OWNERSHIP_CONTEXT_LENGTH,
-        );
+      const invalid = invalidState(element);
+      const current = currentState(element);
+      const ownershipContext = ownershipContextFor(identityChain);
       const descriptor = {
         parentIndex,
         kind,
@@ -651,7 +928,7 @@ export function collectSnapshot(elements?: readonly Element[]): {
         ...(value === undefined ? {} : { value }),
         redacted: sensitive,
         enabled: !effectivelyNativeDisabled(element) && !ariaDisabled(element),
-        visible: true as const,
+        visible: isVisible,
         focused:
           document.activeElement === element ||
           (element.getRootNode() instanceof ShadowRoot &&
@@ -662,19 +939,20 @@ export function collectSnapshot(elements?: readonly Element[]): {
           width: rect.width,
           height: rect.height,
         },
-        relationships: { labelledBy: [], describedBy: [], owns: [] },
+        relationships: {
+          labelledBy: [],
+          describedBy: [],
+          controls: [],
+          owns: [],
+        },
         ...(checked === undefined ? {} : { checked }),
         ...(selected === undefined ? {} : { selected }),
         ...(expanded === undefined ? {} : { expanded }),
         ...(pressed === undefined ? {} : { pressed }),
         ...(required === undefined ? {} : { required }),
-        ...(invalidState(element) === undefined
-          ? {}
-          : { invalid: invalidState(element) }),
+        ...(invalid === undefined ? {} : { invalid }),
         ...(readOnly === undefined ? {} : { readOnly }),
-        ...(currentState(element) === undefined
-          ? {}
-          : { current: currentState(element) }),
+        ...(current === undefined ? {} : { current }),
         identity: {
           ...(identityName === undefined ? {} : { name: identityName }),
           ...(inputType === undefined ? {} : { inputType }),
@@ -683,30 +961,36 @@ export function collectSnapshot(elements?: readonly Element[]): {
       };
       nextParent = collected.length;
       included.set(element, nextParent);
+      handles.push(element);
       collected.push({
         element,
         descriptor,
         relationshipIds: {
-          labelledBy: relationshipIds(element, "aria-labelledby"),
-          describedBy: relationshipIds(element, "aria-describedby"),
-          owns: relationshipIds(element, "aria-owns"),
+          labelledBy: consumeRelationshipIds(element, "aria-labelledby"),
+          describedBy: consumeRelationshipIds(element, "aria-describedby"),
+          controls: consumeRelationshipIds(element, "aria-controls"),
+          owns: consumeRelationshipIds(element, "aria-owns"),
         },
       });
     }
 
-    for (const child of childElements(element)) visit(child, nextParent);
+    for (const child of childElements(element)) {
+      visit(child, nextParent, depth + 1);
+      if (traversalExhausted) break;
+    }
   };
 
-  for (const child of [...document.documentElement.children]) {
-    visit(child, null);
+  if (rootElement !== undefined) {
+    visit(rootElement, null, 0);
+  } else {
+    for (const child of [...document.documentElement.children]) {
+      visit(child, null, 0);
+      if (traversalExhausted) break;
+    }
   }
 
   for (const node of collected) {
-    const root = node.element.getRootNode();
-    const rootIds =
-      root instanceof Document || root instanceof ShadowRoot
-        ? allIds.get(root)
-        : undefined;
+    const rootIds = allIds.get(relationshipRoot(node.element));
     const resolveIndices = (ids: readonly string[]): number[] =>
       ids
         .map((id) => included.get(rootIds?.get(id)!))
@@ -717,21 +1001,43 @@ export function collectSnapshot(elements?: readonly Element[]): {
     node.descriptor.relationships.describedBy = resolveIndices(
       node.relationshipIds.describedBy,
     );
+    node.descriptor.relationships.controls = resolveIndices(
+      node.relationshipIds.controls,
+    );
     node.descriptor.relationships.owns = resolveIndices(
       node.relationshipIds.owns,
     );
   }
 
+  const providerIndices = providerHandleIndices(
+    new Set(collected.map(({ element }) => element)),
+  );
   return {
     scriptVersion: SNAPSHOT_SCRIPT_VERSION,
     viewport: { width: window.innerWidth, height: window.innerHeight },
-    nodes: collected.map(({ element, descriptor }) => {
-      const handleIndex = handleIndices.get(element);
-      if (handleIndex === undefined) {
-        throw new Error("snapshot element has no WebDriver handle");
+    handles,
+    nodes: collected.map(({ element, descriptor }, handleIndex) => {
+      const providerHandleIndex = providerIndices.get(element);
+      if (providerHandleIndex === undefined) {
+        throw new Error("snapshot element is outside provider handle order");
       }
-      return { handleIndex, descriptor };
+      return { handleIndex, providerHandleIndex, descriptor };
     }),
+    truncation: {
+      truncated: reasons.size > 0,
+      reasons: [...reasons],
+      counts: {
+        visited: visited.size,
+        candidates,
+        matched,
+        returned: collected.length,
+        filtered,
+      },
+      refineWith:
+        reasons.size === 0
+          ? []
+          : ["rootRef", "maxNodes", "maxDepth", "maxTextLength", "filters"],
+    },
   };
 }
 
@@ -740,6 +1046,7 @@ export function collectIdentity(element: Element): {
   readonly visible: boolean;
   readonly enabled: boolean;
   readonly editable: boolean;
+  readonly tag?: string;
   readonly kind?: SemanticKind;
   readonly role?: string;
   readonly name?: string;
@@ -758,45 +1065,8 @@ export function collectIdentity(element: Element): {
       editable: false,
     };
   }
-  const chain: {
-    readonly element: Element;
-    readonly role: string | null;
-    readonly kind: SemanticKind;
-    readonly name: string | undefined;
-  }[] = [];
-  let traversed = 0;
-  for (
-    let candidate: Element | undefined = element;
-    candidate;
-    candidate = composedParent(candidate)
-  ) {
-    traversed += 1;
-    if (traversed > MAX_TRAVERSED_ELEMENTS) {
-      throw new Error("identity traversal limit exceeded");
-    }
-    const role = getRole(candidate);
-    const rawText =
-      candidate instanceof HTMLElement
-        ? normalize(candidate.innerText || candidate.textContent)
-        : normalize(candidate.textContent);
-    const kind = semanticKind(candidate, role, rawText);
-    if (kind !== undefined) {
-      chain.push({
-        element: candidate,
-        role,
-        kind,
-        name: stableName(candidate, undefined, !visible(candidate)),
-      });
-    }
-  }
-  chain.reverse();
-  let ownershipContext = "root";
-  for (const item of chain) {
-    ownershipContext =
-      `${ownershipContext}/${ownershipSegment(item.element, item.role, item.name)}`.slice(
-        -MAX_OWNERSHIP_CONTEXT_LENGTH,
-      );
-  }
+  const chain = semanticIdentityChain(element);
+  const ownershipContext = ownershipContextFor(chain);
   const current = chain.at(-1);
   const inputType =
     element instanceof HTMLInputElement
@@ -807,6 +1077,7 @@ export function collectIdentity(element: Element): {
     visible: visible(element),
     enabled: !effectivelyNativeDisabled(element) && !ariaDisabled(element),
     editable: editable(element),
+    tag: element.localName,
     ...(current?.element !== element || current.kind === undefined
       ? {}
       : { kind: current.kind }),

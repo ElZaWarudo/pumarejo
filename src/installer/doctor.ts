@@ -1,11 +1,19 @@
 import { execFile } from "node:child_process";
 import { lstat, readdir, realpath } from "node:fs/promises";
 import { createServer } from "node:net";
-import { delimiter, join, resolve } from "node:path";
+import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
-import { loadProjectConfig, resolveProjectRoot } from "../config/load.js";
-import { planCargoRemoval } from "./cargo.js";
+import {
+  loadProjectConfig,
+  resolveProjectRoot,
+  type LoadedProjectConfig,
+} from "../config/load.js";
+import { resolvedLaunchEnvironment } from "../platform/launch-environment.js";
+import { executableBasename } from "../shared/executable.js";
+import { TAURI_WEBDRIVER_PLUGIN_VERSION, VERSION } from "../version.js";
+import { AGENT_PERMISSIONS } from "./capabilities.js";
+import { cargoPluginIntegration, planCargoRemoval } from "./cargo.js";
 import {
   contentHash,
   INTEGRATION_MANIFEST_RELATIVE_PATH,
@@ -15,6 +23,7 @@ import {
 import { readSafeFile, validateAppliedManifest } from "./plan.js";
 import { detectTauriProject, type DetectedTauriProject } from "./project.js";
 import { planRustRemoval } from "./rust.js";
+import { readLaunchVerification } from "./launch-verification.js";
 
 export type DiagnosticStatus = "ready" | "warn" | "error";
 
@@ -25,6 +34,7 @@ export interface DoctorDiagnostic {
     | "integration.manifest"
     | "integration.debug-registration"
     | "integration.capability-permission"
+    | "integration.version-alignment"
     | "toolchain.node"
     | "toolchain.rust"
     | "toolchain.launch"
@@ -36,6 +46,20 @@ export interface DoctorDiagnostic {
   readonly status: DiagnosticStatus;
   readonly summary: string;
   readonly action?: string;
+  readonly classification?:
+    | "configured"
+    | "detected"
+    | "missing"
+    | "not_detected"
+    | "not_on_path"
+    | "verified"
+    | "version_drift";
+  readonly evidence?: {
+    readonly executable?: string;
+    readonly arguments?: readonly string[];
+    readonly provenance?: string;
+    readonly confidence?: "heuristic" | "configured" | "verified";
+  };
 }
 
 export interface DoctorReport {
@@ -46,18 +70,34 @@ export interface DoctorReport {
 export interface DoctorDependencies {
   readonly platform: NodeJS.Platform;
   readonly environment: NodeJS.ProcessEnv;
-  readonly executableAvailable: (command: string) => Promise<boolean>;
+  readonly executableAvailable: (
+    command: string,
+    environment: NodeJS.ProcessEnv,
+    platform: NodeJS.Platform,
+  ) => Promise<boolean>;
   readonly webviewAvailable: (platform: NodeJS.Platform) => Promise<boolean>;
   readonly portAvailable: (port: number) => Promise<boolean>;
 }
 
 const execFileAsync = promisify(execFile);
 
-async function executableAvailable(command: string): Promise<boolean> {
-  const path = process.env.PATH ?? "";
+async function executableAvailable(
+  command: string,
+  environment: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+): Promise<boolean> {
+  if (isAbsolute(command)) {
+    try {
+      const metadata = await lstat(command);
+      return metadata.isFile() && !metadata.isSymbolicLink();
+    } catch {
+      return false;
+    }
+  }
+  const path = environment.PATH ?? environment.Path ?? "";
   const extensions =
-    process.platform === "win32"
-      ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";")
+    platform === "win32"
+      ? (environment.PATHEXT ?? ".EXE;.CMD;.BAT").split(";")
       : [""];
   const candidates = extensions.map((extension) =>
     command.toLowerCase().endsWith(extension.toLowerCase())
@@ -164,8 +204,18 @@ function diagnostic(
   status: DiagnosticStatus,
   summary: string,
   action?: string,
+  details: Pick<DoctorDiagnostic, "classification" | "evidence"> = {},
 ): DoctorDiagnostic {
-  return { id, status, summary, ...(action === undefined ? {} : { action }) };
+  return {
+    id,
+    status,
+    summary,
+    ...(action === undefined ? {} : { action }),
+    ...(details.classification === undefined
+      ? {}
+      : { classification: details.classification }),
+    ...(details.evidence === undefined ? {} : { evidence: details.evidence }),
+  };
 }
 
 function overallStatus(
@@ -198,6 +248,7 @@ async function integrationDiagnostics(
         "integration.capability-permission",
         "Agent capability permission",
       ),
+      unavailable("integration.version-alignment", "Integration versions"),
     ];
   }
 
@@ -243,6 +294,7 @@ async function integrationDiagnostics(
         "integration.capability-permission",
         "Agent capability permission",
       ),
+      unavailable("integration.version-alignment", "Integration versions"),
     ];
   }
 
@@ -259,6 +311,7 @@ async function integrationDiagnostics(
   const cargo = manifest.changes.find((entry) => entry.kind === "cargo");
   const rust = manifest.changes.find((entry) => entry.kind === "rust");
   let registrationReady = rust !== undefined;
+  let installedPluginVersion: string | undefined;
   try {
     if (rust !== undefined) {
       const source = await readSafeFile(
@@ -276,6 +329,9 @@ async function integrationDiagnostics(
         true,
       );
       if (source === null) throw new Error("Cargo manifest missing");
+      const plugin = cargoPluginIntegration(source);
+      registrationReady &&= plugin.registered;
+      installedPluginVersion = plugin.version;
       planCargoRemoval(source, cargo.attribution);
     }
   } catch {
@@ -296,13 +352,21 @@ async function integrationDiagnostics(
     if (
       source === null ||
       contentHash(source) !== capability.afterHash ||
-      !source.includes('"wdio-webdriver:default"')
+      !AGENT_PERMISSIONS.every((permission) =>
+        source.includes(JSON.stringify(permission)),
+      )
     ) {
       throw new Error("capability drift");
     }
   } catch {
     capabilityReady = false;
   }
+
+  const versionAligned =
+    manifest.version === 2 &&
+    manifest.pumarejoVersion === VERSION &&
+    manifest.pluginVersion === TAURI_WEBDRIVER_PLUGIN_VERSION &&
+    installedPluginVersion === TAURI_WEBDRIVER_PLUGIN_VERSION;
 
   return [
     manifestDiagnostic,
@@ -322,7 +386,40 @@ async function integrationDiagnostics(
         : "The isolated agent capability is missing or changed.",
       capabilityReady ? undefined : "Restore the generated capability.",
     ),
+    diagnostic(
+      "integration.version-alignment",
+      versionAligned ? "ready" : "error",
+      versionAligned
+        ? "CLI, integration manifest, and Tauri plugin versions are aligned."
+        : "CLI, integration manifest, or Tauri plugin versions have drifted.",
+      versionAligned
+        ? undefined
+        : "Rerun init with the current Pumarejo CLI after reviewing local edits.",
+      versionAligned
+        ? { classification: "verified" }
+        : { classification: "version_drift" },
+    ),
   ];
+}
+
+function safeLaunchArguments(arguments_: readonly string[]): readonly string[] {
+  const allowed = new Set([
+    "tauri",
+    "dev",
+    "run",
+    "--",
+    "--features",
+    "pumarejo",
+    "--config",
+    "{tauriConfig}",
+  ]);
+  return arguments_.map((argument) =>
+    allowed.has(argument) ? argument : "<redacted>",
+  );
+}
+
+function executableIdentity(command: string): string {
+  return executableBasename(command);
 }
 
 async function residueDiagnostic(
@@ -430,9 +527,10 @@ export async function doctorProject(
   }
 
   let configuredPort: number | undefined;
+  let loadedConfig: LoadedProjectConfig | undefined;
   try {
-    const loaded = await loadProjectConfig(projectPath);
-    configuredPort = loaded.config.webdriverPort;
+    loadedConfig = await loadProjectConfig(projectPath);
+    configuredPort = loadedConfig.config.webdriverPort;
     diagnostics.push(
       diagnostic(
         "config.valid",
@@ -450,6 +548,10 @@ export async function doctorProject(
       ),
     );
   }
+  const launchVerification =
+    loadedConfig === undefined
+      ? undefined
+      : await readLaunchVerification(loadedConfig);
 
   diagnostics.push(...(await integrationDiagnostics(projectRoot)));
   diagnostics.push(
@@ -462,7 +564,11 @@ export async function doctorProject(
         : "Use Node 22 or Node 24.",
     ),
   );
-  const rustReady = await dependencies.executableAvailable("cargo");
+  const rustReady = await dependencies.executableAvailable(
+    "cargo",
+    dependencies.environment,
+    dependencies.platform,
+  );
   diagnostics.push(
     diagnostic(
       "toolchain.rust",
@@ -471,9 +577,34 @@ export async function doctorProject(
       rustReady ? undefined : "Install the stable Rust toolchain.",
     ),
   );
-  const launchReady =
-    project !== undefined &&
-    (await dependencies.executableAvailable(project.launch.command));
+  const launchProfile = loadedConfig?.config.launch ?? project?.launch;
+  const launchCommand =
+    launchProfile !== undefined && "executablePath" in launchProfile
+      ? (launchProfile.executablePath ?? launchProfile.command)
+      : launchProfile?.command;
+  const effectiveLaunchEnvironment =
+    loadedConfig === undefined ||
+    !["win32", "linux"].includes(dependencies.platform)
+      ? dependencies.environment
+      : resolvedLaunchEnvironment(
+          dependencies.platform === "win32" ? "windows" : "linux",
+          dependencies.environment,
+          loadedConfig.config.launch,
+        );
+  const launchDetected =
+    launchCommand !== undefined &&
+    (await dependencies.executableAvailable(
+      launchCommand,
+      effectiveLaunchEnvironment,
+      dependencies.platform,
+    ));
+  const launchVerified = launchVerification !== undefined;
+  const launchReady = launchDetected || launchVerified;
+  const explicitlyConfigured =
+    loadedConfig !== undefined &&
+    (loadedConfig.config.launch.executablePath !== undefined ||
+      (loadedConfig.config.launch.pathPrepend?.length ?? 0) > 0 ||
+      Object.keys(loadedConfig.config.launch.environment ?? {}).length > 0);
   diagnostics.push(
     diagnostic(
       "toolchain.launch",
@@ -483,7 +614,40 @@ export async function doctorProject(
         : "The project launch executable is unavailable.",
       launchReady
         ? undefined
-        : "Install the detected project package manager or Cargo.",
+        : explicitlyConfigured
+          ? "Fix launch.executablePath or install the configured executable."
+          : "Install the detected project package manager or add it to the effective PATH.",
+      {
+        classification: launchVerified
+          ? "verified"
+          : launchReady
+            ? explicitlyConfigured
+              ? "configured"
+              : "detected"
+            : explicitlyConfigured
+              ? "missing"
+              : launchCommand === undefined
+                ? "not_detected"
+                : "not_on_path",
+        evidence: {
+          ...(launchCommand === undefined
+            ? {}
+            : { executable: executableIdentity(launchCommand) }),
+          ...(launchProfile === undefined
+            ? {}
+            : { arguments: safeLaunchArguments(launchProfile.args) }),
+          provenance: explicitlyConfigured
+            ? "project-config"
+            : launchCommand === undefined
+              ? "project-detection"
+              : "host-path",
+          confidence: launchVerified
+            ? "verified"
+            : explicitlyConfigured
+              ? "configured"
+              : "heuristic",
+        },
+      },
     ),
   );
 
@@ -519,19 +683,33 @@ export async function doctorProject(
         : "Configure WSLg/X11/Wayland or a supported desktop session.",
     ),
   );
-  const webviewReady =
+  const webviewDetected =
     platformReady &&
     (await dependencies.webviewAvailable(dependencies.platform));
+  const webviewReady = webviewDetected || launchVerified;
   diagnostics.push(
     diagnostic(
       "platform.webview",
       webviewReady ? "ready" : "error",
       webviewReady
-        ? "The platform WebView runtime is available."
+        ? webviewDetected
+          ? "The platform WebView runtime is available."
+          : "A successful Pumarejo launch verified the WebView runtime."
         : "The platform WebView runtime was not found.",
       webviewReady
         ? undefined
         : "Install WebView2 or the supported WebKitGTK runtime.",
+      {
+        classification: launchVerified
+          ? "verified"
+          : webviewDetected
+            ? "detected"
+            : "not_detected",
+        evidence: {
+          provenance: launchVerified ? "successful-launch" : "platform-probe",
+          confidence: launchVerified ? "verified" : "heuristic",
+        },
+      },
     ),
   );
 
@@ -560,8 +738,29 @@ export function formatDoctorReport(report: DoctorReport): string {
     .map(
       (item) =>
         `[${item.status.toUpperCase()}] ${item.id}: ${item.summary}${
-          item.action === undefined ? "" : ` Action: ${item.action}`
-        }`,
+          item.classification === undefined
+            ? ""
+            : ` Classification: ${item.classification}.`
+        }${
+          item.evidence === undefined
+            ? ""
+            : ` Evidence: ${[
+                item.evidence.executable === undefined
+                  ? undefined
+                  : `executable=${item.evidence.executable}`,
+                item.evidence.arguments === undefined
+                  ? undefined
+                  : `args=${JSON.stringify(item.evidence.arguments)}`,
+                item.evidence.provenance === undefined
+                  ? undefined
+                  : `provenance=${item.evidence.provenance}`,
+                item.evidence.confidence === undefined
+                  ? undefined
+                  : `confidence=${item.evidence.confidence}`,
+              ]
+                .filter((value) => value !== undefined)
+                .join(", ")}.`
+        }${item.action === undefined ? "" : ` Action: ${item.action}`}`,
     )
     .join("\n")}\n`;
 }

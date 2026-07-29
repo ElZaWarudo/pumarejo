@@ -1,10 +1,13 @@
 import { z } from "zod";
 
+import { executableBasename } from "../shared/executable.js";
+
 const MAX_ARGUMENT_COUNT = 128;
 const MAX_ARGUMENT_LENGTH = 8_192;
 const MAX_COMMAND_LENGTH = 260;
 const MAX_PATH_LENGTH = 4_096;
 const MODE_CONFIG_PLACEHOLDER = "{tauriConfig}";
+const ABSOLUTE_RUNTIME_PATH = /^(?:[A-Za-z]:[\\/]|\/)/u;
 
 const APPROVED_LAUNCH_COMMANDS = new Set([
   "pnpm",
@@ -41,6 +44,39 @@ export const launchProfileSchema = z
           }),
       )
       .max(MAX_ARGUMENT_COUNT),
+    executablePath: z
+      .string()
+      .min(1)
+      .max(MAX_PATH_LENGTH)
+      .refine((value) => ABSOLUTE_RUNTIME_PATH.test(value), {
+        message: "launch executablePath must be absolute",
+      })
+      .optional(),
+    pathPrepend: z
+      .array(
+        z
+          .string()
+          .min(1)
+          .max(MAX_PATH_LENGTH)
+          .refine((value) => ABSOLUTE_RUNTIME_PATH.test(value), {
+            message: "launch pathPrepend entries must be absolute",
+          }),
+      )
+      .max(16)
+      .optional(),
+    environment: z
+      .strictObject({
+        CARGO_HOME: z.string().max(MAX_PATH_LENGTH).optional(),
+        CARGO_TARGET_DIR: z.string().max(MAX_PATH_LENGTH).optional(),
+        CC: z.string().max(MAX_PATH_LENGTH).optional(),
+        CXX: z.string().max(MAX_PATH_LENGTH).optional(),
+        PKG_CONFIG_PATH: z.string().max(MAX_PATH_LENGTH).optional(),
+        RUSTC_WRAPPER: z.string().max(MAX_PATH_LENGTH).optional(),
+        RUSTFLAGS: z.string().max(MAX_ARGUMENT_LENGTH).optional(),
+        RUSTUP_HOME: z.string().max(MAX_PATH_LENGTH).optional(),
+        RUSTUP_TOOLCHAIN: z.string().max(128).optional(),
+      })
+      .optional(),
   })
   .superRefine((profile, context) => {
     const occurrences = profile.args.reduce(
@@ -54,6 +90,21 @@ export const launchProfileSchema = z
         path: ["args"],
         message: `launch args must contain exactly one ${MODE_CONFIG_PLACEHOLDER} placeholder`,
       });
+    }
+    if (profile.executablePath !== undefined) {
+      const configured = profile.command
+        .toLowerCase()
+        .replace(/\.(?:cmd|exe)$/u, "");
+      const executable = executableBasename(profile.executablePath)
+        .toLowerCase()
+        .replace(/\.(?:cmd|exe)$/u, "");
+      if (configured !== executable) {
+        context.addIssue({
+          code: "custom",
+          path: ["executablePath"],
+          message: "launch executablePath must match launch command",
+        });
+      }
     }
   });
 

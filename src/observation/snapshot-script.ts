@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 let cachedScript: Promise<string> | undefined;
 let cachedIdentityScript: Promise<string> | undefined;
 const SCRIPT_SUFFIX =
-  '\nif(PumarejoSnapshot.SNAPSHOT_SCRIPT_VERSION!==1){throw new Error("snapshot script version mismatch");}return PumarejoSnapshot.collectSnapshot(arguments[0]);';
+  '\nif(PumarejoSnapshot.SNAPSHOT_SCRIPT_VERSION!==1){throw new Error("snapshot script version mismatch");}return PumarejoSnapshot.collectSnapshot(arguments[0],arguments[1]);';
 const IDENTITY_SCRIPT_SUFFIX =
   '\nif(PumarejoSnapshot.SNAPSHOT_SCRIPT_VERSION!==1){throw new Error("snapshot script version mismatch");}return PumarejoSnapshot.collectIdentity(arguments[0]);';
 const MAX_INJECTED_SCRIPT_BYTES = 1024 * 1024;

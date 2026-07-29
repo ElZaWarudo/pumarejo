@@ -9,6 +9,8 @@ import { runDoctorCommand } from "./doctor.js";
 import { runInitCommand } from "./init.js";
 import { CliUsageError, parseCliArgs, type CliInvocation } from "./parse.js";
 import { runRemoveCommand } from "./remove.js";
+import { printMcpConfig } from "./print-config.js";
+import type { McpHost } from "./parse.js";
 
 export { VERSION };
 
@@ -19,6 +21,7 @@ Usage:
   pumarejo doctor [--project <path>] [--json]
   pumarejo remove [--project <path>] [--dry-run]
   pumarejo mcp --project <path>
+  pumarejo mcp print-config --host <codex|claude-code|cursor> --project <path>
   pumarejo --version
   pumarejo --help`;
 
@@ -42,6 +45,12 @@ async function defaultHandler(
   channels: CliIo,
 ): Promise<void> {
   if (invocation.command === "mcp") {
+    if (invocation.subcommand === "print-config") {
+      channels.stdout(
+        await printMcpConfig(invocation.project, invocation.host as McpHost),
+      );
+      return;
+    }
     await serveMcpOverStdio(invocation.project);
     return;
   }

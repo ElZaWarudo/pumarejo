@@ -288,6 +288,245 @@ describe("WebDriverClient", () => {
     );
   });
 
+  it("dispatches finite desktop actions and confirms effective window state", async () => {
+    const actionBodies: Record<string, unknown>[] = [];
+    let rect = { x: 0, y: 0, width: 800, height: 600 };
+    const fetchImplementation = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const path = new URL(String(input)).pathname;
+        const method = init?.method ?? "GET";
+        if (path === "/session") {
+          return jsonResponse({ value: { sessionId: "session-1" } });
+        }
+        if (path.endsWith("/actions") && method === "POST") {
+          actionBodies.push(JSON.parse(String(init?.body)));
+          return jsonResponse({ value: null });
+        }
+        if (path.endsWith("/actions") && method === "DELETE") {
+          return jsonResponse({ value: null });
+        }
+        if (path.endsWith("/execute/sync")) {
+          const payload = JSON.parse(String(init?.body)) as { script: string };
+          return jsonResponse({
+            value: payload.script.includes("HTMLOptionElement")
+              ? "selected"
+              : true,
+          });
+        }
+        if (path.endsWith("/displayed") || path.endsWith("/enabled")) {
+          return jsonResponse({ value: true });
+        }
+        if (path.endsWith("/window/maximize")) {
+          rect = { x: 0, y: 0, width: 1920, height: 1032 };
+          return jsonResponse({ value: rect });
+        }
+        if (path.endsWith("/window/rect") && method === "POST") {
+          rect = { ...rect, ...(JSON.parse(String(init?.body)) as object) };
+          return jsonResponse({ value: rect });
+        }
+        if (path.endsWith("/window/rect")) {
+          return jsonResponse({ value: rect });
+        }
+        return jsonResponse({ value: null });
+      },
+    ) as unknown as typeof fetch;
+    const webdriver = client(fetchImplementation);
+    await webdriver.createSession();
+
+    await webdriver.pressKey("d", ["\uE009", "\uE008"]);
+    await webdriver.pointer("double_click", "element-1");
+    await webdriver.scroll("element-1", 0, 480);
+    await webdriver.selectOption("option-1");
+    await expect(
+      webdriver.windowAction({ action: "resize", width: 640, height: 480 }),
+    ).resolves.toEqual({
+      state: "restored",
+      rect: { x: 0, y: 0, width: 640, height: 480 },
+    });
+    await expect(
+      webdriver.windowAction({ action: "maximize" }),
+    ).resolves.toEqual({
+      state: "maximized",
+      rect: { x: 0, y: 0, width: 1920, height: 1032 },
+    });
+    await expect(
+      webdriver.windowAction({ action: "restore" }),
+    ).resolves.toEqual({
+      state: "restored",
+      rect: { x: 0, y: 0, width: 640, height: 480 },
+    });
+
+    expect(actionBodies[0]).toMatchObject({
+      actions: [
+        {
+          type: "key",
+          actions: [
+            { type: "keyDown", value: "\uE009" },
+            { type: "keyDown", value: "\uE008" },
+            { type: "keyDown", value: "d" },
+            { type: "keyUp", value: "d" },
+            { type: "keyUp", value: "\uE008" },
+            { type: "keyUp", value: "\uE009" },
+          ],
+        },
+      ],
+    });
+    expect(actionBodies[1]).toMatchObject({
+      actions: [
+        {
+          type: "pointer",
+          actions: [
+            { type: "pointerMove" },
+            { type: "pointerDown", button: 0 },
+            { type: "pointerUp", button: 0 },
+            { type: "pointerDown", button: 0 },
+            { type: "pointerUp", button: 0 },
+          ],
+        },
+      ],
+    });
+    expect(actionBodies[2]).toMatchObject({
+      actions: [
+        {
+          type: "wheel",
+          actions: [{ type: "scroll", deltaX: 0, deltaY: 480 }],
+        },
+      ],
+    });
+  });
+
+  it("reports a fresh-session window as restored without mutating its rect", async () => {
+    const routes: string[] = [];
+    const rect = { x: 12, y: 24, width: 800, height: 600 };
+    const fetchImplementation = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const path = new URL(String(input)).pathname;
+        const method = init?.method ?? "GET";
+        routes.push(`${method} ${path}`);
+        if (path === "/session") {
+          return jsonResponse({ value: { sessionId: "session-1" } });
+        }
+        if (path.endsWith("/window/rect") && method === "GET") {
+          return jsonResponse({ value: rect });
+        }
+        throw new Error(`unexpected route: ${method} ${path}`);
+      },
+    ) as unknown as typeof fetch;
+    const webdriver = client(fetchImplementation);
+    await webdriver.createSession();
+
+    await expect(
+      webdriver.windowAction({ action: "restore" }),
+    ).resolves.toEqual({
+      state: "restored",
+      rect,
+    });
+    expect(routes).toEqual([
+      "POST /session",
+      "GET /session/session-1/window/rect",
+    ]);
+  });
+
+  it("uses the fixed Tauri WebDriver fallback when window rect mutation is unsupported", async () => {
+    let rect = { x: 0, y: 0, width: 800, height: 600 };
+    let fallbackScript = "";
+    const fetchImplementation = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const path = new URL(String(input)).pathname;
+        const method = init?.method ?? "GET";
+        if (path === "/session") {
+          return jsonResponse({ value: { sessionId: "session-1" } });
+        }
+        if (
+          path.endsWith("/window/rect") ||
+          path.endsWith("/window/maximize")
+        ) {
+          return jsonResponse(
+            {
+              value: {
+                error: "unknown command",
+                message: "unsupported",
+              },
+            },
+            404,
+          );
+        }
+        if (path.endsWith("/execute/sync") && method === "POST") {
+          const payload = JSON.parse(String(init?.body)) as {
+            script: string;
+            args: [string, number, number];
+          };
+          if (payload.script.includes("getCurrentWindow")) {
+            fallbackScript = payload.script;
+            rect =
+              payload.args[0] === "maximize"
+                ? { x: 0, y: 0, width: 1920, height: 1032 }
+                : {
+                    ...rect,
+                    width: payload.args[1],
+                    height: payload.args[2],
+                  };
+            return jsonResponse({ value: true });
+          }
+          return jsonResponse({ value: rect });
+        }
+        throw new Error(`unexpected route: ${method} ${path}`);
+      },
+    ) as unknown as typeof fetch;
+    const webdriver = client(fetchImplementation);
+    await webdriver.createSession();
+
+    await expect(
+      webdriver.windowAction({ action: "resize", width: 640, height: 480 }),
+    ).resolves.toEqual({
+      state: "restored",
+      rect: { x: 0, y: 0, width: 640, height: 480 },
+    });
+    await expect(
+      webdriver.windowAction({ action: "maximize" }),
+    ).resolves.toEqual({
+      state: "maximized",
+      rect: { x: 0, y: 0, width: 1920, height: 1032 },
+    });
+    expect(fallbackScript).toContain("current.maximize().then");
+    expect(fallbackScript).toContain("current.isMaximized()");
+  });
+
+  it.each([
+    ["a direct select child", "HTMLSelectElement"],
+    ["an optgroup child", "HTMLOptGroupElement"],
+  ])(
+    "selects an option that is %s atomically using its exact handle",
+    async (_, marker) => {
+      let validationScript = "";
+      let validationArguments: unknown;
+      const fetchImplementation = vi.fn(
+        async (input: string | URL | Request, init?: RequestInit) => {
+          const path = new URL(String(input)).pathname;
+          if (path === "/session") {
+            return jsonResponse({ value: { sessionId: "session-1" } });
+          }
+          if (path.endsWith("/execute/sync")) {
+            const payload = JSON.parse(String(init?.body)) as {
+              script: string;
+              args: unknown;
+            };
+            validationScript = payload.script;
+            validationArguments = payload.args;
+            return jsonResponse({ value: "selected" });
+          }
+          throw new Error(`unexpected route: ${path}`);
+        },
+      ) as unknown as typeof fetch;
+      const webdriver = client(fetchImplementation);
+      await webdriver.createSession();
+
+      await expect(webdriver.selectOption("option-1")).resolves.toBeUndefined();
+      expect(validationScript).toContain(marker);
+      expect(validationArguments).toEqual([{ [W3C_ELEMENT_KEY]: "option-1" }]);
+    },
+  );
+
   it("rejects an oversized initial snapshot handle set before shadow probing", async () => {
     const fetchImplementation = vi.fn(async (input: string | URL | Request) => {
       const path = new URL(String(input)).pathname;
@@ -309,6 +548,36 @@ describe("WebDriverClient", () => {
     await expect(webdriver.snapshotElementHandles()).rejects.toMatchObject({
       code: "INTERNAL_ERROR",
     });
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds an oversized initial snapshot handle set to the requested provider index", async () => {
+    const fetchImplementation = vi.fn(async (input: string | URL | Request) => {
+      const path = new URL(String(input)).pathname;
+      if (path === "/session") {
+        return jsonResponse({ value: { sessionId: "session-1" } });
+      }
+      if (path.endsWith("/elements")) {
+        return jsonResponse({
+          value: Array.from({ length: 10_001 }, (_, index) => ({
+            [W3C_ELEMENT_KEY]: `element-${index}`,
+          })),
+        });
+      }
+      throw new Error(`unexpected route: ${path}`);
+    }) as unknown as typeof fetch;
+    const webdriver = client(fetchImplementation);
+    await webdriver.createSession();
+
+    await expect(
+      webdriver.snapshotElementHandles(undefined, 4),
+    ).resolves.toEqual([
+      "element-0",
+      "element-1",
+      "element-2",
+      "element-3",
+      "element-4",
+    ]);
     expect(fetchImplementation).toHaveBeenCalledTimes(2);
   });
 

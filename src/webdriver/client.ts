@@ -39,6 +39,11 @@ export interface WaitForReadyOptions {
   readonly signal?: AbortSignal;
 }
 
+export interface EffectiveWindowResult {
+  readonly state: "maximized" | "restored";
+  readonly rect: WindowRect;
+}
+
 function abortSignal(
   timeoutMs: number,
   signal: AbortSignal | undefined,
@@ -85,6 +90,21 @@ function requireString(value: unknown, description: string): string {
   return value;
 }
 
+function windowRectFrom(value: unknown): WindowRect | undefined {
+  const object = jsonObject(value);
+  const rect = {
+    x: Number(object?.x),
+    y: Number(object?.y),
+    width: Number(object?.width),
+    height: Number(object?.height),
+  };
+  return Object.values(rect).every(Number.isFinite) &&
+    rect.width >= 0 &&
+    rect.height >= 0
+    ? rect
+    : undefined;
+}
+
 export class WebDriverClient {
   readonly baseUrl: URL;
   readonly requestTimeoutMs: number;
@@ -92,6 +112,8 @@ export class WebDriverClient {
   readonly fetchImplementation: typeof globalThis.fetch;
   #sessionId: string | undefined;
   #sessionCreationPending = false;
+  #restoreRect: WindowRect | undefined;
+  #windowState: "maximized" | "restored" = "restored";
 
   constructor(options: WebDriverClientOptions) {
     const host = (options.host ?? "127.0.0.1").trim().toLowerCase();
@@ -323,12 +345,10 @@ export class WebDriverClient {
   }
 
   async windowRect(signal?: AbortSignal): Promise<WindowRect> {
-    let value: JsonObject | undefined;
+    let value: unknown;
     try {
-      value = jsonObject(
-        responseValue(
-          await this.sessionCommand("GET", "/window/rect", undefined, signal),
-        ),
+      value = responseValue(
+        await this.sessionCommand("GET", "/window/rect", undefined, signal),
       );
     } catch (error) {
       const providerError = jsonObject(
@@ -339,27 +359,14 @@ export class WebDriverClient {
       if (providerError !== "unknown command") {
         throw normalizeWebDriverError(error);
       }
-      value = jsonObject(
-        await this.execute(
-          "return { x: window.screenX ?? 0, y: window.screenY ?? 0, width: window.innerWidth, height: window.innerHeight }",
-          [],
-          signal,
-        ),
+      value = await this.execute(
+        "return { x: window.screenX ?? 0, y: window.screenY ?? 0, width: window.innerWidth, height: window.innerHeight }",
+        [],
+        signal,
       );
     }
-    const rect = {
-      x: Number(value?.x),
-      y: Number(value?.y),
-      width: Number(value?.width),
-      height: Number(value?.height),
-    };
-    if (
-      !Object.values(rect).every(Number.isFinite) ||
-      rect.width < 0 ||
-      rect.height < 0
-    ) {
-      throw new PumarejoError("INTERNAL_ERROR");
-    }
+    const rect = windowRectFrom(value);
+    if (rect === undefined) throw new PumarejoError("INTERNAL_ERROR");
     return rect;
   }
 
@@ -491,16 +498,31 @@ export class WebDriverClient {
 
   async snapshotElementHandles(
     signal?: AbortSignal,
+    maximumIndex?: number,
   ): Promise<readonly string[]> {
+    if (
+      maximumIndex !== undefined &&
+      (!Number.isInteger(maximumIndex) ||
+        maximumIndex < 0 ||
+        maximumIndex >= 10_000)
+    ) {
+      throw new PumarejoError("INTERNAL_ERROR");
+    }
     const deadline = AbortSignal.timeout(this.requestTimeoutMs);
     const boundedSignal =
       signal === undefined ? deadline : AbortSignal.any([signal, deadline]);
     const handles = [...(await this.findElements("*", boundedSignal))];
+    if (maximumIndex !== undefined && handles.length > maximumIndex) {
+      return handles.slice(0, maximumIndex + 1);
+    }
     if (handles.length > 10_000) {
       throw new PumarejoError("INTERNAL_ERROR");
     }
     let scanned = 0;
-    while (scanned < handles.length) {
+    while (
+      scanned < handles.length &&
+      (maximumIndex === undefined || handles.length <= maximumIndex)
+    ) {
       boundedSignal.throwIfAborted();
       const end = handles.length;
       const batch = handles.slice(scanned, end);
@@ -535,7 +557,9 @@ export class WebDriverClient {
       }
       scanned = end;
     }
-    return handles;
+    return maximumIndex === undefined
+      ? handles
+      : handles.slice(0, maximumIndex + 1);
   }
 
   private async elementBoolean(
@@ -635,30 +659,280 @@ export class WebDriverClient {
     }
   }
 
-  async pressKey(value: string, signal?: AbortSignal): Promise<void> {
-    if (value.length === 0 || value.length > 16) {
-      throw new PumarejoError("UNSUPPORTED_KEY");
-    }
+  private async performActions(
+    actions: readonly JsonObject[],
+    signal?: AbortSignal,
+  ): Promise<void> {
     try {
       await this.sessionCommand(
         "POST",
         "/actions",
         {
-          actions: [
-            {
-              type: "key",
-              id: "pumarejo-keyboard",
-              actions: [
-                { type: "keyDown", value },
-                { type: "keyUp", value },
-              ],
-            },
-          ],
+          actions,
         },
         signal,
       );
     } catch (error) {
-      throw normalizeWebDriverError(error);
+      throw normalizeWebDriverError(error, "UNSUPPORTED_ACTION");
+    } finally {
+      await this.sessionCommand("DELETE", "/actions", undefined).catch(
+        () => undefined,
+      );
+    }
+  }
+
+  async pressKey(
+    value: string,
+    modifiers: readonly string[] = [],
+    signal?: AbortSignal,
+  ): Promise<void> {
+    if (
+      value.length === 0 ||
+      value.length > 16 ||
+      modifiers.length > 4 ||
+      modifiers.some(
+        (modifier) => modifier.length === 0 || modifier.length > 16,
+      )
+    ) {
+      throw new PumarejoError("UNSUPPORTED_KEY");
+    }
+    await this.performActions(
+      [
+        {
+          type: "key",
+          id: "pumarejo-keyboard",
+          actions: [
+            ...modifiers.map((modifier) => ({
+              type: "keyDown",
+              value: modifier,
+            })),
+            { type: "keyDown", value },
+            { type: "keyUp", value },
+            ...[...modifiers].reverse().map((modifier) => ({
+              type: "keyUp",
+              value: modifier,
+            })),
+          ],
+        },
+      ],
+      signal,
+    );
+  }
+
+  async pointer(
+    action: "hover" | "double_click" | "context_menu",
+    elementId: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const move = {
+      type: "pointerMove",
+      duration: 0,
+      origin: { [W3C_ELEMENT_KEY]: elementId },
+      x: 0,
+      y: 0,
+    };
+    const click = (button: number) => [
+      { type: "pointerDown", button },
+      { type: "pointerUp", button },
+    ];
+    let actions: readonly JsonObject[];
+    switch (action) {
+      case "hover":
+        actions = [move];
+        break;
+      case "double_click":
+        actions = [move, ...click(0), ...click(0)];
+        break;
+      case "context_menu":
+        actions = [move, ...click(2)];
+        break;
+    }
+    await this.performActions(
+      [
+        {
+          type: "pointer",
+          id: "pumarejo-pointer",
+          parameters: { pointerType: "mouse" },
+          actions,
+        },
+      ],
+      signal,
+    );
+  }
+
+  async scroll(
+    elementId: string,
+    deltaX: number,
+    deltaY: number,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.performActions(
+      [
+        {
+          type: "wheel",
+          id: "pumarejo-wheel",
+          actions: [
+            {
+              type: "scroll",
+              duration: 0,
+              origin: { [W3C_ELEMENT_KEY]: elementId },
+              x: 0,
+              y: 0,
+              deltaX,
+              deltaY,
+            },
+          ],
+        },
+      ],
+      signal,
+    );
+  }
+
+  async selectOption(elementId: string, signal?: AbortSignal): Promise<void> {
+    const result = await this.execute<string>(
+      "const option=arguments[0]; if(!(option instanceof HTMLOptionElement))return 'unsupported'; const parent=option.parentElement,select=parent instanceof HTMLSelectElement?parent:parent instanceof HTMLOptGroupElement&&parent.parentElement instanceof HTMLSelectElement?parent.parentElement:null; if(!select)return 'unsupported'; const style=getComputedStyle(select),rect=select.getBoundingClientRect(); if(style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0||rect.width<=0||rect.height<=0)return 'hidden'; if(option.disabled||select.disabled||option.closest('optgroup')?.disabled)return 'disabled'; option.selected=true; select.dispatchEvent(new Event('input',{bubbles:true})); select.dispatchEvent(new Event('change',{bubbles:true})); return 'selected';",
+      [{ [W3C_ELEMENT_KEY]: elementId }],
+      signal,
+    );
+    if (result === "selected") return;
+    if (result === "hidden") throw new PumarejoError("ELEMENT_HIDDEN");
+    if (result === "disabled") throw new PumarejoError("ELEMENT_DISABLED");
+    throw new PumarejoError("UNSUPPORTED_ACTION");
+  }
+
+  async windowAction(
+    input:
+      | { readonly action: "maximize" | "restore" }
+      | {
+          readonly action: "resize";
+          readonly width: number;
+          readonly height: number;
+        },
+    signal?: AbortSignal,
+  ): Promise<EffectiveWindowResult> {
+    try {
+      if (input.action === "maximize") {
+        if (this.#windowState === "maximized") {
+          return { state: "maximized", rect: await this.windowRect(signal) };
+        }
+        this.#restoreRect = await this.windowRect(signal);
+        const response = await this.sessionCommand(
+          "POST",
+          "/window/maximize",
+          {},
+          signal,
+        );
+        this.#windowState = "maximized";
+        return {
+          state: "maximized",
+          rect:
+            windowRectFrom(responseValue(response)) ??
+            (await this.windowRect(signal)),
+        };
+      }
+      if (input.action === "restore" && this.#windowState === "restored") {
+        const rect = await this.windowRect(signal);
+        this.#restoreRect = rect;
+        return { state: "restored", rect };
+      }
+      const target =
+        input.action === "resize"
+          ? { width: input.width, height: input.height }
+          : this.#restoreRect;
+      if (target === undefined) {
+        throw new PumarejoError("UNSUPPORTED_ACTION");
+      }
+      const response = await this.sessionCommand(
+        "POST",
+        "/window/rect",
+        target,
+        signal,
+      );
+      const rect =
+        windowRectFrom(responseValue(response)) ??
+        (await this.windowRect(signal));
+      if (input.action === "resize") this.#restoreRect = rect;
+      this.#windowState = "restored";
+      return { state: "restored", rect };
+    } catch (error) {
+      const providerError = jsonObject(
+        jsonObject(
+          error instanceof WebDriverTransportError ? error.body : undefined,
+        )?.value,
+      )?.error;
+      if (providerError === "unknown command") {
+        const target =
+          input.action === "resize"
+            ? { width: input.width, height: input.height }
+            : input.action === "restore"
+              ? this.#restoreRect
+              : undefined;
+        const currentRect =
+          target === undefined ? undefined : await this.windowRect(signal);
+        const viewport =
+          target === undefined
+            ? undefined
+            : await this.execute<{
+                readonly width: number;
+                readonly height: number;
+              }>(
+                "return {width:globalThis.innerWidth,height:globalThis.innerHeight}",
+                [],
+                signal,
+              );
+        const clientTarget =
+          target === undefined
+            ? undefined
+            : {
+                width: Math.max(
+                  1,
+                  target.width -
+                    Math.max(
+                      0,
+                      (currentRect?.width ?? target.width) -
+                        (viewport?.width ?? currentRect?.width ?? target.width),
+                    ),
+                ),
+                height: Math.max(
+                  1,
+                  target.height -
+                    Math.max(
+                      0,
+                      (currentRect?.height ?? target.height) -
+                        (viewport?.height ??
+                          currentRect?.height ??
+                          target.height),
+                    ),
+                ),
+              };
+        const invoked = await this.execute<boolean>(
+          "const action=arguments[0],width=arguments[1],height=arguments[2],tauri=globalThis.__TAURI__,api=tauri?.window,LogicalSize=tauri?.dpi?.LogicalSize,current=api?.getCurrentWindow?.(); if(!current)return false; if(action==='maximize')return current.maximize().then(()=>current.isMaximized()).catch(()=>false); if(action==='restore')return current.unmaximize().then(()=>Number.isFinite(width)&&Number.isFinite(height)&&LogicalSize?current.setSize(new LogicalSize(width,height)):undefined).then(()=>true).catch(()=>false); if(action==='resize'&&Number.isFinite(width)&&Number.isFinite(height)&&LogicalSize)return current.setSize(new LogicalSize(width,height)).then(()=>true).catch(()=>false); return false;",
+          [input.action, clientTarget?.width, clientTarget?.height],
+          signal,
+        );
+        if (!invoked) throw new PumarejoError("UNSUPPORTED_ACTION");
+        const deadline = Date.now() + 3_000;
+        let rect = await this.windowRect(signal);
+        while (
+          Date.now() < deadline &&
+          target !== undefined &&
+          (rect.width !== target.width || rect.height !== target.height)
+        ) {
+          await delay(25, undefined, { signal });
+          rect = await this.windowRect(signal);
+        }
+        if (
+          target !== undefined &&
+          (rect.width !== target.width || rect.height !== target.height)
+        ) {
+          throw new PumarejoError("UNSUPPORTED_ACTION");
+        }
+        if (input.action === "resize") this.#restoreRect = rect;
+        this.#windowState =
+          input.action === "maximize" ? "maximized" : "restored";
+        return { state: this.#windowState, rect };
+      }
+      throw normalizeWebDriverError(error, "UNSUPPORTED_ACTION");
     }
   }
 

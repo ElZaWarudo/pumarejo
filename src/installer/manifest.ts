@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { TAURI_WEBDRIVER_PLUGIN_VERSION, VERSION } from "../version.js";
+
 export const INTEGRATION_MANIFEST_RELATIVE_PATH =
   ".pumarejo/integration-manifest.json";
 
@@ -18,11 +20,21 @@ export interface IntegrationManifestChange {
   readonly attribution: readonly string[];
 }
 
-export interface IntegrationManifest {
+export interface IntegrationManifestV1 {
   readonly version: 1;
   readonly state: "applying" | "applied" | "removing";
   readonly changes: readonly IntegrationManifestChange[];
 }
+
+export interface IntegrationManifestV2 {
+  readonly version: 2;
+  readonly pumarejoVersion: string;
+  readonly pluginVersion: string;
+  readonly state: "applying" | "applied" | "removing";
+  readonly changes: readonly IntegrationManifestChange[];
+}
+
+export type IntegrationManifest = IntegrationManifestV1 | IntegrationManifestV2;
 
 export function contentHash(content: string): string {
   return createHash("sha256").update(content, "utf8").digest("hex");
@@ -31,8 +43,14 @@ export function contentHash(content: string): string {
 export function createIntegrationManifest(
   changes: readonly IntegrationManifestChange[],
   state: IntegrationManifest["state"],
-): IntegrationManifest {
-  return { version: 1, state, changes };
+): IntegrationManifestV2 {
+  return {
+    version: 2,
+    pumarejoVersion: VERSION,
+    pluginVersion: TAURI_WEBDRIVER_PLUGIN_VERSION,
+    state,
+    changes,
+  };
 }
 
 export function serializeIntegrationManifest(
@@ -48,11 +66,20 @@ export function parseIntegrationManifest(source: string): IntegrationManifest {
   if (
     typeof parsed !== "object" ||
     parsed === null ||
-    (parsed as { version?: unknown }).version !== 1 ||
+    ![1, 2].includes(Number((parsed as { version?: unknown }).version)) ||
     !["applying", "applied", "removing"].includes(
       String((parsed as { state?: unknown }).state),
     ) ||
     !Array.isArray((parsed as { changes?: unknown }).changes)
+  ) {
+    throw new Error("Invalid integration manifest.");
+  }
+  const version = (parsed as { version: 1 | 2 }).version;
+  if (
+    version === 2 &&
+    (typeof (parsed as { pumarejoVersion?: unknown }).pumarejoVersion !==
+      "string" ||
+      typeof (parsed as { pluginVersion?: unknown }).pluginVersion !== "string")
   ) {
     throw new Error("Invalid integration manifest.");
   }
@@ -87,11 +114,17 @@ export function parseIntegrationManifest(source: string): IntegrationManifest {
     };
   });
 
-  return {
-    version: 1,
-    state: (parsed as { state: IntegrationManifest["state"] }).state,
-    changes,
-  };
+  const state = (parsed as { state: IntegrationManifest["state"] }).state;
+  return version === 1
+    ? { version, state, changes }
+    : {
+        version,
+        pumarejoVersion: (parsed as { pumarejoVersion: string })
+          .pumarejoVersion,
+        pluginVersion: (parsed as { pluginVersion: string }).pluginVersion,
+        state,
+        changes,
+      };
 }
 
 export function parseCanonicalIntegrationManifest(

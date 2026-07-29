@@ -28,6 +28,7 @@ describe("PumarejoError", () => {
       "ELEMENT_DISABLED",
       "ELEMENT_NOT_INTERACTABLE",
       "UNSUPPORTED_KEY",
+      "UNSUPPORTED_ACTION",
       "SCREENSHOT_FAILED",
       "CLOSE_FAILED",
       "INTERNAL_ERROR",

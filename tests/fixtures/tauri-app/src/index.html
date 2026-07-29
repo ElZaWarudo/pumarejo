@@ -55,6 +55,48 @@
       <div id="custom-control" role="button" tabindex="0" aria-pressed="false">
         Custom action
       </div>
+      <nav aria-label="Fixture navigation">
+        <a id="current-view" href="#current" aria-current="page">Current</a>
+      </nav>
+      <section
+        id="relationship-panel"
+        aria-labelledby="relationship-title"
+        aria-describedby="relationship-help"
+      >
+        <h2 id="relationship-title">Related controls</h2>
+        <p id="relationship-help">Relationship evidence</p>
+        <button
+          id="relationship-toggle"
+          type="button"
+          aria-pressed="false"
+          aria-controls="relationship-target"
+        >
+          Toggle relationship
+        </button>
+        <p id="relationship-target">Relationship target</p>
+      </section>
+      <label for="fixture-choice">Fixture choice</label>
+      <select id="fixture-choice">
+        <optgroup label="Primary">
+          <option id="choice-alpha" value="alpha" selected>Alpha choice</option>
+          <option id="choice-beta" value="beta">Beta choice</option>
+        </optgroup>
+      </select>
+      <section
+        id="scroll-region"
+        tabindex="0"
+        aria-label="Scrollable results"
+        style="height: 80px; overflow: auto"
+      >
+        <div style="height: 400px">Scrollable fixture content</div>
+      </section>
+      <button id="clear-large-content" type="button">
+        Clear large content
+      </button>
+      <section id="large-content" aria-label="Large bounded content"></section>
+      <p id="transcript-derived" data-pumarejo-sensitive="true">
+        transcript-derived-private-name
+      </p>
       <section id="shadow-fixture" aria-label="Shadow controls"></section>
       <p style="display: none">Excluded hidden content</p>
       <button id="focus-probe" type="button">Focus probe</button>
@@ -75,8 +117,20 @@
         });
       document
         .querySelector("#focus-probe")
+        .addEventListener("click", () => undefined);
+      document
+        .querySelector("#relationship-toggle")
         .addEventListener("click", (event) => {
-          status.textContent = `Focused: ${event.currentTarget.id}`;
+          const pressed =
+            event.currentTarget.getAttribute("aria-pressed") === "true";
+          event.currentTarget.setAttribute("aria-pressed", String(!pressed));
+        });
+      document.querySelector("#large-content").textContent =
+        "bounded-content ".repeat(400);
+      document
+        .querySelector("#clear-large-content")
+        .addEventListener("click", () => {
+          document.querySelector("#large-content").textContent = "";
         });
       document.querySelector("#name").addEventListener("keydown", (event) => {
         if (event.key === "Enter") {

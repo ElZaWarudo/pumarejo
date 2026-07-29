@@ -19,6 +19,23 @@ describe("CLI contract", () => {
     expect(() => parseCliArgs(["init", "--scripts"])).toThrowError(
       /unknown option/i,
     );
+
+    expect(
+      parseCliArgs([
+        "mcp",
+        "print-config",
+        "--host",
+        "codex",
+        "--project",
+        ".",
+      ]),
+    ).toMatchObject({
+      kind: "command",
+      command: "mcp",
+      subcommand: "print-config",
+      host: "codex",
+      project: ".",
+    });
   });
 
   it("distinguishes help, version, and invalid usage", () => {
@@ -41,6 +58,7 @@ describe("CLI contract", () => {
     await expect(runCli(["--help"], undefined, io)).resolves.toBe(0);
     await expect(runCli(["--version"], undefined, io)).resolves.toBe(0);
     expect(stdout.join("")).toContain("pumarejo mcp --project <path>");
+    expect(stdout.join("")).toContain("pumarejo mcp print-config");
     expect(stdout.join("")).toContain("0.1.0");
     expect(stderr).toEqual([]);
   });

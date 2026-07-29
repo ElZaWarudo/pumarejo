@@ -21,7 +21,10 @@ import {
 import type { PreparedLaunch } from "../../session/manager.js";
 import type { RuntimeMode } from "../../session/state.js";
 import { PumarejoError } from "../../shared/errors.js";
-import { sanitizedLaunchEnvironment } from "../launch-environment.js";
+import {
+  resolvedLaunchEnvironment,
+  sanitizedLaunchEnvironment,
+} from "../launch-environment.js";
 import { createRuntimeOverlay } from "../mode-config.js";
 import { resolveProjectTauriCommand } from "../tauri-command.js";
 
@@ -66,9 +69,7 @@ function isInside(root: string, candidate: string): boolean {
 async function resolveLinuxCommand(
   command: string,
   projectRoot: string,
-  searchDirectories: readonly string[] = (process.env.PATH ?? "").split(
-    delimiter,
-  ),
+  searchDirectories: readonly string[],
 ): Promise<string> {
   const candidates = isAbsolute(command)
     ? [command]
@@ -226,7 +227,20 @@ export async function prepareLinuxLaunch(
   if (process.platform !== "linux") {
     throw new PumarejoError("PLATFORM_UNSUPPORTED");
   }
-  const launchEnvironment = linuxDisplayEnvironment(mode, environment);
+  const displayEnvironment = linuxDisplayEnvironment(mode, environment);
+  const launchEnvironment = resolvedLaunchEnvironment(
+    "linux",
+    environment,
+    loaded.config.launch,
+    {
+      DISPLAY: displayEnvironment.DISPLAY,
+      WAYLAND_DISPLAY: displayEnvironment.WAYLAND_DISPLAY,
+      GDK_BACKEND: displayEnvironment.GDK_BACKEND,
+      PUMAREJO_BACKGROUND_DISPLAY:
+        displayEnvironment.PUMAREJO_BACKGROUND_DISPLAY,
+      XAUTHORITY: displayEnvironment.XAUTHORITY,
+    },
+  );
   const overlay = await createRuntimeOverlay({
     projectRoot: loaded.projectRoot,
     platform: "linux",
@@ -239,16 +253,23 @@ export async function prepareLinuxLaunch(
       overlay.path,
       loaded.projectRoot,
     );
-    const direct = await resolveProjectTauriCommand(
-      profile.command,
-      profile.args,
-      loaded.projectRoot,
-    );
+    const direct =
+      loaded.config.launch.executablePath !== undefined
+        ? undefined
+        : await resolveProjectTauriCommand(
+            profile.command,
+            profile.args,
+            loaded.projectRoot,
+          );
     return {
       request: {
         command:
           direct?.command ??
-          (await resolveLinuxCommand(profile.command, loaded.projectRoot)),
+          (await resolveLinuxCommand(
+            profile.command,
+            loaded.projectRoot,
+            (launchEnvironment.PATH ?? "").split(delimiter),
+          )),
         args: direct?.args ?? profile.args,
         cwd: loaded.projectRoot,
         env: launchEnvironment,

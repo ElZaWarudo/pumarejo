@@ -121,6 +121,59 @@ describe("mode-specific platform launch", () => {
     },
   );
 
+  it("adds the generated agent capability only to the runtime overlay", async () => {
+    const loaded = await fixture();
+    const tauriDirectory = join(loaded.projectRoot, "src-tauri");
+    const capabilityDirectory = join(tauriDirectory, "capabilities");
+    const sourceCapability = {
+      identifier: "default",
+      windows: ["primary"],
+      permissions: ["core:default"],
+    };
+    const agentCapability = {
+      ...sourceCapability,
+      identifier: "pumarejo-agent",
+      permissions: [
+        ...sourceCapability.permissions,
+        "wdio-webdriver:default",
+        "core:window:allow-set-size",
+        "core:window:allow-maximize",
+        "core:window:allow-is-maximized",
+        "core:window:allow-unmaximize",
+      ],
+    };
+    await mkdir(capabilityDirectory, { recursive: true });
+    await writeFile(
+      join(tauriDirectory, "tauri.conf.json"),
+      JSON.stringify({ app: { windows: [{ label: "primary" }] } }),
+      "utf8",
+    );
+    const sourcePath = join(capabilityDirectory, "default.json");
+    await writeFile(sourcePath, JSON.stringify(sourceCapability), "utf8");
+    await writeFile(
+      join(loaded.projectRoot, ".pumarejo", "agent-capability.json"),
+      JSON.stringify(agentCapability),
+      "utf8",
+    );
+
+    const overlay = await createRuntimeOverlay({
+      projectRoot: loaded.projectRoot,
+      platform: hostPlatform,
+      mode: "background",
+      windowLabel: loaded.config.window,
+    });
+
+    await expect(readRuntimeOverlay(overlay.path)).resolves.toMatchObject({
+      app: {
+        security: { capabilities: [agentCapability] },
+      },
+    });
+    await expect(readFile(sourcePath, "utf8")).resolves.toBe(
+      JSON.stringify(sourceCapability),
+    );
+    await overlay.cleanup();
+  });
+
   it("refuses cleanup through a replaced agent-directory link", async () => {
     const loaded = await fixture();
     const overlay = await createRuntimeOverlay({
@@ -345,6 +398,44 @@ describe("mode-specific platform launch", () => {
     },
   );
 
+  it.runIf(process.platform === "win32")(
+    "resolves Windows commands from the configured PATH prepend",
+    async () => {
+      const loaded = await fixture("cargo");
+      const tools = await mkdtemp(join(tmpdir(), "pumarejo-tools-"));
+      roots.push(tools);
+      const executable = join(tools, "cargo.exe");
+      await writeFile(executable, "");
+      loaded.config.launch.pathPrepend = [tools];
+      const prepared = await prepareWindowsLaunch(loaded, "visible", {
+        Path: join(process.env.SystemRoot ?? "C:\\Windows", "System32"),
+        SystemRoot: process.env.SystemRoot,
+      });
+
+      expect(prepared.request.command).toBe(executable);
+      await prepared.cleanup();
+    },
+  );
+
+  it.runIf(process.platform === "win32")(
+    "parses an explicit package-manager cmd shim without spawning a shell",
+    async () => {
+      const loaded = await fixture("pnpm");
+      const tools = await mkdtemp(join(tmpdir(), "pumarejo-shim-"));
+      roots.push(tools);
+      const cli = join(tools, "pnpm-cli.js");
+      const shim = join(tools, "pnpm.cmd");
+      await writeFile(cli, "");
+      await writeFile(shim, `@"${process.execPath}" "${cli}" %*\n`);
+      loaded.config.launch.executablePath = shim;
+      const prepared = await prepareWindowsLaunch(loaded, "visible", {});
+
+      expect(prepared.request.command).toBe(process.execPath);
+      expect(prepared.request.args[0]).toBe(cli);
+      await prepared.cleanup();
+    },
+  );
+
   it.runIf(process.platform === "linux")(
     "resolves the Linux executable and materializes the display environment",
     async () => {
@@ -355,6 +446,28 @@ describe("mode-specific platform launch", () => {
       });
       expect(resolve(prepared.request.command)).toBe(prepared.request.command);
       expect(prepared.request.env.DISPLAY).toBe(":0");
+      await prepared.cleanup();
+    },
+  );
+
+  it.runIf(process.platform === "linux")(
+    "resolves Linux commands from the configured PATH prepend",
+    async () => {
+      const loaded = await fixture("cargo");
+      const tools = await mkdtemp(join(tmpdir(), "pumarejo-tools-"));
+      roots.push(tools);
+      const executable = join(tools, "cargo");
+      await writeFile(executable, "#!/bin/sh\nexit 0\n");
+      await import("node:fs/promises").then(({ chmod }) =>
+        chmod(executable, 0o755),
+      );
+      loaded.config.launch.pathPrepend = [tools];
+      const prepared = await prepareLinuxLaunch(loaded, "visible", {
+        DISPLAY: ":0",
+        PATH: "/usr/bin:/bin",
+      });
+
+      expect(prepared.request.command).toBe(executable);
       await prepared.cleanup();
     },
   );

@@ -14,3 +14,4 @@ export {
   type ProjectConfig,
 } from "./schema.js";
 export { generateProjectConfig } from "./generate.js";
+export { resolvedLaunchEnvironment } from "../platform/launch-environment.js";

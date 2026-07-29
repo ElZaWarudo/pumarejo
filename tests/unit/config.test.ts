@@ -9,6 +9,7 @@ import {
   loadProjectConfig,
   materializeLaunchProfile,
   projectConfigSchema,
+  resolvedLaunchEnvironment,
   resolveProjectRoot,
 } from "../../src/config/index.js";
 import { PumarejoError } from "../../src/shared/errors.js";
@@ -75,6 +76,27 @@ describe("projectConfigSchema", () => {
     expect(parsed.retainArtifacts).toBe(false);
   });
 
+  it("accepts approved explicit runtime and environment inputs without shell evaluation", () => {
+    const parsed = projectConfigSchema.parse({
+      version: 1,
+      launch: {
+        command: "pnpm",
+        args: ["tauri", "dev", "--config", "{tauriConfig}"],
+        executablePath: "C:\\tools\\pnpm.cmd",
+        pathPrepend: ["C:\\tools", "C:\\rust\\bin"],
+        environment: {
+          CARGO_HOME: "C:\\cargo",
+          RUSTUP_TOOLCHAIN: "stable",
+        },
+      },
+      window: "main",
+      artifactsDirectory: ".pumarejo/artifacts",
+    });
+
+    expect(parsed.launch.executablePath).toBe("C:\\tools\\pnpm.cmd");
+    expect(parsed.launch.environment).not.toHaveProperty("shell");
+  });
+
   it.each([
     [{ version: 2 }, "version"],
     [{ webdriverPort: 1023 }, "webdriverPort"],
@@ -115,6 +137,16 @@ describe("projectConfigSchema", () => {
         },
       },
       "{tauriConfig}",
+    ],
+    [
+      {
+        launch: {
+          command: "pnpm",
+          args: ["tauri", "dev", "--config", "{tauriConfig}"],
+          environment: { OPENAI_API_KEY: "must-not-pass" },
+        },
+      },
+      "environment",
     ],
   ])("rejects invalid or drifted configuration %#", (override, expected) => {
     const result = projectConfigSchema.safeParse({
@@ -271,5 +303,48 @@ describe("materializeLaunchProfile", () => {
         resolve("project"),
       ),
     ).toThrowError(PumarejoError);
+  });
+
+  it("uses the explicit executable and preserves literal argv", () => {
+    const projectRoot = resolve("safe project");
+    const configPath = join(projectRoot, ".pumarejo", "visible.json");
+    const command = materializeLaunchProfile(
+      {
+        command: "pnpm",
+        executablePath: resolve("tools", "pnpm.cmd"),
+        args: ["tauri", "dev", "--config", "{tauriConfig}"],
+      },
+      configPath,
+      projectRoot,
+    );
+
+    expect(command.command).toBe(resolve("tools", "pnpm.cmd"));
+    expect(command.args.at(-1)).toBe(configPath);
+  });
+});
+
+describe("resolvedLaunchEnvironment", () => {
+  it("applies host, explicit config, path prepend, then internal ownership values", () => {
+    const environment = resolvedLaunchEnvironment(
+      "windows",
+      {
+        PATH: "C:\\host",
+        CARGO_HOME: "C:\\host-cargo",
+        OPENAI_API_KEY: "must-not-pass",
+      },
+      {
+        command: "pnpm",
+        args: ["tauri", "dev", "--config", "{tauriConfig}"],
+        pathPrepend: ["C:\\tools"],
+        environment: { CARGO_HOME: "C:\\configured-cargo" },
+      },
+      { CARGO_HOME: "C:\\internal-cargo" },
+    );
+
+    expect(environment).toMatchObject({
+      PATH: "C:\\tools;C:\\host",
+      CARGO_HOME: "C:\\internal-cargo",
+    });
+    expect(environment).not.toHaveProperty("OPENAI_API_KEY");
   });
 });

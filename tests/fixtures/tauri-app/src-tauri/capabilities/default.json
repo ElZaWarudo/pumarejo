@@ -3,5 +3,12 @@
   "identifier": "default",
   "description": "Minimal fixture capability",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:default"]
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:window:allow-set-size",
+    "core:window:allow-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-unmaximize"
+  ]
 }

@@ -20,6 +20,8 @@ import {
   initializeProject,
   planIntegration,
 } from "../../src/installer/plan.js";
+import { contentHash } from "../../src/installer/manifest.js";
+import { removeIntegration } from "../../src/installer/remove.js";
 
 const FIXTURE_ROOT = join(
   import.meta.dirname,
@@ -162,7 +164,14 @@ describe("Tauri project initialization", () => {
       "core:default",
       "core:window:default",
       "wdio-webdriver:default",
+      "core:window:allow-set-size",
+      "core:window:allow-maximize",
+      "core:window:allow-is-maximized",
+      "core:window:allow-unmaximize",
     ]);
+    expect((capability as { identifier?: string }).identifier).toBe(
+      "pumarejo-agent",
+    );
     const projectCapability = await readFile(
       join(project, "src-tauri", "capabilities", "default.json"),
       "utf8",
@@ -190,7 +199,12 @@ describe("Tauri project initialization", () => {
       state: string;
       changes: Array<{ attribution: string[] }>;
     };
-    expect(manifest).toMatchObject({ version: 1, state: "applied" });
+    expect(manifest).toMatchObject({
+      version: 2,
+      pumarejoVersion: "0.1.0",
+      pluginVersion: "1",
+      state: "applied",
+    });
     expect(manifest.changes).toHaveLength(5);
     expect(manifest.changes.flatMap((change) => change.attribution)).toEqual(
       expect.arrayContaining([
@@ -198,9 +212,114 @@ describe("Tauri project initialization", () => {
         "feature:pumarejo:created:dep:tauri-plugin-wdio-webdriver",
         "marker:<pumarejo:begin>",
         "permission:wdio-webdriver:default",
+        "permission:core:window:allow-set-size",
+        "permission:core:window:allow-maximize",
+        "permission:core:window:allow-is-maximized",
+        "permission:core:window:allow-unmaximize",
         "created:.pumarejo.json",
       ]),
     );
+  });
+
+  it("migrates a canonical v1 integration and its private capability to v2", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const capabilityPath = join(project, ".pumarejo", "agent-capability.json");
+    const capability = JSON.parse(await readFile(capabilityPath, "utf8")) as {
+      identifier: string;
+      permissions: string[];
+    };
+    capability.identifier = "default";
+    capability.permissions = capability.permissions.filter(
+      (permission) => !permission.startsWith("core:window:allow-"),
+    );
+    await writeFile(capabilityPath, `${JSON.stringify(capability, null, 2)}\n`);
+    const manifestPath = join(
+      project,
+      ".pumarejo",
+      "integration-manifest.json",
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      version: number;
+      pumarejoVersion?: string;
+      pluginVersion?: string;
+      changes: Array<{
+        relativePath: string;
+        afterHash: string;
+        attribution: string[];
+      }>;
+    };
+    manifest.version = 1;
+    delete manifest.pumarejoVersion;
+    delete manifest.pluginVersion;
+    const capabilityEntry = manifest.changes.find(
+      (entry) => entry.relativePath === ".pumarejo/agent-capability.json",
+    );
+    expect(capabilityEntry).toBeDefined();
+    capabilityEntry!.afterHash = contentHash(
+      await readFile(capabilityPath, "utf8"),
+    );
+    capabilityEntry!.attribution = [
+      capabilityEntry!.attribution[0]!,
+      "permission:wdio-webdriver:default",
+    ];
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    await expect(
+      removeIntegration(project, { dryRun: true }),
+    ).resolves.toMatchObject({ status: "planned" });
+    await expect(initializeProject(project)).resolves.toMatchObject({
+      status: "applied",
+      changes: [
+        expect.objectContaining({
+          relativePath: ".pumarejo/agent-capability.json",
+        }),
+      ],
+    });
+    expect(JSON.parse(await readFile(manifestPath, "utf8"))).toMatchObject({
+      version: 2,
+      pumarejoVersion: "0.1.0",
+      pluginVersion: "1",
+    });
+    const upgraded = JSON.parse(await readFile(capabilityPath, "utf8")) as {
+      identifier: string;
+      permissions: string[];
+    };
+    expect(upgraded.identifier).toBe("pumarejo-agent");
+    expect(upgraded.permissions).toEqual(
+      expect.arrayContaining([
+        "wdio-webdriver:default",
+        "core:window:allow-set-size",
+        "core:window:allow-maximize",
+        "core:window:allow-is-maximized",
+        "core:window:allow-unmaximize",
+      ]),
+    );
+  });
+
+  it("refreshes an intact integration whose recorded package version drifted", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const manifestPath = join(
+      project,
+      ".pumarejo",
+      "integration-manifest.json",
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      pumarejoVersion: string;
+    };
+    manifest.pumarejoVersion = "0.0.9";
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    await expect(initializeProject(project)).resolves.toMatchObject({
+      status: "applied",
+      changes: [],
+    });
+    expect(JSON.parse(await readFile(manifestPath, "utf8"))).toMatchObject({
+      version: 2,
+      pumarejoVersion: "0.1.0",
+      pluginVersion: "1",
+    });
   });
 
   it.each([

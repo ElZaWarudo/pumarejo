@@ -2,7 +2,13 @@ import { parse as parseToml } from "smol-toml";
 
 import { IntegrationPlanError } from "./plan-error.js";
 
-const PERMISSION = "wdio-webdriver:default";
+export const AGENT_PERMISSIONS = [
+  "wdio-webdriver:default",
+  "core:window:allow-set-size",
+  "core:window:allow-maximize",
+  "core:window:allow-is-maximized",
+  "core:window:allow-unmaximize",
+] as const;
 type UnknownRecord = Record<string, unknown>;
 
 function record(value: unknown): UnknownRecord | undefined {
@@ -51,8 +57,11 @@ export function planCapabilityEdit(
   ) {
     throw new IntegrationPlanError("CAPABILITY_INVALID");
   }
-  if (!permissions.includes(PERMISSION)) {
-    permissions.push(PERMISSION);
+  capability.identifier = "pumarejo-agent";
+  for (const permission of AGENT_PERMISSIONS) {
+    if (!permissions.includes(permission)) {
+      permissions.push(permission);
+    }
   }
 
   return `${JSON.stringify(capability, null, 2)}\n`;

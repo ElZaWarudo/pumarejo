@@ -19,34 +19,49 @@ function referenceTable(
   overrides: Partial<RawSnapshot["nodes"][number]["descriptor"]> = {},
 ): ReferenceTable {
   const table = new ReferenceTable();
-  table.replace(
-    {
-      scriptVersion: 1,
-      viewport: { width: 800, height: 600 },
-      nodes: [
-        {
-          handleIndex: 0,
-          descriptor: {
-            parentIndex: null,
-            kind: "control",
-            tag: "button",
-            role: "button",
-            name: "Save",
-            text: "Save",
-            redacted: false,
-            enabled: true,
-            visible: true,
-            focused: false,
-            bounds: { x: 1, y: 2, width: 80, height: 30 },
-            relationships: { labelledBy: [], describedBy: [], owns: [] },
-            identity: { name: "Save", ownershipContext: OWNERSHIP },
-            ...overrides,
+  table.replace({
+    scriptVersion: 1,
+    viewport: { width: 800, height: 600 },
+    handles: [{ [W3C_ELEMENT_KEY]: "exact-element-id" }],
+    nodes: [
+      {
+        handleIndex: 0,
+        descriptor: {
+          parentIndex: null,
+          kind: "control",
+          tag: "button",
+          role: "button",
+          name: "Save",
+          text: "Save",
+          redacted: false,
+          enabled: true,
+          visible: true,
+          focused: false,
+          bounds: { x: 1, y: 2, width: 80, height: 30 },
+          relationships: {
+            labelledBy: [],
+            describedBy: [],
+            controls: [],
+            owns: [],
           },
+          identity: { name: "Save", ownershipContext: OWNERSHIP },
+          ...overrides,
         },
-      ],
+      },
+    ],
+    truncation: {
+      truncated: false,
+      reasons: [],
+      counts: {
+        visited: 1,
+        candidates: 1,
+        matched: 1,
+        returned: 1,
+        filtered: 0,
+      },
+      refineWith: [],
     },
-    ["exact-element-id"],
-  );
+  });
   return table;
 }
 
@@ -58,6 +73,7 @@ function currentIdentity(
     visible: true,
     enabled: true,
     editable: false,
+    tag: "button",
     kind: "control",
     role: "button",
     name: "Save",
@@ -69,17 +85,31 @@ function currentIdentity(
 function snapshotPort(
   snapshot: (signal?: AbortSignal) => Promise<SemanticSnapshot>,
   references: ReferenceTable,
+  initial?: SemanticSnapshot,
+  initialComparable = true,
 ) {
   let tail: Promise<void> = Promise.resolve();
+  let currentSnapshot = initial;
+  let currentSnapshotComparable = initialComparable;
   return {
     references,
+    get currentSnapshot(): SemanticSnapshot | undefined {
+      return currentSnapshot;
+    },
+    get currentSnapshotComparable(): boolean {
+      return currentSnapshotComparable;
+    },
     interaction<T>(
       operation: (refresh: () => Promise<SemanticSnapshot>) => Promise<T>,
       signal?: AbortSignal,
     ): Promise<T> {
       const queued = tail.then(async () => {
         signal?.throwIfAborted();
-        return await operation(() => snapshot(signal));
+        return await operation(async () => {
+          currentSnapshot = await snapshot(signal);
+          currentSnapshotComparable = true;
+          return currentSnapshot;
+        });
       });
       tail = queued.then(
         () => undefined,
@@ -87,6 +117,60 @@ function snapshotPort(
       );
       return queued;
     },
+  };
+}
+
+function observedSnapshot(options: {
+  readonly generation: number;
+  readonly focused?: boolean;
+  readonly text?: string;
+  readonly width?: number;
+  readonly partial?: true;
+}): SemanticSnapshot {
+  const ref = `e${options.generation}-1`;
+  return {
+    generation: options.generation,
+    observedAt: `2026-07-27T12:00:0${options.generation}.000Z`,
+    window: {
+      label: "main",
+      title: "Fixture",
+      width: options.width ?? 800,
+      height: 600,
+    },
+    nodes: [
+      {
+        ref,
+        kind: "control",
+        tag: "button",
+        role: "button",
+        name: "Save",
+        text: options.text ?? "Save",
+        redacted: false,
+        enabled: true,
+        visible: true,
+        focused: options.focused ?? false,
+        bounds: { x: 1, y: 2, width: 80, height: 30 },
+        relationships: {
+          labelledBy: [],
+          describedBy: [],
+          controls: [],
+          owns: [],
+        },
+      },
+    ],
+    truncation: {
+      truncated: options.partial === true,
+      reasons: options.partial === true ? ["semanticExtraction"] : [],
+      counts: {
+        visited: options.partial === true ? 0 : 1,
+        candidates: options.partial === true ? 0 : 1,
+        matched: options.partial === true ? 0 : 1,
+        returned: options.partial === true ? 0 : 1,
+        filtered: 0,
+      },
+      refineWith: options.partial === true ? ["filters"] : [],
+    },
+    ...(options.partial === true ? { partial: true } : {}),
   };
 }
 
@@ -102,11 +186,24 @@ function harness(identity = currentIdentity()) {
     observedAt: "2026-07-27T12:00:00.000Z",
     window: { label: "main", title: "Fixture", width: 800, height: 600 },
     nodes: [],
+    truncation: {
+      truncated: false,
+      reasons: [],
+      counts: {
+        visited: 0,
+        candidates: 0,
+        matched: 0,
+        returned: 0,
+        filtered: 0,
+      },
+      refineWith: [],
+    },
   }));
   const engine = new InteractionEngine({
     webdriver: { execute, click, clear, type, pressKey },
     snapshot: snapshotPort(snapshot, references),
     identityScript: async () => "return exactIdentity(arguments[0])",
+    settle: async () => undefined,
   });
   return {
     engine,
@@ -121,10 +218,304 @@ function harness(identity = currentIdentity()) {
 }
 
 describe("semantic interactions", () => {
+  it.each([
+    [
+      "focus_only",
+      observedSnapshot({ generation: 1 }),
+      observedSnapshot({ generation: 2, focused: true }),
+    ],
+    [
+      "semantic_change",
+      observedSnapshot({ generation: 1 }),
+      observedSnapshot({ generation: 2, text: "Saved" }),
+    ],
+    [
+      "window_change",
+      observedSnapshot({ generation: 1 }),
+      observedSnapshot({ generation: 2, width: 1024 }),
+    ],
+    [
+      "no_observable_change",
+      observedSnapshot({ generation: 1 }),
+      observedSnapshot({ generation: 2 }),
+    ],
+    [
+      "unknown",
+      observedSnapshot({ generation: 1 }),
+      observedSnapshot({ generation: 2, partial: true }),
+    ],
+  ] as const)(
+    "separates WebDriver dispatch from bounded %s evidence",
+    async (kind, before, after) => {
+      const references = referenceTable();
+      const execute = vi.fn(async () => currentIdentity());
+      const click = vi.fn(async () => undefined);
+      const snapshot = vi.fn(async () => after);
+      const engine = new InteractionEngine({
+        webdriver: {
+          execute,
+          click,
+          clear: vi.fn(),
+          type: vi.fn(),
+          pressKey: vi.fn(),
+        },
+        snapshot: snapshotPort(snapshot, references, before),
+        identityScript: async () => "identity",
+        settle: async () => undefined,
+      });
+
+      await expect(
+        engine.click({
+          ref: "e1-1",
+          snapshotAfter: true,
+          settleMs: 0,
+        } as never),
+      ).resolves.toMatchObject({
+        generation: 2,
+        action: "click",
+        target: { ref: "e1-1", generation: 1 },
+        dispatch: { method: "webdriver", dispatched: true },
+        focus: {
+          before: { generation: 1, ref: null, actionable: false },
+          after:
+            kind === "focus_only"
+              ? { generation: 2, ref: "e2-1", actionable: true }
+              : { generation: 2, ref: null, actionable: false },
+        },
+        effect: { kind, settleMs: 0 },
+        snapshotAfter: after,
+      });
+    },
+  );
+
+  it("captures the post-action observation but omits it when requested", async () => {
+    const before = observedSnapshot({ generation: 1 });
+    const after = observedSnapshot({ generation: 2 });
+    const references = referenceTable();
+    const engine = new InteractionEngine({
+      webdriver: {
+        execute: vi.fn(async () => currentIdentity()),
+        click: vi.fn(async () => undefined),
+        clear: vi.fn(),
+        type: vi.fn(),
+        pressKey: vi.fn(),
+      },
+      snapshot: snapshotPort(
+        vi.fn(async () => after),
+        references,
+        before,
+      ),
+      identityScript: async () => "identity",
+      settle: async () => undefined,
+    });
+
+    const result = await engine.click({
+      ref: "e1-1",
+      snapshotAfter: false,
+      settleMs: 0,
+    } as never);
+
+    expect(result).not.toHaveProperty("snapshotAfter");
+    expect(result).toMatchObject({
+      generation: 2,
+      effect: { kind: "no_observable_change", settleMs: 0 },
+    });
+  });
+
+  it.each(["filters", "rootRef"] as const)(
+    "reports unknown when a %s snapshot is compared with the full post-action snapshot",
+    async () => {
+      const before = observedSnapshot({ generation: 1 });
+      const after = observedSnapshot({ generation: 2 });
+      const references = referenceTable();
+      const engine = new InteractionEngine({
+        webdriver: {
+          execute: vi.fn(async () => currentIdentity()),
+          click: vi.fn(async () => undefined),
+          clear: vi.fn(),
+          type: vi.fn(),
+          pressKey: vi.fn(),
+        },
+        snapshot: snapshotPort(
+          vi.fn(async () => after),
+          references,
+          before,
+          false,
+        ),
+        identityScript: async () => "identity",
+        settle: async () => undefined,
+      });
+
+      await expect(
+        engine.click({
+          ref: "e1-1",
+          snapshotAfter: true,
+          settleMs: 0,
+        } as never),
+      ).resolves.toMatchObject({
+        generation: 2,
+        effect: { kind: "unknown", settleMs: 0 },
+        snapshotAfter: after,
+      });
+    },
+  );
+
+  it("dispatches a canonical modifier chord and reports its bounded effect", async () => {
+    const before = observedSnapshot({ generation: 1 });
+    const after = observedSnapshot({ generation: 2 });
+    const references = referenceTable();
+    const pressKey = vi.fn(async () => undefined);
+    const engine = new InteractionEngine({
+      webdriver: {
+        execute: vi.fn(async () => currentIdentity()),
+        click: vi.fn(),
+        clear: vi.fn(),
+        type: vi.fn(),
+        pressKey,
+      },
+      snapshot: snapshotPort(
+        vi.fn(async () => after),
+        references,
+        before,
+      ),
+      identityScript: async () => "identity",
+      settle: async () => undefined,
+    });
+
+    await expect(
+      engine.pressKey({
+        key: "D" as never,
+        modifiers: ["SHIFT", "CONTROL"],
+        settleMs: 0,
+      } as never),
+    ).resolves.toMatchObject({
+      action: "pressKey",
+      key: "D",
+      modifiers: ["CONTROL", "SHIFT"],
+      dispatch: { method: "webdriver", dispatched: true },
+    });
+    expect(pressKey).toHaveBeenCalledWith("d", ["\uE009", "\uE008"], undefined);
+  });
+
+  it.each([
+    [
+      "pointer",
+      { action: "double_click", ref: "e1-1", settleMs: 0 },
+      "pointer",
+      ["double_click", "exact-element-id", undefined],
+    ],
+    [
+      "scroll",
+      { ref: "e1-1", deltaX: 0, deltaY: 480, settleMs: 0 },
+      "scroll",
+      ["exact-element-id", 0, 480, undefined],
+    ],
+    [
+      "selectOption",
+      { ref: "e1-1", settleMs: 0 },
+      "selectOption",
+      ["exact-element-id", undefined],
+    ],
+  ] as const)(
+    "dispatches the exact-ref %s action through WebDriver",
+    async (method, input, webdriverMethod, expected) => {
+      const before = observedSnapshot({ generation: 1 });
+      const after = observedSnapshot({ generation: 2, text: "Changed" });
+      const references = referenceTable(
+        method === "selectOption"
+          ? {
+              tag: "option",
+              role: "option",
+              identity: {
+                name: "Save",
+                ownershipContext: OWNERSHIP,
+              },
+            }
+          : {},
+      );
+      const action = vi.fn(async () => undefined);
+      const engine = new InteractionEngine({
+        webdriver: {
+          execute: vi.fn(async () =>
+            currentIdentity(
+              method === "selectOption"
+                ? { tag: "option", role: "option", visible: false }
+                : {},
+            ),
+          ),
+          click: vi.fn(),
+          clear: vi.fn(),
+          type: vi.fn(),
+          pressKey: vi.fn(),
+          [webdriverMethod]: action,
+        } as never,
+        snapshot: snapshotPort(
+          vi.fn(async () => after),
+          references,
+          before,
+        ),
+        identityScript: async () => "identity",
+        settle: async () => undefined,
+      });
+
+      await expect(
+        (engine[method as keyof InteractionEngine] as CallableFunction)(input),
+      ).resolves.toMatchObject({
+        generation: 2,
+        dispatch: { method: "webdriver", dispatched: true },
+        effect: { kind: "semantic_change" },
+      });
+      expect(action).toHaveBeenCalledWith(...expected);
+    },
+  );
+
+  it("confirms effective window state after resize", async () => {
+    const before = observedSnapshot({ generation: 1 });
+    const after = observedSnapshot({ generation: 2, width: 640 });
+    const references = referenceTable();
+    const windowAction = vi.fn(async () => ({
+      state: "restored" as const,
+      rect: { x: 0, y: 0, width: 640, height: 480 },
+    }));
+    const engine = new InteractionEngine({
+      webdriver: {
+        execute: vi.fn(async () => currentIdentity()),
+        click: vi.fn(),
+        clear: vi.fn(),
+        type: vi.fn(),
+        pressKey: vi.fn(),
+        windowAction,
+      } as never,
+      snapshot: snapshotPort(
+        vi.fn(async () => after),
+        references,
+        before,
+      ),
+      identityScript: async () => "identity",
+      settle: async () => undefined,
+    });
+
+    await expect(
+      (engine as never as { window(input: unknown): Promise<unknown> }).window({
+        action: "resize",
+        width: 640,
+        height: 480,
+        settleMs: 0,
+      }),
+    ).resolves.toMatchObject({
+      action: "window",
+      window: {
+        state: "restored",
+        rect: { width: 640, height: 480 },
+      },
+      effect: { kind: "window_change" },
+    });
+  });
+
   it("clicks only the exact stored handle and replaces the generation", async () => {
     const test = harness();
 
-    await expect(test.engine.click({ ref: "e1-1" })).resolves.toEqual({
+    await expect(test.engine.click({ ref: "e1-1" })).resolves.toMatchObject({
       generation: 2,
       action: "click",
       ref: "e1-1",
@@ -178,6 +569,7 @@ describe("semantic interactions", () => {
         name: "Account",
         inputType: "text",
         editable: true,
+        tag: "input",
         ownershipContext: "root/input:textbox:Account",
       }),
     );
@@ -202,6 +594,7 @@ describe("semantic interactions", () => {
       },
       snapshot: snapshotPort(test.snapshot, table),
       identityScript: async () => "identity",
+      settle: async () => undefined,
     });
 
     await expect(
@@ -238,6 +631,7 @@ describe("semantic interactions", () => {
         kind: "content",
         role: undefined,
         editable: false,
+        tag: "p",
         ownershipContext: "root/p::Save",
       }),
     );
@@ -257,6 +651,7 @@ describe("semantic interactions", () => {
       },
       snapshot: snapshotPort(test.snapshot, table),
       identityScript: async () => "identity",
+      settle: async () => undefined,
     });
 
     await expect(engine.click({ ref: "e1-1" })).rejects.toMatchObject({
@@ -291,6 +686,7 @@ describe("semantic interactions", () => {
       },
       snapshot: snapshotPort(test.snapshot, table),
       identityScript: async () => "identity",
+      settle: async () => undefined,
     });
 
     await engine.type({ ref: "e1-1", text: "Ada", clear: false });
@@ -327,6 +723,7 @@ describe("semantic interactions", () => {
       },
       snapshot: snapshotPort(test.snapshot, table),
       identityScript: async () => "identity",
+      settle: async () => undefined,
     });
 
     await expect(
@@ -385,7 +782,11 @@ describe("semantic interactions", () => {
         action: "pressKey",
         key,
       });
-      expect(test.pressKey).toHaveBeenCalledWith(webdriverKey(key), undefined);
+      expect(test.pressKey).toHaveBeenCalledWith(
+        webdriverKey(key),
+        [],
+        undefined,
+      );
     },
   );
 

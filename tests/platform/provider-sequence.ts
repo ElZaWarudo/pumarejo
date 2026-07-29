@@ -123,10 +123,7 @@ export async function runProviderSequence(
         args: [],
       }),
     );
-    if (
-      afterClick.active !== "focus-probe" ||
-      afterClick.status !== "Focused: focus-probe"
-    ) {
+    if (afterClick.active !== "focus-probe" || afterClick.status !== "Ready") {
       throw new Error(
         `click did not produce the expected focus effect: ${JSON.stringify(afterClick)}`,
       );

@@ -8,8 +8,8 @@ Status: implementation-complete candidate; publication not authorized.
 | --------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------ | ------ |
 | Node 22 frozen install/build/types/lint/format/test/pack  | 22.23.1                       | 22.23.1                                                      | pass   |
 | Node 24 frozen install/build/types/lint/format/test/pack  | 24.12.0                       | not required by package RU; Node behavior covered on Windows | pass   |
-| Public MCP seven-tool visible flow                        | build 26200                   | 24.04.4                                                      | pass   |
-| Public MCP seven-tool background flow                     | build 26200                   | 24.04.4 authenticated Xvfb                                   | pass   |
+| Public MCP visible flow                                   | build 26200                   | 24.04.4                                                      | pass   |
+| Public MCP background flow                                | build 26200                   | 24.04.4 authenticated Xvfb                                   | pass   |
 | Artifact ACL/POSIX permissions and recovery               | pass                          | pass                                                         | pass   |
 | Feature-enabled debug and featureless debug/release Cargo | stable MSVC                   | stable GNU                                                   | pass   |
 | Correctness review                                        | independent RU1 review        | shared source                                                | pass   |
@@ -26,13 +26,18 @@ Ubuntu run remains a publication gate.
 - Windows Node 24: the same matrix passes.
 - Ubuntu Node 22: 276 ordinary tests pass and 13 host-gated tests are
   deliberately excluded from the ordinary suite.
-- Real public MCP Windows: visible and background complete all seven tools and
-  cleanup; the final post-hardening run took 50.75 s and 30.53 s.
-- Real public MCP Ubuntu: visible and background complete all seven tools and
+- Real public MCP Windows: the prior visible/background matrix completes the
+  public tool set and cleanup. RDM-012 adds a real independent-client journey
+  covering the 12-tool contract, three exact viewports, ARIA semantics,
+  redaction, focus-only behavior, native option selection, and repeated close.
+- Real public MCP Ubuntu: visible and background complete the public tool set and
   cleanup; the final post-hardening run took 13.59 s and 19.15 s.
 - RDM007 correctness and security reviews end with no unresolved P0-P2.
 - RDM008 correctness and security re-reviews end with no unresolved P0-P2
   after adversarial scoring, provenance and publication-safety fixes.
+- RDM012 setup and ten-criterion evidence is mapped in
+  `docs/evidence/rdm-012/README.md`; native publication certification remains
+  pending.
 
 Exact command output remains in the Codex task execution record; no absolute
 workspace paths, usernames, raw UI secrets, screenshots, or credentials are
