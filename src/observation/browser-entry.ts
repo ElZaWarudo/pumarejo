@@ -1,5 +1,16 @@
 import { computeAccessibleName, getRole } from "dom-accessibility-api";
 
+import {
+  booleanAttribute,
+  currentState,
+  editable,
+  effectivelyNativeDisabled,
+  elementValue,
+  invalidState,
+  triState,
+} from "./browser-state.js";
+import { childElements, providerHandleIndices } from "./browser-traversal.js";
+
 type SemanticKind =
   | "control"
   | "content"
@@ -44,19 +55,6 @@ type TruncationReason =
   | "maxTextLength"
   | "fieldBudget"
   | "traversalLimit";
-const NON_EDITABLE_INPUT_TYPES = new Set([
-  "button",
-  "checkbox",
-  "color",
-  "file",
-  "hidden",
-  "image",
-  "radio",
-  "range",
-  "reset",
-  "submit",
-]);
-
 interface CollectedNode {
   readonly element: Element;
   readonly descriptor: Record<string, unknown> & {
@@ -274,24 +272,6 @@ function semanticKind(
   return undefined;
 }
 
-function booleanAttribute(
-  element: Element,
-  ariaName: string,
-  nativeValue?: boolean,
-): boolean | undefined {
-  const aria = element.getAttribute(ariaName);
-  if (aria === "true") return true;
-  if (aria === "false") return false;
-  return nativeValue;
-}
-
-function triState(value: string | null): boolean | "mixed" | undefined {
-  if (value === "mixed") return "mixed";
-  if (value === "true") return true;
-  if (value === "false") return false;
-  return undefined;
-}
-
 function relationshipTokens(
   element: Element,
   name: string,
@@ -436,107 +416,6 @@ function ariaDisabled(element: Element): boolean {
   return false;
 }
 
-function effectivelyNativeDisabled(element: Element): boolean {
-  if (
-    "disabled" in element &&
-    typeof element.disabled === "boolean" &&
-    element.disabled
-  ) {
-    return true;
-  }
-  for (
-    let ancestor = element.parentElement;
-    ancestor;
-    ancestor = ancestor.parentElement
-  ) {
-    if (ancestor instanceof HTMLFieldSetElement && ancestor.disabled) {
-      const firstLegend = [...ancestor.children].find(
-        (child) => child.localName === "legend",
-      );
-      if (firstLegend === undefined || !firstLegend.contains(element)) {
-        return true;
-      }
-    }
-    if (
-      (ancestor instanceof HTMLOptGroupElement ||
-        ancestor instanceof HTMLSelectElement) &&
-      ancestor.disabled
-    ) {
-      return true;
-    }
-  }
-  return element.matches(":disabled");
-}
-
-function elementValue(element: Element): string | undefined {
-  if (
-    element instanceof HTMLInputElement ||
-    element instanceof HTMLTextAreaElement ||
-    element instanceof HTMLSelectElement
-  ) {
-    return element.value;
-  }
-  if (element instanceof HTMLElement && element.isContentEditable) {
-    return element.innerText;
-  }
-  return undefined;
-}
-
-function childElements(element: Element): readonly Element[] {
-  if (element instanceof HTMLSlotElement) {
-    const assigned = element.assignedElements({ flatten: true });
-    if (assigned.length > 0) return assigned;
-  }
-  if (element.shadowRoot?.mode === "open") {
-    return [...element.shadowRoot.children];
-  }
-  return [...element.children];
-}
-
-function providerHandleIndices(
-  targets: ReadonlySet<Element>,
-): ReadonlyMap<Element, number> {
-  const remaining = new Set(targets);
-  const indices = new Map<Element, number>();
-  let roots: readonly (Document | ShadowRoot)[] = [document];
-  let index = 0;
-  while (remaining.size > 0 && roots.length > 0) {
-    const nextRoots: ShadowRoot[] = [];
-    for (const root of roots) {
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
-      for (
-        let node = walker.nextNode();
-        node !== null;
-        node = walker.nextNode()
-      ) {
-        const element = node as Element;
-        if (remaining.delete(element)) indices.set(element, index);
-        index += 1;
-        if (remaining.size === 0) return indices;
-        if (element.shadowRoot?.mode === "open") {
-          nextRoots.push(element.shadowRoot);
-        }
-      }
-    }
-    roots = nextRoots;
-  }
-  return indices;
-}
-
-function editable(element: Element): boolean {
-  if (element.getAttribute("aria-readonly") === "true") return false;
-  if (element instanceof HTMLInputElement) {
-    return (
-      !element.readOnly &&
-      !NON_EDITABLE_INPUT_TYPES.has(element.type.toLowerCase())
-    );
-  }
-  return (
-    (element instanceof HTMLTextAreaElement && !element.readOnly) ||
-    (element instanceof HTMLElement && element.isContentEditable)
-  );
-}
-
 function stableName(
   element: Element,
   nameSensitive = sensitiveNameSource(element),
@@ -630,35 +509,6 @@ function ownershipContextFor(chain: readonly SemanticIdentityItem[]): string {
       );
   }
   return context;
-}
-
-function invalidState(
-  element: Element,
-): boolean | "grammar" | "spelling" | undefined {
-  const aria = element.getAttribute("aria-invalid");
-  if (aria === "grammar" || aria === "spelling") return aria;
-  if (aria === "true") return true;
-  if (aria === "false") return false;
-  if (
-    element instanceof HTMLInputElement ||
-    element instanceof HTMLTextAreaElement ||
-    element instanceof HTMLSelectElement
-  ) {
-    return !element.validity.valid;
-  }
-  return undefined;
-}
-
-function currentState(
-  element: Element,
-): boolean | "page" | "step" | "location" | "date" | "time" | undefined {
-  const current = element.getAttribute("aria-current");
-  if (current === null || current === "false")
-    return current === "false" ? false : undefined;
-  if (["page", "step", "location", "date", "time"].includes(current)) {
-    return current as "page" | "step" | "location" | "date" | "time";
-  }
-  return true;
 }
 
 export function collectSnapshot(
