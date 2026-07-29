@@ -406,6 +406,9 @@ describe("WebDriverClient", () => {
         if (path === "/session") {
           return jsonResponse({ value: { sessionId: "session-1" } });
         }
+        if (path.endsWith("/execute/sync")) {
+          return jsonResponse({ value: "unavailable" });
+        }
         if (path.endsWith("/window/rect") && method === "GET") {
           return jsonResponse({ value: rect });
         }
@@ -423,8 +426,79 @@ describe("WebDriverClient", () => {
     });
     expect(routes).toEqual([
       "POST /session",
+      "POST /session/session-1/execute/sync",
       "GET /session/session-1/window/rect",
     ]);
+  });
+
+  it("unmaximizes a window that was already maximized before the session", async () => {
+    const routes: string[] = [];
+    const rect = { x: 12, y: 24, width: 800, height: 600 };
+    const fetchImplementation = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const path = new URL(String(input)).pathname;
+        const method = init?.method ?? "GET";
+        routes.push(`${method} ${path}`);
+        if (path === "/session") {
+          return jsonResponse({ value: { sessionId: "session-1" } });
+        }
+        if (path.endsWith("/execute/sync")) {
+          const payload = JSON.parse(String(init?.body)) as { script: string };
+          if (payload.script.includes("current.isMaximized")) {
+            return jsonResponse({ value: "restored" });
+          }
+        }
+        if (path.endsWith("/window/rect")) {
+          return jsonResponse({ value: rect });
+        }
+        throw new Error(`unexpected route: ${method} ${path}`);
+      },
+    ) as unknown as typeof fetch;
+    const webdriver = client(fetchImplementation);
+    await webdriver.createSession();
+
+    await expect(
+      webdriver.windowAction({ action: "restore" }),
+    ).resolves.toEqual({ state: "restored", rect });
+    expect(
+      routes.filter((route) => route.endsWith("/execute/sync")),
+    ).toHaveLength(1);
+  });
+
+  it("bounds action cleanup after caller cancellation", async () => {
+    const controller = new AbortController();
+    const routes: string[] = [];
+    const fetchImplementation = vi.fn(
+      async (
+        input: string | URL | Request,
+        init?: RequestInit,
+      ): Promise<Response> => {
+        const path = new URL(String(input)).pathname;
+        const method = init?.method ?? "GET";
+        routes.push(`${method} ${path}`);
+        if (path === "/session") {
+          return jsonResponse({ value: { sessionId: "session-1" } });
+        }
+        return await new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(init.signal?.reason),
+          );
+        });
+      },
+    ) as unknown as typeof fetch;
+    const webdriver = client(fetchImplementation);
+    await webdriver.createSession();
+    const cancellation = new Error("cancel action");
+    const startedAt = Date.now();
+    const pending = webdriver.pressKey("a", [], controller.signal);
+    await vi.waitFor(() =>
+      expect(routes).toContain("POST /session/session-1/actions"),
+    );
+    controller.abort(cancellation);
+
+    await expect(pending).rejects.toBe(cancellation);
+    expect(Date.now() - startedAt).toBeLessThan(700);
+    expect(routes).toContain("DELETE /session/session-1/actions");
   });
 
   it("uses the fixed Tauri WebDriver fallback when window rect mutation is unsupported", async () => {

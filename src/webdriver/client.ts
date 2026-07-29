@@ -24,6 +24,7 @@ const MAX_ROUTE_LENGTH = 8_192;
 const MAX_SELECTOR_LENGTH = 16_384;
 const MAX_SCRIPT_LENGTH = 1024 * 1024;
 const PNG_SIGNATURE = Buffer.from("89504e470d0a1a0a", "hex");
+const ACTION_CLEANUP_TIMEOUT_MS = 250;
 
 export interface WebDriverClientOptions {
   readonly port: number;
@@ -675,9 +676,12 @@ export class WebDriverClient {
     } catch (error) {
       throw normalizeWebDriverError(error, "UNSUPPORTED_ACTION");
     } finally {
-      await this.sessionCommand("DELETE", "/actions", undefined).catch(
-        () => undefined,
-      );
+      await this.sessionCommand(
+        "DELETE",
+        "/actions",
+        undefined,
+        AbortSignal.timeout(ACTION_CLEANUP_TIMEOUT_MS),
+      ).catch(() => undefined);
     }
   }
 
@@ -829,6 +833,24 @@ export class WebDriverClient {
             windowRectFrom(responseValue(response)) ??
             (await this.windowRect(signal)),
         };
+      }
+      if (input.action === "restore" && this.#windowState === "restored") {
+        const externalRestore = await this.execute<
+          "restored" | "already-restored" | "failed" | "unavailable"
+        >(
+          "const current=globalThis.__TAURI__?.window?.getCurrentWindow?.(); if(!current)return 'unavailable'; return current.isMaximized().then(maximized=>maximized?current.unmaximize().then(()=>'restored').catch(()=>'failed'):'already-restored').catch(()=>'unavailable');",
+          [],
+          signal,
+        );
+        if (externalRestore === "failed") {
+          throw new PumarejoError("UNSUPPORTED_ACTION");
+        }
+        if (externalRestore === "restored") {
+          const rect = await this.windowRect(signal);
+          this.#restoreRect = rect;
+          this.#windowState = "restored";
+          return { state: "restored", rect };
+        }
       }
       if (input.action === "restore" && this.#windowState === "restored") {
         const rect = await this.windowRect(signal);
