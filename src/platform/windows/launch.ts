@@ -1,7 +1,5 @@
-import { execFile } from "node:child_process";
 import { lstat, readFile, realpath } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { promisify } from "node:util";
+import { dirname, isAbsolute, relative, resolve, sep, win32 } from "node:path";
 
 import {
   materializeLaunchProfile,
@@ -13,8 +11,6 @@ import { PumarejoError } from "../../shared/errors.js";
 import { createRuntimeOverlay } from "../mode-config.js";
 import { resolvedLaunchEnvironment } from "../launch-environment.js";
 import { resolveProjectTauriCommand } from "../tauri-command.js";
-
-const execFileAsync = promisify(execFile);
 
 function isInside(root: string, candidate: string): boolean {
   const difference = relative(root, candidate);
@@ -30,18 +26,25 @@ async function located(
   command: string,
   environment: NodeJS.ProcessEnv,
 ): Promise<readonly string[]> {
-  try {
-    const { stdout } = await execFileAsync("where.exe", [command], {
-      env: environment,
-      windowsHide: true,
-    });
-    return stdout
-      .split(/\r?\n/u)
-      .map((value) => value.trim())
-      .filter(Boolean);
-  } catch (error) {
-    throw new PumarejoError("APP_START_FAILED", { cause: error });
+  const pathValue = Object.entries(environment).find(
+    ([key]) => key.toUpperCase() === "PATH",
+  )?.[1];
+  if (pathValue === undefined) return [];
+  const matches: string[] = [];
+  for (const directory of pathValue.split(win32.delimiter)) {
+    if (!isAbsolute(directory)) continue;
+    const candidate = win32.join(directory, command);
+    const metadata = await lstat(candidate).catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return undefined;
+        throw error;
+      },
+    );
+    if (metadata?.isFile() && !metadata.isSymbolicLink()) {
+      matches.push(candidate);
+    }
   }
+  return matches;
 }
 
 async function safeExecutable(

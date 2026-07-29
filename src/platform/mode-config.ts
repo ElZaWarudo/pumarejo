@@ -12,7 +12,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import JSON5 from "json5";
 import { parse as parseToml } from "smol-toml";
 
-import { AGENT_PERMISSIONS } from "../installer/capabilities.js";
+import { agentCapability } from "../installer/capabilities.js";
 import { PumarejoError } from "../shared/errors.js";
 import type { RuntimeMode } from "../session/state.js";
 
@@ -113,6 +113,17 @@ function record(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
+function exactStringArray(
+  value: unknown,
+  expected: readonly string[],
+): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length === expected.length &&
+    value.every((item, index) => item === expected[index])
+  );
+}
+
 async function readAgentCapability(
   projectRoot: string,
   agentDirectory: string,
@@ -136,16 +147,16 @@ async function readAgentCapability(
 
   try {
     const capability = record(JSON.parse(await readFile(path, "utf8")));
-    const windows = capability?.windows;
-    const permissions = capability?.permissions;
+    const expected = agentCapability(windowLabel);
     if (
-      capability?.identifier !== "pumarejo-agent" ||
-      !Array.isArray(windows) ||
-      !windows.every((window) => typeof window === "string") ||
-      !windows.some((window) => window === "*" || window === windowLabel) ||
-      !Array.isArray(permissions) ||
-      !permissions.every((permission) => typeof permission === "string") ||
-      !AGENT_PERMISSIONS.every((permission) => permissions.includes(permission))
+      capability === undefined ||
+      !exactStringArray(
+        Object.keys(capability).sort(),
+        Object.keys(expected).sort(),
+      ) ||
+      capability.identifier !== expected.identifier ||
+      !exactStringArray(capability.windows, expected.windows) ||
+      !exactStringArray(capability.permissions, expected.permissions)
     ) {
       throw new PumarejoError("INTEGRATION_INCOMPLETE");
     }

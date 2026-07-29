@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { LoadedProjectConfig } from "../../src/config/load.js";
 import { MODE_CONFIG_PLACEHOLDER } from "../../src/config/schema.js";
+import { AGENT_PERMISSIONS } from "../../src/installer/capabilities.js";
 import {
   linuxDisplayEnvironment,
   prepareLinuxLaunch,
@@ -131,16 +132,9 @@ describe("mode-specific platform launch", () => {
       permissions: ["core:default"],
     };
     const agentCapability = {
-      ...sourceCapability,
       identifier: "pumarejo-agent",
-      permissions: [
-        ...sourceCapability.permissions,
-        "wdio-webdriver:default",
-        "core:window:allow-set-size",
-        "core:window:allow-maximize",
-        "core:window:allow-is-maximized",
-        "core:window:allow-unmaximize",
-      ],
+      windows: ["primary"],
+      permissions: [...AGENT_PERMISSIONS],
     };
     await mkdir(capabilityDirectory, { recursive: true });
     await writeFile(
@@ -172,6 +166,46 @@ describe("mode-specific platform launch", () => {
       JSON.stringify(sourceCapability),
     );
     await overlay.cleanup();
+  });
+
+  it.each([
+    {
+      identifier: "pumarejo-agent",
+      windows: ["*"],
+      permissions: [...AGENT_PERMISSIONS],
+    },
+    {
+      identifier: "pumarejo-agent",
+      windows: ["primary", "secondary"],
+      permissions: [...AGENT_PERMISSIONS],
+    },
+    {
+      identifier: "pumarejo-agent",
+      windows: ["primary"],
+      permissions: [...AGENT_PERMISSIONS, "core:default"],
+    },
+    {
+      identifier: "pumarejo-agent",
+      windows: ["primary"],
+      permissions: [...AGENT_PERMISSIONS],
+      remote: { urls: ["https://example.test"] },
+    },
+  ])("rejects an authority-bearing capability superset", async (capability) => {
+    const loaded = await fixture();
+    await writeFile(
+      join(loaded.projectRoot, ".pumarejo", "agent-capability.json"),
+      JSON.stringify(capability),
+      "utf8",
+    );
+
+    await expect(
+      createRuntimeOverlay({
+        projectRoot: loaded.projectRoot,
+        platform: hostPlatform,
+        mode: "background",
+        windowLabel: loaded.config.window,
+      }),
+    ).rejects.toMatchObject({ code: "INTEGRATION_INCOMPLETE" });
   });
 
   it("refuses cleanup through a replaced agent-directory link", async () => {
@@ -405,7 +439,9 @@ describe("mode-specific platform launch", () => {
       const tools = await mkdtemp(join(tmpdir(), "pumarejo-tools-"));
       roots.push(tools);
       const executable = join(tools, "cargo.exe");
+      const decoyWhere = join(tools, "where.exe");
       await writeFile(executable, "");
+      await writeFile(decoyWhere, "");
       loaded.config.launch.pathPrepend = [tools];
       const prepared = await prepareWindowsLaunch(loaded, "visible", {
         Path: join(process.env.SystemRoot ?? "C:\\Windows", "System32"),
