@@ -322,16 +322,13 @@ async function integrationDiagnostics(
       if (source === null) throw new Error("Rust source missing");
       planRustRemoval(source);
     }
+    const cargoPath = resolve(projectRoot, "src-tauri", "Cargo.toml");
+    const source = await readSafeFile(projectRoot, cargoPath, true);
+    if (source === null) throw new Error("Cargo manifest missing");
+    const plugin = cargoPluginIntegration(source);
+    registrationReady &&= plugin.registered;
+    installedPluginVersion = plugin.version;
     if (cargo !== undefined) {
-      const source = await readSafeFile(
-        projectRoot,
-        resolve(projectRoot, cargo.relativePath),
-        true,
-      );
-      if (source === null) throw new Error("Cargo manifest missing");
-      const plugin = cargoPluginIntegration(source);
-      registrationReady &&= plugin.registered;
-      installedPluginVersion = plugin.version;
       planCargoRemoval(source, cargo.attribution);
     }
   } catch {
@@ -416,10 +413,6 @@ function safeLaunchArguments(arguments_: readonly string[]): readonly string[] {
   return arguments_.map((argument) =>
     allowed.has(argument) ? argument : "<redacted>",
   );
-}
-
-function executableIdentity(command: string): string {
-  return executableBasename(command);
 }
 
 async function residueDiagnostic(
@@ -598,7 +591,7 @@ export async function doctorProject(
       effectiveLaunchEnvironment,
       dependencies.platform,
     ));
-  const launchVerified = launchVerification !== undefined;
+  const launchVerified = launchVerification?.platform === dependencies.platform;
   const launchReady = launchDetected || launchVerified;
   const explicitlyConfigured =
     loadedConfig !== undefined &&
@@ -632,7 +625,7 @@ export async function doctorProject(
         evidence: {
           ...(launchCommand === undefined
             ? {}
-            : { executable: executableIdentity(launchCommand) }),
+            : { executable: executableBasename(launchCommand) }),
           ...(launchProfile === undefined
             ? {}
             : { arguments: safeLaunchArguments(launchProfile.args) }),

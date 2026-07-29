@@ -11,6 +11,18 @@ export const AGENT_PERMISSIONS = [
 ] as const;
 type UnknownRecord = Record<string, unknown>;
 
+export function agentCapability(windowLabel: string): {
+  readonly identifier: "pumarejo-agent";
+  readonly windows: readonly [string];
+  readonly permissions: readonly string[];
+} {
+  return {
+    identifier: "pumarejo-agent",
+    windows: [windowLabel],
+    permissions: [...AGENT_PERMISSIONS],
+  };
+}
+
 function record(value: unknown): UnknownRecord | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as UnknownRecord)
@@ -47,22 +59,21 @@ export function capabilityMatchesWindow(
 export function planCapabilityEdit(
   source: string,
   format: "json" | "toml",
+  windowLabel?: string,
 ): string {
   const capability = parseCapability(source, format);
-  delete capability.$schema;
-  const permissions = capability.permissions;
-  if (
-    !Array.isArray(permissions) ||
-    !permissions.every((permission) => typeof permission === "string")
-  ) {
+  const sourceWindows = capability.windows;
+  const effectiveWindow =
+    windowLabel ??
+    (Array.isArray(sourceWindows) &&
+    sourceWindows.length === 1 &&
+    typeof sourceWindows[0] === "string" &&
+    sourceWindows[0] !== "*"
+      ? sourceWindows[0]
+      : undefined);
+  if (effectiveWindow === undefined) {
     throw new IntegrationPlanError("CAPABILITY_INVALID");
   }
-  capability.identifier = "pumarejo-agent";
-  for (const permission of AGENT_PERMISSIONS) {
-    if (!permissions.includes(permission)) {
-      permissions.push(permission);
-    }
-  }
 
-  return `${JSON.stringify(capability, null, 2)}\n`;
+  return `${JSON.stringify(agentCapability(effectiveWindow), null, 2)}\n`;
 }

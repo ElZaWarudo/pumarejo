@@ -292,6 +292,41 @@ describe("pumarejo doctor", () => {
     );
   });
 
+  it("verifies an exact pre-existing plugin dependency that init does not own", async () => {
+    const project = await projectCopy();
+    const cargoPath = join(project, "src-tauri", "Cargo.toml");
+    await writeFile(
+      cargoPath,
+      `${await readFile(cargoPath, "utf8")}
+tauri-plugin-wdio-webdriver = { version = "1", optional = true }
+
+[features]
+pumarejo = ["dep:tauri-plugin-wdio-webdriver"]
+`,
+      "utf8",
+    );
+    await initializeProject(project);
+
+    const manifest = JSON.parse(
+      await readFile(
+        join(project, ".pumarejo", "integration-manifest.json"),
+        "utf8",
+      ),
+    ) as { changes: Array<{ kind: string }> };
+    expect(manifest.changes.some((entry) => entry.kind === "cargo")).toBe(
+      false,
+    );
+
+    const report = await doctorProject(project, READY_DEPENDENCIES);
+    expect(report.diagnostics).toContainEqual(
+      expect.objectContaining({
+        id: "integration.version-alignment",
+        status: "ready",
+        classification: "verified",
+      }),
+    );
+  });
+
   it("detects generated Tauri plugin drift even when recorded hashes are updated", async () => {
     const project = await projectCopy();
     await initializeProject(project);
@@ -399,6 +434,46 @@ describe("pumarejo doctor", () => {
           id: "platform.webview",
           status: "ready",
           classification: "verified",
+        }),
+      ]),
+    );
+  });
+
+  it("does not use successful launch evidence from another platform", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    await writeFile(
+      join(project, ".pumarejo", "launch-verification.json"),
+      `${JSON.stringify(
+        {
+          version: 1,
+          pumarejoVersion: "0.1.0",
+          pluginVersion: "1",
+          executable: "pnpm",
+          platform: "linux",
+          verified: true,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const report = await doctorProject(project, {
+      ...READY_DEPENDENCIES,
+      executableAvailable: async (command) => command !== "pnpm",
+      webviewAvailable: async () => false,
+    });
+    expect(report.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "toolchain.launch",
+          status: "error",
+          classification: "not_on_path",
+        }),
+        expect.objectContaining({
+          id: "platform.webview",
+          status: "error",
+          classification: "not_detected",
         }),
       ]),
     );

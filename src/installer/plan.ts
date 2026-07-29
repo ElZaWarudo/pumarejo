@@ -127,6 +127,7 @@ function change(
 
 async function existingIntegration(
   projectRoot: string,
+  windowLabel: string,
 ): Promise<IntegrationPlan | undefined> {
   const manifestPath = resolve(projectRoot, INTEGRATION_MANIFEST_RELATIVE_PATH);
   const source = await readSafeFile(projectRoot, manifestPath, false);
@@ -190,7 +191,11 @@ async function existingIntegration(
       }
       const currentCapability =
         currentByPath.get(capabilityEntry.relativePath) ?? "";
-      const nextCapability = planCapabilityEdit(currentCapability, "json");
+      const nextCapability = planCapabilityEdit(
+        currentCapability,
+        "json",
+        windowLabel,
+      );
       const capabilityChange =
         currentCapability === nextCapability
           ? undefined
@@ -461,7 +466,10 @@ export async function planIntegration(
   projectPath: string,
 ): Promise<IntegrationPlan> {
   const detected = await detectTauriProject(projectPath);
-  const existing = await existingIntegration(detected.projectRoot);
+  const existing = await existingIntegration(
+    detected.projectRoot,
+    detected.primaryWindowLabel,
+  );
   if (existing !== undefined) {
     return existing;
   }
@@ -531,7 +539,11 @@ export async function planIntegration(
       ".pumarejo/agent-capability.json",
       "capability",
       null,
-      planCapabilityEdit(capability.source, capability.format),
+      planCapabilityEdit(
+        capability.source,
+        capability.format,
+        detected.primaryWindowLabel,
+      ),
       [
         `derived-from:${capability.relativePath}`,
         ...AGENT_PERMISSIONS.map((permission) => `permission:${permission}`),

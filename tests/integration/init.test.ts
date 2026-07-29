@@ -161,14 +161,13 @@ describe("Tauri project initialization", () => {
       ),
     ) as { permissions: string[] };
     expect(capability.permissions).toEqual([
-      "core:default",
-      "core:window:default",
       "wdio-webdriver:default",
       "core:window:allow-set-size",
       "core:window:allow-maximize",
       "core:window:allow-is-maximized",
       "core:window:allow-unmaximize",
     ]);
+    expect((capability as { windows?: string[] }).windows).toEqual(["main"]);
     expect((capability as { identifier?: string }).identifier).toBe(
       "pumarejo-agent",
     );
@@ -227,9 +226,11 @@ describe("Tauri project initialization", () => {
     const capabilityPath = join(project, ".pumarejo", "agent-capability.json");
     const capability = JSON.parse(await readFile(capabilityPath, "utf8")) as {
       identifier: string;
+      windows: string[];
       permissions: string[];
     };
     capability.identifier = "default";
+    capability.windows = ["*"];
     capability.permissions = capability.permissions.filter(
       (permission) => !permission.startsWith("core:window:allow-"),
     );
@@ -283,9 +284,11 @@ describe("Tauri project initialization", () => {
     });
     const upgraded = JSON.parse(await readFile(capabilityPath, "utf8")) as {
       identifier: string;
+      windows: string[];
       permissions: string[];
     };
     expect(upgraded.identifier).toBe("pumarejo-agent");
+    expect(upgraded.windows).toEqual(["main"]);
     expect(upgraded.permissions).toEqual(
       expect.arrayContaining([
         "wdio-webdriver:default",
