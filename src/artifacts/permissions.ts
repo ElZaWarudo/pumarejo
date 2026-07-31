@@ -3,8 +3,6 @@ import { chmod, stat } from "node:fs/promises";
 import { win32 } from "node:path";
 import { promisify } from "node:util";
 
-import { PumarejoError } from "../shared/errors.js";
-
 const execFileAsync = promisify(execFile);
 
 export type ProtectedPathKind = "directory" | "file";
@@ -71,10 +69,6 @@ if (
 ) { exit 42 }
 `;
 
-function permissionError(cause?: unknown): PumarejoError {
-  return new PumarejoError("SCREENSHOT_FAILED", { cause });
-}
-
 export function createArtifactPermissionEnforcer(
   options: {
     readonly platform?: NodeJS.Platform;
@@ -100,76 +94,72 @@ export function createArtifactPermissionEnforcer(
 
   return {
     async ensureOwnerOnly(path, kind) {
-      try {
-        if (platform === "win32") {
-          const systemRoot = options.systemRoot ?? process.env.SystemRoot;
-          if (systemRoot === undefined) throw new Error("SystemRoot missing");
-          const environment = {
-            ...process.env,
-            ComSpec:
-              process.env.ComSpec ??
-              win32.join(systemRoot, "System32", "cmd.exe"),
-            PUMAREJO_ARTIFACT_PATH: path,
-            PUMAREJO_ARTIFACT_KIND: kind,
-          };
-          const powerShell = win32.join(
-            systemRoot,
-            "System32",
-            "WindowsPowerShell",
-            "v1.0",
-            "powershell.exe",
-          );
-          const identity = await runner.run(
-            powerShell,
-            [
-              "-NoLogo",
-              "-NoProfile",
-              "-NonInteractive",
-              "-Command",
-              WINDOWS_IDENTITY_SCRIPT,
-            ],
-            { env: environment },
-          );
-          const sid = identity.stdout.trim();
-          if (!/^S-\d(?:-\d+)+$/u.test(sid)) {
-            throw new Error("Invalid current SID");
-          }
-          await runner.run(
-            win32.join(systemRoot, "System32", "icacls.exe"),
-            [
-              path,
-              "/inheritance:r",
-              "/grant:r",
-              `*${sid}:${kind === "directory" ? "(OI)(CI)F" : "F"}`,
-            ],
-            { env: environment },
-          );
-          await runner.run(
-            powerShell,
-            [
-              "-NoLogo",
-              "-NoProfile",
-              "-NonInteractive",
-              "-Command",
-              WINDOWS_VERIFY_SCRIPT,
-            ],
-            {
-              env: {
-                ...environment,
-                PUMAREJO_ARTIFACT_SID: sid,
-              },
+      if (platform === "win32") {
+        const systemRoot = options.systemRoot ?? process.env.SystemRoot;
+        if (systemRoot === undefined) throw new Error("SystemRoot missing");
+        const environment = {
+          ...process.env,
+          ComSpec:
+            process.env.ComSpec ??
+            win32.join(systemRoot, "System32", "cmd.exe"),
+          PUMAREJO_ARTIFACT_PATH: path,
+          PUMAREJO_ARTIFACT_KIND: kind,
+        };
+        const powerShell = win32.join(
+          systemRoot,
+          "System32",
+          "WindowsPowerShell",
+          "v1.0",
+          "powershell.exe",
+        );
+        const identity = await runner.run(
+          powerShell,
+          [
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            WINDOWS_IDENTITY_SCRIPT,
+          ],
+          { env: environment },
+        );
+        const sid = identity.stdout.trim();
+        if (!/^S-\d(?:-\d+)+$/u.test(sid)) {
+          throw new Error("Invalid current SID");
+        }
+        await runner.run(
+          win32.join(systemRoot, "System32", "icacls.exe"),
+          [
+            path,
+            "/inheritance:r",
+            "/grant:r",
+            `*${sid}:${kind === "directory" ? "(OI)(CI)F" : "F"}`,
+          ],
+          { env: environment },
+        );
+        await runner.run(
+          powerShell,
+          [
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            WINDOWS_VERIFY_SCRIPT,
+          ],
+          {
+            env: {
+              ...environment,
+              PUMAREJO_ARTIFACT_SID: sid,
             },
-          );
-          return;
-        }
-        const expected = kind === "directory" ? 0o700 : 0o600;
-        await chmod(path, expected);
-        const metadata = await stat(path);
-        if ((metadata.mode & 0o777) !== expected) {
-          throw new Error("owner-only mode verification failed");
-        }
-      } catch (error) {
-        throw permissionError(error);
+          },
+        );
+        return;
+      }
+      const expected = kind === "directory" ? 0o700 : 0o600;
+      await chmod(path, expected);
+      const metadata = await stat(path);
+      if ((metadata.mode & 0o777) !== expected) {
+        throw new Error("owner-only mode verification failed");
       }
     },
   };

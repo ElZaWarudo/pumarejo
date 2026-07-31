@@ -26,7 +26,10 @@ import {
   readRuntimeOverlay,
 } from "../../src/platform/mode-config.js";
 import { tauriCliArgs } from "../../src/platform/tauri-command.js";
-import { prepareWindowsLaunch } from "../../src/platform/windows/launch.js";
+import {
+  prepareWindowsLaunch,
+  resolveWindowsLaunch,
+} from "../../src/platform/windows/launch.js";
 
 const roots: string[] = [];
 const hostPlatform = process.platform === "win32" ? "windows" : "linux";
@@ -205,7 +208,10 @@ describe("mode-specific platform launch", () => {
         mode: "background",
         windowLabel: loaded.config.window,
       }),
-    ).rejects.toMatchObject({ code: "INTEGRATION_INCOMPLETE" });
+    ).rejects.toMatchObject({
+      code: "CAPABILITY_INCOMPATIBLE",
+      phase: "integration",
+    });
   });
 
   it("refuses cleanup through a replaced agent-directory link", async () => {
@@ -429,6 +435,97 @@ describe("mode-specific platform launch", () => {
         '"visible": false',
       );
       await prepared.cleanup();
+    },
+  );
+
+  it.runIf(process.platform === "win32").each([
+    [
+      "dp0 variable",
+      String.raw`@ECHO off
+SETLOCAL
+SET "dp0=%~dp0"
+IF EXIST "%dp0%\node.exe" (SET "_prog=%dp0%\node.exe") ELSE (SET "_prog=node")
+endLocal & "%_prog%" "%dp0%\node_modules\npm\bin\npm-cli.js" %*
+`,
+    ],
+    [
+      "indirect CLI variable",
+      String.raw`@ECHO off
+SET "NPM_CLI_JS=%~dp0node_modules\npm\bin\npm-cli.js"
+"%~dp0node.exe" "%NPM_CLI_JS%" %*
+`,
+    ],
+  ] as const)("parses a modern npm.cmd using %s", async (_variant, source) => {
+    const loaded = await fixture("npm");
+    const tools = await mkdtemp(join(tmpdir(), "pumarejo-npm-shim-"));
+    roots.push(tools);
+    const cli = join(tools, "node_modules", "npm", "bin", "npm-cli.js");
+    const shim = join(tools, "npm.cmd");
+    await mkdir(dirname(cli), { recursive: true });
+    await writeFile(cli, "");
+    await writeFile(shim, source);
+    loaded.config.launch.executablePath = shim;
+    loaded.config.launch.args = [
+      "run",
+      "tauri",
+      "--",
+      "dev",
+      "--config",
+      MODE_CONFIG_PLACEHOLDER,
+    ];
+
+    const prepared = await prepareWindowsLaunch(loaded, "visible", {});
+
+    expect(prepared.request.command).toBe(process.execPath);
+    expect(prepared.request.args[0]).toBe(cli);
+    await prepared.cleanup();
+  });
+
+  it.runIf(process.platform === "win32")(
+    "resolves npm by name from a supported modern PATH shim",
+    async () => {
+      const project = await mkdtemp(join(tmpdir(), "pumarejo-project-"));
+      const tools = await mkdtemp(join(tmpdir(), "pumarejo-npm-path-"));
+      roots.push(project, tools);
+      const cli = join(tools, "node_modules", "npm", "bin", "npm-cli.js");
+      await mkdir(dirname(cli), { recursive: true });
+      await writeFile(cli, "");
+      await writeFile(
+        join(tools, "npm.cmd"),
+        String.raw`@ECHO off
+SET "NPM_CLI_JS=%~dp0node_modules\npm\bin\npm-cli.js"
+"%~dp0node.exe" "%NPM_CLI_JS%" %*
+`,
+      );
+
+      await expect(
+        resolveWindowsLaunch("npm", ["--version"], project, {
+          Path: tools,
+        }),
+      ).resolves.toEqual({
+        command: process.execPath,
+        args: [cli, "--version"],
+      });
+    },
+  );
+
+  it.runIf(process.platform === "win32")(
+    "accepts an approved Windows executable alias",
+    async () => {
+      const project = await mkdtemp(join(tmpdir(), "pumarejo-project-"));
+      const tools = await mkdtemp(join(tmpdir(), "pumarejo-cargo-path-"));
+      roots.push(project, tools);
+      const executable = join(tools, "cargo.exe");
+      await writeFile(executable, "");
+
+      await expect(
+        resolveWindowsLaunch("cargo.exe", ["tauri", "dev"], project, {
+          Path: tools,
+        }),
+      ).resolves.toEqual({
+        command: executable,
+        args: ["tauri", "dev"],
+      });
     },
   );
 

@@ -215,6 +215,9 @@ export class SessionManager {
   private async launchTransaction(
     options: SessionLaunchOptions,
   ): Promise<ReadySession> {
+    const cleanupOutcome: {
+      application?: "terminated" | "already-exited";
+    } = {};
     const sessionNonce = this.#dependencies.nonce();
     const providerNonce = this.#dependencies.nonce();
     if (
@@ -273,7 +276,10 @@ export class SessionManager {
       };
       this.#cleanup.add("application-process", async () => {
         if (lease !== undefined) {
-          await terminateProcessLease(lease, this.#dependencies.process);
+          cleanupOutcome.application = await terminateProcessLease(
+            lease,
+            this.#dependencies.process,
+          );
         }
       });
       if (
@@ -365,8 +371,12 @@ export class SessionManager {
         nonce: sessionNonce,
       });
       options.onPhase?.("creating_session");
-      await webdriver.waitUntilReady({ signal: options.signal });
-      await webdriver.createSession(options.signal);
+      try {
+        await webdriver.waitUntilReady({ signal: options.signal });
+        await webdriver.createSession(options.signal);
+      } catch (error) {
+        throw proxy.takeAuthorizationFailure?.() ?? error;
+      }
       this.#cleanup.add("webdriver-session", async () => {
         await webdriver.deleteSession();
       });
@@ -392,11 +402,19 @@ export class SessionManager {
       });
       return ready;
     } catch (error) {
-      return await this.failLaunch(launchError(error));
+      return await this.failLaunch(launchError(error), cleanupOutcome);
     }
   }
 
-  private async failLaunch(error: Error): Promise<never> {
+  private async failLaunch(
+    error: Error,
+    cleanupOutcome: {
+      readonly application?: "terminated" | "already-exited";
+    } = {},
+  ): Promise<never> {
+    const applicationStarted =
+      this.#snapshot.ownedPid !== undefined ||
+      this.#cleanup.pendingLabels.includes("application-process");
     this.setState("cleaning");
     try {
       await this.#cleanup.run();
@@ -405,6 +423,25 @@ export class SessionManager {
     } catch {
       this.#ready = undefined;
       this.setCleanupFailed();
+    }
+    if (
+      error instanceof PumarejoError &&
+      error.phase === "process-inspection"
+    ) {
+      const processStillPending = this.#cleanup.pendingLabels.includes(
+        "application-process",
+      );
+      throw new PumarejoError(error.code, {
+        cause: error.cause ?? error,
+        diagnostic: {
+          check: "Windows process identity and provider ownership via CIM",
+          applicationStarted,
+          cleanup: processStillPending
+            ? "survived"
+            : (cleanupOutcome.application ?? "already-exited"),
+          webdriverSessionCreated: false,
+        },
+      });
     }
     throw error;
   }

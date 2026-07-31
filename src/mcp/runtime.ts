@@ -146,7 +146,7 @@ interface RuntimeStatus {
   readonly generation?: number;
   readonly lastFailure?: Pick<
     ErrorEnvelope,
-    "code" | "phase" | "retryable" | "suggestion"
+    "code" | "phase" | "retryable" | "suggestion" | "diagnostic"
   >;
   readonly lastAction:
     | "none"
@@ -170,6 +170,9 @@ function publicFailure(error: unknown): RuntimeStatus["lastFailure"] {
     phase: envelope.phase,
     retryable: envelope.retryable,
     suggestion: envelope.suggestion,
+    ...(envelope.diagnostic === undefined
+      ? {}
+      : { diagnostic: envelope.diagnostic }),
   };
 }
 
@@ -594,6 +597,29 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
         };
       }
     };
+    const artifacts = this.#dependencies.createArtifacts(sessionId);
+    try {
+      await artifacts.open();
+    } catch (error) {
+      const cleanupFailed = await artifacts.close().then(
+        () => false,
+        () => true,
+      );
+      if (cleanupFailed) {
+        this.#pendingArtifactClose = artifacts;
+        this.#status = { state: "cleanup_failed", lastAction: "launch" };
+        throw new PumarejoError("CLOSE_FAILED", { cause: error });
+      }
+      if (this.#status.state !== "closing") {
+        this.#status = {
+          state: "idle",
+          lastAction: "launch",
+          lastFailure: publicFailure(error),
+        };
+      }
+      throw error;
+    }
+
     let ready: ReadySession;
     try {
       ready = await this.#dependencies.manager.launch({
@@ -609,9 +635,14 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
         onPhase: setPhase,
       });
     } catch (error) {
+      const artifactCleanupFailed = await artifacts.close().then(
+        () => false,
+        () => true,
+      );
       if (this.#status.state !== "closing") {
         this.#status = {
           state:
+            artifactCleanupFailed ||
             this.#dependencies.manager.snapshot.state === "failed"
               ? "cleanup_failed"
               : "idle",
@@ -619,11 +650,13 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
           lastFailure: publicFailure(error),
         };
       }
+      if (artifactCleanupFailed) {
+        this.#pendingArtifactClose = artifacts;
+        throw new PumarejoError("CLOSE_FAILED", { cause: error });
+      }
       throw error;
     }
-    const artifacts = this.#dependencies.createArtifacts(sessionId);
     try {
-      await artifacts.open();
       const snapshot = this.#dependencies.createSnapshot(ready);
       const active: ActiveRuntime = {
         sessionId,

@@ -7,6 +7,7 @@ import {
   startAuthenticatedProxy,
   type AuthenticatedProxy,
 } from "../../src/session/endpoint.js";
+import { PumarejoError } from "../../src/shared/errors.js";
 
 const SESSION_NONCE = "a".repeat(64);
 const PROVIDER_NONCE = "b".repeat(64);
@@ -208,5 +209,27 @@ describe("owned loopback endpoint", () => {
     authorized = false;
     expect((await requestStatus()).status).toBe(503);
     expect(provider.accepted()).toBe(1);
+  });
+
+  it("retains a typed authorization failure for the session owner", async () => {
+    const provider = await fakeProvider();
+    const failure = new PumarejoError("PROCESS_INSPECTION_DENIED");
+    const proxy = await startAuthenticatedProxy({
+      providerPort: provider.port,
+      sessionNonce: SESSION_NONCE,
+      providerNonce: PROVIDER_NONCE,
+      authorizeUpstream: async () => {
+        throw failure;
+      },
+    });
+    proxies.push(proxy);
+
+    const response = await fetch(`http://127.0.0.1:${proxy.port}/status`, {
+      headers: { "x-pumarejo-session-nonce": SESSION_NONCE },
+    });
+
+    expect(response.status).toBe(503);
+    expect(proxy.takeAuthorizationFailure?.()).toBe(failure);
+    expect(proxy.takeAuthorizationFailure?.()).toBeUndefined();
   });
 });

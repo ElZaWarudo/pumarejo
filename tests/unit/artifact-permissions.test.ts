@@ -75,7 +75,7 @@ describe("artifact permission enforcement", () => {
     }
   });
 
-  it("maps command failures to the screenshot error contract", async () => {
+  it("preserves command failures for the artifact preflight to classify", async () => {
     const enforcer = createArtifactPermissionEnforcer({
       platform: "win32",
       runner: {
@@ -87,6 +87,6 @@ describe("artifact permission enforcement", () => {
 
     await expect(
       enforcer.ensureOwnerOnly("C:\\denied", "file"),
-    ).rejects.toMatchObject({ code: "SCREENSHOT_FAILED" });
+    ).rejects.toThrow("access denied");
   });
 });

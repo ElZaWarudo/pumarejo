@@ -158,12 +158,12 @@ async function readAgentCapability(
       !exactStringArray(capability.windows, expected.windows) ||
       !exactStringArray(capability.permissions, expected.permissions)
     ) {
-      throw new PumarejoError("INTEGRATION_INCOMPLETE");
+      throw new PumarejoError("CAPABILITY_INCOMPATIBLE");
     }
     return capability;
   } catch (error) {
     if (error instanceof PumarejoError) throw error;
-    throw new PumarejoError("INTEGRATION_INCOMPLETE", { cause: error });
+    throw new PumarejoError("CAPABILITY_INCOMPATIBLE", { cause: error });
   }
 }
 

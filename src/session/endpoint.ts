@@ -49,6 +49,7 @@ export interface PortReservation {
 
 export interface AuthenticatedProxy {
   readonly port: number;
+  takeAuthorizationFailure?(): unknown;
   close(): Promise<void>;
 }
 
@@ -134,6 +135,7 @@ export async function startAuthenticatedProxy(options: {
     throw new PumarejoError("INTERNAL_ERROR");
   }
 
+  let authorizationFailure: unknown;
   const server = createHttpServer((incoming, outgoing) => {
     void (async () => {
       const path = new URL(incoming.url ?? "/", "http://127.0.0.1").pathname;
@@ -169,14 +171,21 @@ export async function startAuthenticatedProxy(options: {
           .end('{"value":{"error":"invalid argument"}}');
         return;
       }
-      if (
-        options.authorizeUpstream !== undefined &&
-        !(await options.authorizeUpstream())
-      ) {
-        outgoing
-          .writeHead(503, { "content-type": "application/json" })
-          .end('{"value":{"error":"provider unavailable"}}');
-        return;
+      if (options.authorizeUpstream !== undefined) {
+        try {
+          if (!(await options.authorizeUpstream())) {
+            outgoing
+              .writeHead(503, { "content-type": "application/json" })
+              .end('{"value":{"error":"provider unavailable"}}');
+            return;
+          }
+        } catch (error) {
+          authorizationFailure ??= error;
+          outgoing
+            .writeHead(503, { "content-type": "application/json" })
+            .end('{"value":{"error":"provider unavailable"}}');
+          return;
+        }
       }
 
       const upstream = request(
@@ -236,6 +245,11 @@ export async function startAuthenticatedProxy(options: {
   }
   return {
     port: address.port,
+    takeAuthorizationFailure: () => {
+      const failure = authorizationFailure;
+      authorizationFailure = undefined;
+      return failure;
+    },
     close: async () => {
       const closing = closeServer(server);
       server.closeAllConnections();

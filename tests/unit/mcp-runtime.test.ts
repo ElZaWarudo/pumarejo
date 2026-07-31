@@ -355,8 +355,14 @@ describe("application-scoped MCP runtime", () => {
       test.runtime.launch({ mode: "visible", waitMs: 0 }, context()),
     ).resolves.toMatchObject({ state: "launching" });
     rejectLaunch(
-      new PumarejoError("WINDOW_NOT_FOUND", {
+      new PumarejoError("PROCESS_INSPECTION_DENIED", {
         cause: new Error("private path and nonce"),
+        diagnostic: {
+          check: "Windows process identity and ownership via CIM",
+          applicationStarted: true,
+          cleanup: "terminated",
+          webdriverSessionCreated: false,
+        },
       }),
     );
     await vi.waitFor(async () => {
@@ -364,9 +370,15 @@ describe("application-scoped MCP runtime", () => {
         state: "idle",
         lastAction: "launch",
         lastFailure: {
-          code: "WINDOW_NOT_FOUND",
-          phase: "session",
+          code: "PROCESS_INSPECTION_DENIED",
+          phase: "process-inspection",
           retryable: false,
+          diagnostic: {
+            check: "Windows process identity and ownership via CIM",
+            applicationStarted: true,
+            cleanup: "terminated",
+            webdriverSessionCreated: false,
+          },
         },
       });
     });
@@ -586,20 +598,21 @@ describe("application-scoped MCP runtime", () => {
   it("cleans the process when artifact initialization fails", async () => {
     const test = harness();
     test.artifactOpen.mockRejectedValueOnce(
-      new PumarejoError("SCREENSHOT_FAILED"),
+      new PumarejoError("ARTIFACTS_DIRECTORY_NOT_WRITABLE"),
     );
 
     await expect(
       test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context()),
-    ).rejects.toMatchObject({ code: "SCREENSHOT_FAILED" });
+    ).rejects.toMatchObject({ code: "ARTIFACTS_DIRECTORY_NOT_WRITABLE" });
     expect(test.artifactClose).toHaveBeenCalledOnce();
-    expect(test.managerClose).toHaveBeenCalledOnce();
+    expect(test.launch).not.toHaveBeenCalled();
+    expect(test.managerClose).not.toHaveBeenCalled();
   });
 
   it("retains artifact cleanup after launch setup and cleanup both fail", async () => {
     const test = harness();
     test.artifactOpen.mockRejectedValueOnce(
-      new PumarejoError("SCREENSHOT_FAILED"),
+      new PumarejoError("ARTIFACTS_DIRECTORY_NOT_WRITABLE"),
     );
     test.artifactClose.mockRejectedValueOnce(new Error("artifact close"));
 

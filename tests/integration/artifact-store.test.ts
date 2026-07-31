@@ -170,7 +170,7 @@ describe("ArtifactStore", () => {
     });
 
     await expect(store.open()).rejects.toMatchObject({
-      code: "SCREENSHOT_FAILED",
+      code: "ARTIFACTS_DIRECTORY_NOT_WRITABLE",
     });
     expect((await lstat(linkedRoot)).isSymbolicLink()).toBe(true);
     expect(await readFile(marker, "utf8")).toBe("keep");
@@ -285,7 +285,7 @@ describe("ArtifactStore", () => {
         artifactsRoot,
         permissions: noOpPermissions(),
       }),
-    ).rejects.toMatchObject({ code: "SCREENSHOT_FAILED" });
+    ).rejects.toMatchObject({ code: "ARTIFACT_RECOVERY_FAILED" });
     expect((await lstat(artifact)).isSymbolicLink()).toBe(true);
   });
 });

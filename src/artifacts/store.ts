@@ -73,6 +73,14 @@ function screenshotError(cause?: unknown): PumarejoError {
   return new PumarejoError("SCREENSHOT_FAILED", { cause });
 }
 
+function artifactsPreflightError(cause?: unknown): PumarejoError {
+  return new PumarejoError("ARTIFACTS_DIRECTORY_NOT_WRITABLE", { cause });
+}
+
+function artifactRecoveryError(cause?: unknown): PumarejoError {
+  return new PumarejoError("ARTIFACT_RECOVERY_FAILED", { cause });
+}
+
 function isInside(root: string, candidate: string): boolean {
   const difference = relative(root, candidate);
   return (
@@ -382,7 +390,7 @@ export class ArtifactStore {
           await rmdir(createdSessionDirectory).catch(() => undefined);
         }
       }
-      throw screenshotError(error);
+      throw artifactsPreflightError(error);
     }
   }
 
@@ -584,7 +592,7 @@ export class ArtifactStore {
       }
       return { removed, retained };
     } catch (error) {
-      throw screenshotError(error);
+      throw artifactRecoveryError(error);
     }
   }
 }

@@ -16,7 +16,16 @@ describe("PumarejoError", () => {
       "PLATFORM_UNSUPPORTED",
       "BACKGROUND_UNAVAILABLE",
       "PORT_UNAVAILABLE",
+      "ARTIFACTS_DIRECTORY_NOT_WRITABLE",
+      "ARTIFACT_RECOVERY_FAILED",
+      "CAPABILITY_INCOMPATIBLE",
+      "LAUNCH_COMMAND_NOT_FOUND",
       "APP_START_FAILED",
+      "PROCESS_NOT_FOUND",
+      "PROCESS_INSPECTION_DENIED",
+      "PROCESS_INSPECTION_UNAVAILABLE",
+      "PROCESS_INSPECTION_TIMED_OUT",
+      "PROCESS_INSPECTION_INVALID_RESPONSE",
       "WEBDRIVER_NOT_READY",
       "SESSION_CREATE_FAILED",
       "SESSION_NOT_ACTIVE",
@@ -53,6 +62,31 @@ describe("PumarejoError", () => {
       cause: new Error(secret),
     });
 
+    expect(JSON.stringify(toErrorEnvelope(error))).not.toContain(secret);
+  });
+
+  it("exposes safe process-inspection context without leaking its cause", () => {
+    const secret = "sensitive-cim-output";
+    const error = new PumarejoError("PROCESS_INSPECTION_DENIED", {
+      cause: new Error(secret),
+      diagnostic: {
+        check: "Windows process ownership via CIM",
+        applicationStarted: true,
+        cleanup: "terminated",
+        webdriverSessionCreated: false,
+      },
+    });
+
+    expect(toErrorEnvelope(error)).toMatchObject({
+      code: "PROCESS_INSPECTION_DENIED",
+      phase: "process-inspection",
+      diagnostic: {
+        check: "Windows process ownership via CIM",
+        applicationStarted: true,
+        cleanup: "terminated",
+        webdriverSessionCreated: false,
+      },
+    });
     expect(JSON.stringify(toErrorEnvelope(error))).not.toContain(secret);
   });
 

@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createConnection } from "node:net";
+import { setTimeout as delay } from "node:timers/promises";
 
 import { PumarejoError } from "../shared/errors.js";
 import {
@@ -11,10 +12,26 @@ import {
   type SpawnedApplication,
 } from "./types.js";
 
-interface SystemIdentity {
+export interface SystemIdentity {
   readonly startedAt: number;
   readonly commandLine: string;
 }
+
+export type ProcessInspectionFailure =
+  | { readonly status: "access-denied"; readonly cause: unknown }
+  | { readonly status: "unavailable"; readonly cause: unknown }
+  | { readonly status: "timed-out"; readonly cause: unknown }
+  | { readonly status: "invalid-response"; readonly cause: unknown };
+
+export type SystemInspectionResult =
+  | { readonly status: "found"; readonly identity: SystemIdentity }
+  | { readonly status: "not-found" }
+  | ProcessInspectionFailure;
+
+export type ProviderOwnerResult =
+  | { readonly status: "found"; readonly pid: number }
+  | { readonly status: "not-found" }
+  | ProcessInspectionFailure;
 
 interface TrackedProcess {
   readonly child: ChildProcess;
@@ -24,12 +41,12 @@ interface TrackedProcess {
 }
 
 export interface NativeProcessOperations {
-  inspectSystem(pid: number): Promise<SystemIdentity | undefined>;
+  inspectSystem(pid: number): Promise<SystemInspectionResult>;
   terminateTree(pid: number): Promise<void>;
   providerOwner(
     rootPid: number,
     providerPort: number,
-  ): Promise<number | undefined>;
+  ): Promise<ProviderOwnerResult>;
 }
 
 function systemHash(identity: SystemIdentity): string {
@@ -40,15 +57,68 @@ function systemHash(identity: SystemIdentity): string {
 
 async function waitForSystemIdentity(
   pid: number,
-  inspect: (pid: number) => Promise<SystemIdentity | undefined>,
+  inspect: (pid: number) => Promise<SystemInspectionResult>,
+  timeoutMs: number,
+  pollMs: number,
 ): Promise<SystemIdentity> {
-  const deadline = Date.now() + 5_000;
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const identity = await inspect(pid);
-    if (identity !== undefined) return identity;
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    const result = await inspect(pid);
+    if (result.status === "found") return result.identity;
+    if (result.status !== "not-found") throw inspectionError(result);
+    await delay(pollMs);
   }
-  throw new PumarejoError("APP_START_FAILED");
+  throw new PumarejoError("PROCESS_NOT_FOUND", {
+    cause: new Error(`Process ${pid} was not found before inspection timeout.`),
+  });
+}
+
+function inspectionError(result: ProcessInspectionFailure): PumarejoError {
+  const codes = {
+    "access-denied": "PROCESS_INSPECTION_DENIED",
+    unavailable: "PROCESS_INSPECTION_UNAVAILABLE",
+    "timed-out": "PROCESS_INSPECTION_TIMED_OUT",
+    "invalid-response": "PROCESS_INSPECTION_INVALID_RESPONSE",
+  } satisfies Record<
+    ProcessInspectionFailure["status"],
+    | "PROCESS_INSPECTION_DENIED"
+    | "PROCESS_INSPECTION_UNAVAILABLE"
+    | "PROCESS_INSPECTION_TIMED_OUT"
+    | "PROCESS_INSPECTION_INVALID_RESPONSE"
+  >;
+  return new PumarejoError(codes[result.status], { cause: result.cause });
+}
+
+function observedIdentity(
+  result: SystemInspectionResult,
+): SystemIdentity | undefined {
+  if (result.status === "found") return result.identity;
+  if (result.status === "not-found") return undefined;
+  throw inspectionError(result);
+}
+
+async function waitForChildExit(
+  child: ChildProcess,
+  timeoutMs: number,
+): Promise<boolean> {
+  if (child.exitCode !== null) return true;
+  return await new Promise<boolean>((resolve) => {
+    const onExit = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      child.off("exit", onExit);
+      resolve(child.exitCode !== null);
+    }, timeoutMs);
+    timer.unref();
+    child.once("exit", onExit);
+    if (child.exitCode !== null) {
+      child.off("exit", onExit);
+      clearTimeout(timer);
+      resolve(true);
+    }
+  });
 }
 
 async function waitForPort(
@@ -90,8 +160,14 @@ async function waitForPort(
 
 export function createTrackedProcessAdapter(
   operations: NativeProcessOperations,
+  options: {
+    readonly inspectionTimeoutMs?: number;
+    readonly inspectionPollMs?: number;
+  } = {},
 ): ProcessAdapter {
   const tracked = new Map<number, TrackedProcess>();
+  const inspectionTimeoutMs = options.inspectionTimeoutMs ?? 5_000;
+  const inspectionPollMs = options.inspectionPollMs ?? 25;
 
   return {
     async spawn(request: SpawnRequest): Promise<SpawnedApplication> {
@@ -140,10 +216,39 @@ export function createTrackedProcessAdapter(
         observed = await waitForSystemIdentity(
           child.pid,
           operations.inspectSystem,
+          inspectionTimeoutMs,
+          inspectionPollMs,
         );
       } catch (error) {
+        let cleanup:
+          | "terminated"
+          | "already-exited"
+          | "survived"
+          | "not-attempted" =
+          child.exitCode === null ? "not-attempted" : "already-exited";
         if (child.exitCode === null) {
-          await operations.terminateTree(child.pid).catch(() => undefined);
+          try {
+            await operations.terminateTree(child.pid);
+            cleanup = (await waitForChildExit(child, 2_000))
+              ? "terminated"
+              : "survived";
+          } catch {
+            cleanup = child.exitCode === null ? "survived" : "terminated";
+          }
+        }
+        if (
+          error instanceof PumarejoError &&
+          error.phase === "process-inspection"
+        ) {
+          throw new PumarejoError(error.code, {
+            cause: error.cause ?? error,
+            diagnostic: {
+              check: "Windows process identity and ownership via CIM",
+              applicationStarted: true,
+              cleanup,
+              webdriverSessionCreated: false,
+            },
+          });
         }
         throw error;
       }
@@ -181,7 +286,7 @@ export function createTrackedProcessAdapter(
       const entry = tracked.get(pid);
       if (entry === undefined || entry.child.exitCode !== null)
         return undefined;
-      const observed = await operations.inspectSystem(pid);
+      const observed = observedIdentity(await operations.inspectSystem(pid));
       return observed !== undefined && systemHash(observed) === entry.systemHash
         ? entry.identity
         : undefined;
@@ -192,7 +297,7 @@ export function createTrackedProcessAdapter(
       if (entry === undefined) {
         throw new Error("Refusing to terminate an untracked process.");
       }
-      const observed = await operations.inspectSystem(pid);
+      const observed = observedIdentity(await operations.inspectSystem(pid));
       if (observed === undefined || systemHash(observed) !== entry.systemHash) {
         return;
       }
@@ -210,6 +315,11 @@ export function createTrackedProcessAdapter(
       });
     },
 
-    providerOwner: operations.providerOwner,
+    async providerOwner(rootPid, providerPort) {
+      const result = await operations.providerOwner(rootPid, providerPort);
+      if (result.status === "found") return result.pid;
+      if (result.status === "not-found") return undefined;
+      throw inspectionError(result);
+    },
   };
 }

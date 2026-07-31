@@ -46,6 +46,7 @@ function harness(
     closeProxy?: () => Promise<void>;
     terminate?: () => Promise<void>;
     inspect?: () => Promise<ProcessIdentity | undefined>;
+    providerOwnerError?: PumarejoError;
     preparedWindow?: string;
   } = {},
 ) {
@@ -179,6 +180,9 @@ function harness(
       },
       async providerOwner() {
         events.push("owner");
+        if (options.providerOwnerError !== undefined) {
+          throw options.providerOwnerError;
+        }
         ownerChecks += 1;
         if (options.failure === "owner") return undefined;
         return options.failure === "owner-race" && ownerChecks === 2 ? 80 : 79;
@@ -221,6 +225,51 @@ const launchOptions = {
 };
 
 describe("SessionManager", () => {
+  it("preserves a process-inspection cause and reports successful cleanup", async () => {
+    const cause = new Error("host denied CIM");
+    const runtime = harness({
+      providerOwnerError: new PumarejoError("PROCESS_INSPECTION_DENIED", {
+        cause,
+      }),
+    });
+
+    await expect(runtime.manager.launch(launchOptions)).rejects.toMatchObject({
+      code: "PROCESS_INSPECTION_DENIED",
+      phase: "process-inspection",
+      cause,
+      diagnostic: {
+        applicationStarted: true,
+        cleanup: "terminated",
+        webdriverSessionCreated: false,
+      },
+    });
+    expect(runtime.events).toContain("terminate");
+    expect(runtime.manager.snapshot).toEqual({ state: "idle" });
+  });
+
+  it("reports a launched process that survives failed cleanup", async () => {
+    const runtime = harness({
+      providerOwnerError: new PumarejoError("PROCESS_INSPECTION_DENIED"),
+      terminate: async () => {
+        throw new Error("taskkill denied");
+      },
+    });
+
+    await expect(runtime.manager.launch(launchOptions)).rejects.toMatchObject({
+      code: "PROCESS_INSPECTION_DENIED",
+      diagnostic: {
+        applicationStarted: true,
+        cleanup: "survived",
+        webdriverSessionCreated: false,
+      },
+    });
+    expect(runtime.manager.snapshot).toMatchObject({
+      state: "failed",
+      ownedPid: 71,
+      cleanupPending: ["application-process"],
+    });
+  });
+
   it("transitions idle -> starting -> ready -> cleaning -> idle in owned cleanup order", async () => {
     const runtime = harness();
     const phases: string[] = [];

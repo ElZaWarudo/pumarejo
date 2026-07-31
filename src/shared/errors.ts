@@ -6,7 +6,16 @@ export const PUMAREJO_ERROR_CODES = [
   "PLATFORM_UNSUPPORTED",
   "BACKGROUND_UNAVAILABLE",
   "PORT_UNAVAILABLE",
+  "ARTIFACTS_DIRECTORY_NOT_WRITABLE",
+  "ARTIFACT_RECOVERY_FAILED",
+  "CAPABILITY_INCOMPATIBLE",
+  "LAUNCH_COMMAND_NOT_FOUND",
   "APP_START_FAILED",
+  "PROCESS_NOT_FOUND",
+  "PROCESS_INSPECTION_DENIED",
+  "PROCESS_INSPECTION_UNAVAILABLE",
+  "PROCESS_INSPECTION_TIMED_OUT",
+  "PROCESS_INSPECTION_INVALID_RESPONSE",
   "WEBDRIVER_NOT_READY",
   "SESSION_CREATE_FAILED",
   "SESSION_NOT_ACTIVE",
@@ -30,7 +39,9 @@ export type PumarejoErrorPhase =
   | "configuration"
   | "integration"
   | "platform"
+  | "artifacts"
   | "launch"
+  | "process-inspection"
   | "webdriver"
   | "session"
   | "observation"
@@ -44,6 +55,19 @@ export interface ErrorEnvelope {
   readonly phase: PumarejoErrorPhase;
   readonly retryable: boolean;
   readonly suggestion: string;
+  readonly diagnostic?: ErrorDiagnostic;
+}
+
+export interface ErrorDiagnostic {
+  readonly check: string;
+  readonly applicationStarted: boolean;
+  readonly cleanup:
+    | "not-required"
+    | "terminated"
+    | "already-exited"
+    | "survived"
+    | "not-attempted";
+  readonly webdriverSessionCreated: boolean;
 }
 
 const ERROR_DEFINITIONS: Record<
@@ -92,11 +116,82 @@ const ERROR_DEFINITIONS: Record<
     retryable: true,
     suggestion: "Release the port or omit webdriverPort and retry.",
   },
+  ARTIFACTS_DIRECTORY_NOT_WRITABLE: {
+    message:
+      "The artifacts directory could not be created and verified as writable.",
+    phase: "artifacts",
+    retryable: false,
+    suggestion:
+      "Review the configured artifactsDirectory and its host filesystem permissions; no application or WebDriver session was started.",
+  },
+  ARTIFACT_RECOVERY_FAILED: {
+    message:
+      "Existing artifact state could not be validated or recovered safely.",
+    phase: "artifacts",
+    retryable: false,
+    suggestion:
+      "Inspect the artifact manifest and files for corruption or unsafe links; no application or WebDriver session was started.",
+  },
+  CAPABILITY_INCOMPATIBLE: {
+    message:
+      "The generated .pumarejo/agent-capability.json does not match the required pumarejo-agent identifier, configured window, and exact permissions.",
+    phase: "integration",
+    retryable: false,
+    suggestion:
+      "Regenerate .pumarejo/agent-capability.json with identifier pumarejo-agent and the permissions reported by pumarejo doctor before launching.",
+  },
+  LAUNCH_COMMAND_NOT_FOUND: {
+    message: "The configured launch command could not be resolved safely.",
+    phase: "launch",
+    retryable: false,
+    suggestion:
+      "Check launch.command, launch.executablePath, and launch.pathPrepend; no application or WebDriver session was started.",
+  },
   APP_START_FAILED: {
     message: "The configured application failed to start.",
     phase: "launch",
     retryable: true,
     suggestion: "Check stderr diagnostics and the approved launch profile.",
+  },
+  PROCESS_NOT_FOUND: {
+    message:
+      "The launched process was no longer present when its Windows identity was inspected.",
+    phase: "process-inspection",
+    retryable: true,
+    suggestion:
+      "Check application startup diagnostics; this happened before WebDriver or screenshot capture.",
+  },
+  PROCESS_INSPECTION_DENIED: {
+    message:
+      "Windows denied the CIM process-ownership check after the application started.",
+    phase: "process-inspection",
+    retryable: false,
+    suggestion:
+      "Review the host sandbox or policy permission for Get-CimInstance Win32_Process; this is not a WebDriver or screenshot failure.",
+  },
+  PROCESS_INSPECTION_UNAVAILABLE: {
+    message:
+      "Windows CIM process inspection was unavailable, so process ownership could not be proven.",
+    phase: "process-inspection",
+    retryable: false,
+    suggestion:
+      "Review whether the host provides PowerShell and the CIM cmdlets; this is not a WebDriver or screenshot failure.",
+  },
+  PROCESS_INSPECTION_TIMED_OUT: {
+    message:
+      "Windows CIM process inspection timed out, so process ownership could not be proven.",
+    phase: "process-inspection",
+    retryable: true,
+    suggestion:
+      "Review host policy and CIM responsiveness; this is not a WebDriver or screenshot failure.",
+  },
+  PROCESS_INSPECTION_INVALID_RESPONSE: {
+    message:
+      "Windows CIM returned an invalid process-inspection response, so ownership could not be proven.",
+    phase: "process-inspection",
+    retryable: false,
+    suggestion:
+      "Review PowerShell/CIM host diagnostics; this is not a WebDriver or screenshot failure.",
   },
   WEBDRIVER_NOT_READY: {
     message: "WebDriver did not become ready.",
@@ -195,8 +290,12 @@ export class PumarejoError extends Error {
   readonly phase: PumarejoErrorPhase;
   readonly retryable: boolean;
   readonly suggestion: string;
+  readonly diagnostic: ErrorDiagnostic | undefined;
 
-  constructor(code: PumarejoErrorCode, options?: ErrorOptions) {
+  constructor(
+    code: PumarejoErrorCode,
+    options?: ErrorOptions & { readonly diagnostic?: ErrorDiagnostic },
+  ) {
     const envelope = ERROR_DEFINITIONS[code];
     super(envelope.message, options);
     this.name = "PumarejoError";
@@ -204,6 +303,7 @@ export class PumarejoError extends Error {
     this.phase = envelope.phase;
     this.retryable = envelope.retryable;
     this.suggestion = envelope.suggestion;
+    this.diagnostic = options?.diagnostic;
   }
 
   toJSON(): ErrorEnvelope {
@@ -213,6 +313,7 @@ export class PumarejoError extends Error {
       phase: this.phase,
       retryable: this.retryable,
       suggestion: this.suggestion,
+      ...(this.diagnostic === undefined ? {} : { diagnostic: this.diagnostic }),
     };
   }
 }
