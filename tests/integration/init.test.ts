@@ -152,6 +152,9 @@ describe("Tauri project initialization", () => {
       '#[cfg(all(debug_assertions, feature = "pumarejo"))]',
     );
     expect(rust).toContain("pumarejo_builder(tauri::Builder::default())");
+    expect(rust).toContain(
+      "fn pumarejo_builder<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R>",
+    );
     expect(rust.match(/<pumarejo:begin>/g)).toHaveLength(1);
 
     const capability = JSON.parse(

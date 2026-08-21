@@ -2,6 +2,7 @@ import {
   lstat,
   mkdtemp,
   readFile,
+  readdir,
   realpath,
   rm,
   unlink,
@@ -46,6 +47,7 @@ export function modeOverlay(
   windowLabel: string,
   configuredWindows: readonly Record<string, unknown>[] = [],
   agentCapability?: Readonly<Record<string, unknown>>,
+  configuredCapabilities: readonly string[] = [],
 ): Record<string, unknown> {
   if (windowLabel.trim().length === 0 || windowLabel.length > 128) {
     throw new PumarejoError("CONFIG_INVALID");
@@ -56,7 +58,11 @@ export function modeOverlay(
         windows: [{ label: windowLabel, visible: mode === "visible" }],
         ...(agentCapability === undefined
           ? {}
-          : { security: { capabilities: [agentCapability] } }),
+          : {
+              security: {
+                capabilities: [...configuredCapabilities, agentCapability],
+              },
+            }),
       },
     };
   }
@@ -84,7 +90,11 @@ export function modeOverlay(
       windows,
       ...(agentCapability === undefined
         ? {}
-        : { security: { capabilities: [agentCapability] } }),
+        : {
+            security: {
+              capabilities: [...configuredCapabilities, agentCapability],
+            },
+          }),
     },
   };
 }
@@ -111,6 +121,58 @@ function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
+}
+
+async function configuredCapabilityIdentifiers(
+  projectRoot: string,
+  windowLabel: string,
+): Promise<readonly string[]> {
+  const directory = join(projectRoot, "src-tauri", "capabilities");
+  const entries = await readdir(directory, { withFileTypes: true }).catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return [];
+      throw error;
+    },
+  );
+  const identifiers: string[] = [];
+  for (const entry of entries.sort((left, right) =>
+    left.name.localeCompare(right.name),
+  )) {
+    if (!entry.isFile() || !/\.(?:json|toml)$/iu.test(entry.name)) {
+      continue;
+    }
+    const path = join(directory, entry.name);
+    const metadata = await lstat(path);
+    if (
+      metadata.isSymbolicLink() ||
+      metadata.size > MAX_TAURI_CONFIG_BYTES ||
+      (await realpath(path)) !== path ||
+      !isInside(projectRoot, path)
+    ) {
+      throw new PumarejoError("CONFIG_INVALID");
+    }
+    try {
+      const source = await readFile(path, "utf8");
+      const capability = record(
+        path.toLowerCase().endsWith(".toml")
+          ? parseToml(source)
+          : JSON.parse(source),
+      );
+      const identifier = capability?.identifier;
+      const windows = capability?.windows;
+      const matchesWindow =
+        windows === undefined ||
+        (Array.isArray(windows) &&
+          windows.some((window) => window === "*" || window === windowLabel));
+      if (typeof identifier === "string" && matchesWindow) {
+        identifiers.push(identifier);
+      }
+    } catch (error) {
+      if (error instanceof PumarejoError) throw error;
+      throw new PumarejoError("CONFIG_INVALID", { cause: error });
+    }
+  }
+  return identifiers;
 }
 
 function exactStringArray(
@@ -330,6 +392,10 @@ export async function createRuntimeOverlay(options: {
     agentDirectory,
     windowLabel,
   );
+  const configuredCapabilities =
+    agentCapability === undefined
+      ? []
+      : await configuredCapabilityIdentifiers(projectRoot, windowLabel);
   const directory = await mkdtemp(join(agentDirectory, "runtime-"));
   const path = join(directory, "mode-overlay.json");
   try {
@@ -341,7 +407,13 @@ export async function createRuntimeOverlay(options: {
       `${JSON.stringify(
         // Tauri applies --config with RFC 7396, so app.windows must contain
         // the complete base array rather than a partial replacement entry.
-        modeOverlay(options.mode, windowLabel, windows, agentCapability),
+        modeOverlay(
+          options.mode,
+          windowLabel,
+          windows,
+          agentCapability,
+          configuredCapabilities,
+        ),
         null,
         2,
       )}\n`,

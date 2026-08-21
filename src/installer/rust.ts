@@ -7,16 +7,12 @@ const MARKER_END = "// <pumarejo:end>";
 
 const HELPER = `${MARKER_BEGIN}
 #[cfg(all(debug_assertions, feature = "pumarejo"))]
-fn pumarejo_builder<R: tauri::Runtime>(
-    builder: tauri::Builder<R>,
-) -> tauri::Builder<R> {
+fn pumarejo_builder<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
     builder.plugin(tauri_plugin_wdio_webdriver::init())
 }
 
 #[cfg(not(all(debug_assertions, feature = "pumarejo")))]
-fn pumarejo_builder<R: tauri::Runtime>(
-    builder: tauri::Builder<R>,
-) -> tauri::Builder<R> {
+fn pumarejo_builder<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
     builder
 }
 ${MARKER_END}

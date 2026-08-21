@@ -162,7 +162,7 @@ describe("mode-specific platform launch", () => {
 
     await expect(readRuntimeOverlay(overlay.path)).resolves.toMatchObject({
       app: {
-        security: { capabilities: [agentCapability] },
+        security: { capabilities: ["default", agentCapability] },
       },
     });
     await expect(readFile(sourcePath, "utf8")).resolves.toBe(
