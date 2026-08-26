@@ -1,0 +1,14 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:15d0579b85bae5caad23c3e303308dd4b89481ef989f83aaf4eb4e995c1b441d",
+  "edit_path_found": true,
+  "planned_files": [
+    "src/platform/launch-environment.ts",
+    "src/platform/windows/environment.ts",
+    "src/platform/windows/launch.ts",
+    "tests/unit/launch-environment.test.ts",
+    "tests/unit/mode-config.test.ts",
+    "tests/unit/windows-environment.test.ts"
+  ],
+  "evidence_digest": "The Windows builder currently filters, merges, and expands supplied values but remains incomplete when ComSpec, PATHEXT, or TMP are absent. prepareWindowsLaunch receives the restricted stdio process environment and rejects before spawn. The bounded fix belongs in the existing Windows environment/launch seam with focused regression coverage; no runtime or public MCP change is required."
+}

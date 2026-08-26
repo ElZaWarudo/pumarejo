@@ -1,0 +1,39 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:8cc51a405cc8501d4c239c1bff761bb6d154ae5a7bf83ec44079cc896bf2f55e",
+  "edit_path_found": true,
+  "planned_files": [
+    "src/platform/types.ts",
+    "src/platform/tracked-process.ts",
+    "src/platform/windows/process.ts",
+    "src/platform/windows/job-object.ts",
+    "src/session/manager.ts",
+    "tests/unit/windows-job-object.test.ts",
+    "tests/unit/windows-custody.test.ts",
+    "tests/unit/windows-process.test.ts",
+    "tests/unit/process-custody.test.ts",
+    "tests/unit/session-manager.test.ts",
+    "tests/unit/session-recovery.test.ts",
+    "tests/platform/ownership-proof.test.ts",
+    "tests/platform/background-proof.test.ts",
+    "tests/release/release-safety.test.ts",
+    "docs/architecture.md",
+    "docs/contracts.md",
+    "docs/security.md",
+    "docs/compatibility.md"
+  ],
+  "exact_edit_path": "Embed the package-portable PowerShell/.NET PInvoke bridge in src/platform/windows/job-object.ts. Extend the internal spawn seam so Windows launches with CREATE_SUSPENDED, creates/configures a kill-on-close Job, assigns the process before ResumeThread, verifies the process handle creation identity, and returns an opaque bridge token. Track bounded framed stdout/stderr and helper exit state in tracked-process.ts. SessionManager must consume the pre-bound attachment and never reopen custody by PID. windows/process.ts must default to the Job backend and report unavailable when probing fails; windows_validated_tree remains diagnostic-only and cannot be supported.",
+  "scope_assessment": "The contract-owned scope is sufficient if the helper is embedded in job-object.ts and uses only Windows PowerShell/.NET platform APIs. Add-Type compiles only the managed PInvoke wrapper at helper startup; no downloaded or external native dependency is required. Linux custody remains unchanged.",
+  "risks": [
+    "PowerShell/.NET availability or policy restrictions must fail closed as unavailable.",
+    "CreateProcessW command-line quoting, environment blocks, redirected stdio, and bounded multiplexed framing require strict tests.",
+    "Graceful termination must use verified handle-bound window/control signaling, then bounded TerminateJobObject escalation; no taskkill or raw PID authority.",
+    "Helper EOF must close every Job handle, and normal release must leave no helper process.",
+    "Windows Job custody cannot be safely reattached by PID after controller loss; recovery must preserve ambiguity and only remove leases after absence/postconditions are proven."
+  ],
+  "verification": [
+    "pnpm vitest run tests/unit/windows-job-object.test.ts tests/unit/windows-custody.test.ts tests/unit/windows-process.test.ts tests/unit/process-custody.test.ts tests/unit/session-manager.test.ts tests/unit/session-recovery.test.ts tests/platform/ownership-proof.test.ts tests/platform/background-proof.test.ts tests/release/release-safety.test.ts",
+    "pnpm build",
+    "On Windows, run the bounded native Job Object proof with no unrelated-process launch or termination."
+  ]
+}

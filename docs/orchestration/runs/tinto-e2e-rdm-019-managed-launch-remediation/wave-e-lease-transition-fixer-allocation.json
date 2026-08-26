@@ -1,0 +1,18 @@
+{
+  "allocation": {
+    "active_by_role": {"fixer": 1},
+    "admitted": [
+      {"id":"rdm-019-managed-launch-lease-transition-fixer","priority":0,"role":"fixer"}
+    ],
+    "rejected": [],
+    "reserve_slots": 1,
+    "role_caps": {"ci-platform":1,"documenter":1,"fixer":1,"implementer":1,"integrator":1,"planner":1,"reviewer":2,"security":1},
+    "schema_version": 1,
+    "total_slots": 9,
+    "usable_slots": 8
+  },
+  "cap_reasons": ["last-wave-not-green"],
+  "green_wave_streak": 0,
+  "implementer_cap": 1,
+  "schema_version": 1
+}

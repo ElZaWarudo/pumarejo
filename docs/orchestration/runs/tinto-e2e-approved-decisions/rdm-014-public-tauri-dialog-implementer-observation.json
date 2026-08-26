@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "contract_hash": "sha256:74098a80385d9b7af884b0e9c683996e23c403fe7cef4e3a81f338809f0bdaae",
+  "worker_id": "rdm014_dialog_implementer",
+  "profile": "luna_xhigh",
+  "started_at_ms": 1787657600000,
+  "owned_files": [
+    "src/mcp/domain-ports.ts",
+    "src/mcp/runtime.ts",
+    "src/mcp/schemas.ts",
+    "src/mcp/server.ts",
+    "src/mcp/tools/index.ts",
+    "tests/contract/mcp-server.test.ts",
+    "tests/unit/mcp-runtime.test.ts",
+    "docs/contracts.md",
+    "docs/security.md"
+  ],
+  "changed_files": [
+    "src/mcp/domain-ports.ts",
+    "src/mcp/runtime.ts",
+    "src/mcp/server.ts",
+    "src/mcp/tools/index.ts",
+    "tests/contract/mcp-server.test.ts",
+    "tests/unit/mcp-runtime.test.ts",
+    "docs/contracts.md",
+    "docs/security.md"
+  ],
+  "changed_files_source": "root-diff",
+  "checkpoint_count": 1,
+  "checkpoint": {
+    "event": "discovery_complete",
+    "discovery_complete_at_ms": 1787657610000,
+    "edit_path_found": true,
+    "planned_files": [
+      "src/mcp/domain-ports.ts",
+      "src/mcp/runtime.ts",
+      "src/mcp/schemas.ts",
+      "src/mcp/server.ts",
+      "src/mcp/tools/index.ts",
+      "tests/contract/mcp-server.test.ts",
+      "tests/unit/mcp-runtime.test.ts",
+      "docs/contracts.md",
+      "docs/security.md"
+    ],
+    "evidence_digest": "Exact-hash discovery found the public wiring path and required explicit stale/foreign binding rejection before exposure."
+  },
+  "discovery_returned_at_ms": 1787657620000,
+  "interventions_sent": ["dispatch_implementation"],
+  "implementation_started_at_ms": 1787657630000,
+  "first_change_at_ms": 1787657640000,
+  "last_required_command_finished_at_ms": 1787658250000,
+  "returned_at_ms": 1787658260000,
+  "phase_duration_ms": {"discovery": 20000, "implementation": 630000},
+  "verification_manifest": {
+    "focused": [
+      "pnpm vitest run tests/contract/mcp-server.test.ts tests/unit/mcp-runtime.test.ts tests/unit/native-control.test.ts",
+      "pnpm build"
+    ],
+    "natural": [],
+    "max_retries_per_command": 1
+  },
+  "interventions": [],
+  "final": {
+    "status": "done",
+    "phase": "closeout",
+    "remaining_actions": [],
+    "terminal_ready": true,
+    "acceptance_criteria_resolved": true,
+    "acceptance_evidence": [
+      {"criterion_id": "DIALOG-AC-1", "status": "satisfied", "evidence": "Exactly one additive strict tauri_dialog tool is exposed."},
+      {"criterion_id": "DIALOG-AC-2", "status": "satisfied", "evidence": "Runtime routing and fail-closed binding checks are covered."},
+      {"criterion_id": "DIALOG-AC-3", "status": "satisfied", "evidence": "Session, authorization, abort, validation, and sanitization coverage passed."},
+      {"criterion_id": "DIALOG-AC-4", "status": "satisfied", "evidence": "74 focused tests and build passed."}
+    ],
+    "last_required_command": "pnpm vitest run tests/contract/mcp-server.test.ts tests/unit/mcp-runtime.test.ts tests/unit/native-control.test.ts",
+    "verification": {
+      "attempted": [
+        {"command": "pnpm vitest run tests/contract/mcp-server.test.ts tests/unit/mcp-runtime.test.ts tests/unit/native-control.test.ts", "attempts": 2, "outcome": "passed"},
+        {"command": "pnpm build", "attempts": 1, "outcome": "passed"}
+      ],
+      "skipped": []
+    },
+    "verification_commands_run": [
+      "pnpm vitest run tests/contract/mcp-server.test.ts tests/unit/mcp-runtime.test.ts tests/unit/native-control.test.ts",
+      "pnpm build",
+      "pnpm vitest run tests/contract/mcp-server.test.ts tests/unit/mcp-runtime.test.ts tests/unit/native-control.test.ts"
+    ],
+    "unowned_failures": [],
+    "scope_extension": null
+  }
+}

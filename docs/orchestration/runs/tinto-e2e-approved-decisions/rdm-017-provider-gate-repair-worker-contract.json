@@ -1,0 +1,99 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "A fresh initialized fixture passes doctor with integration.manifest and integration.debug-registration ready, while existing provider drift and unrelated-content tests remain fail-closed and attribution-aware.",
+      "id": "REPAIR-AC-1"
+    },
+    {
+      "description": "Package contract tests invoke pnpm correctly whether npm_execpath/PUMAREJO_PNPM_CLI is a command name or a JavaScript path, with shell disabled.",
+      "id": "REPAIR-AC-2"
+    },
+    {
+      "description": "Init tests assert the deterministic five base entries plus the curated provider allowlist, and the forged-manifest remove test again proves no deletion occurs.",
+      "id": "REPAIR-AC-3"
+    },
+    {
+      "description": "The exact provider-focused suite, build, and pack dry-run pass.",
+      "id": "REPAIR-AC-4"
+    }
+  ],
+  "closed_decisions": [
+    "Keep the approved curated bundled provider, project-relative Cargo path, per-file attribution, atomic staging, fail-closed doctor, and exact-file removal design unchanged.",
+    "Doctor must compare staged provider contents with the current curated package bundle and must report a fresh unchanged initialization as ready.",
+    "Package contract tests must support npm_execpath values that are either an executable command such as pnpm or a JavaScript CLI path, on Windows and non-Windows hosts, without shell interpolation.",
+    "The fresh-init manifest contains five non-provider changes plus exactly PROVIDER_SOURCE_ALLOWLIST.length provider changes; assertions should express that invariant rather than a magic total.",
+    "The forged-manifest removal test must initialize successfully, forge an unsafe entry, and prove removal rejects before mutating the target file."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/provider-source.test.ts tests/unit/attributed-drift.test.ts tests/integration/init.test.ts tests/integration/remove.test.ts tests/integration/doctor.test.ts tests/contract/package.test.ts tests/release/release-safety.test.ts tests/platform/cargo-proof.test.ts tests/platform/provider-proof.test.ts",
+        "pnpm build",
+        "pnpm pack:check"
+      ],
+      "max_retries_per_command": 1,
+      "natural": []
+    }
+  },
+  "contract_hash": "sha256:0f8e4582b4591d456fd49c1c48127688a297ef083c623e014e3e97f71c467cbe",
+  "contract_id": "tinto-e2e-approved-decisions:rdm-017-provider-gate-repair",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "extra_verification": "forbidden",
+    "fix_rounds": 1,
+    "implementation_rounds": 1,
+    "review_rounds": 0
+  },
+  "forbidden_changes": [
+    "Do not edit provider source, provider staging/removal production logic other than the missing doctor import, public MCP/dialog behavior, process custody, dependencies/lockfiles, docs, queue/blocker/release files, git, Jira, or pull requests.",
+    "Do not weaken fail-closed provider hash, path, symlink, attribution, or removal checks.",
+    "Do not use shell=true or interpolate package-manager commands into a shell string."
+  ],
+  "lane": "deep",
+  "objective": "Repair the bounded provider delivery gate failures without changing the approved delivery design: restore doctor hash verification, make package tests invoke pnpm portably, and correct stale or accidentally altered integration assertions.",
+  "owned_files": [
+    "src/installer/doctor.ts",
+    "tests/contract/package.test.ts",
+    "tests/integration/init.test.ts",
+    "tests/integration/remove.test.ts",
+    "tests/integration/doctor.test.ts"
+  ],
+  "profile": "luna_xhigh",
+  "required_certifications": [],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-017-portable-provider-delivery-worker-contract.json",
+    "src/installer/doctor.ts",
+    "src/installer/manifest.ts",
+    "src/installer/provider-source.ts",
+    "tests/contract/package.test.ts",
+    "tests/integration/init.test.ts",
+    "tests/integration/remove.test.ts",
+    "tests/integration/doctor.test.ts"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "discovery-checkpoint",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-017-provider-gate-repair"
+}

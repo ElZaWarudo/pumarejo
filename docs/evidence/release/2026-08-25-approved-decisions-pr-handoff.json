@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "packet_id": "tinto-e2e-approved-decisions-pr-handoff",
+  "captured_at": "2026-08-25T17:30:50Z",
+  "base_revision": "23fe76ecce1b3cbe8bd58e79ef31518e2d3b8f53",
+  "branch": "codex/tinto-e2e-reliability",
+  "intended_base": "main",
+  "readiness": {
+    "pull_request": "ready",
+    "merge": "not-authorized",
+    "publication": "blocked-pending-rdm-019-and-rdm-023-full-matrix"
+  },
+  "approved_scope": [
+    "additive public tauri_dialog API and authorization boundary",
+    "portable attributable bundled provider delivery and reversible Cargo integration",
+    "identity-bound Windows Job Object managed-launch custody",
+    "release-gate formatting and Windows ACL module-resolution hardening"
+  ],
+  "verification": {
+    "aggregate": "pnpm validate passed: build, typecheck, lint, formatting, 723 tests passed, 19 intentional skips, and pack verification",
+    "real_tinto": "Disposable Windows Tinto proof passed public tool listing, managed READY launch, surface discovery, snapshot, first close idle, ready doctor, and exact original Cargo SHA restoration",
+    "public_dialog_fingerprint": "sha256:11ff635d0684aca62c935ac113279be9bf11ef9442d931423e9453dd6041f61d",
+    "provider_fingerprint": "sha256:7b127853bdec851312d43803972456ae90ad7e46ef0989f06b491887c2cd0942",
+    "job_object_fingerprint": "sha256:a2bace65a959dd29c1ca05d97c49fba672022425be1c04187bed30543c834995"
+  },
+  "certified_digests": {
+    "public_dialog": "sha256:698280461fab03f6a8e19647d4e4276b3407bb927e04919d7e880db9383580b9",
+    "provider_delivery": "sha256:8c998eb29861cfe6c75b22ea7796ac333d633371683a8a9c949333d3bb0f83ad",
+    "windows_job_object": "sha256:81a34fc3f69f4eb47e978d1b973b787725eec7f136a0c469edd6ebfc98cc1f61"
+  },
+  "certificates": [
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-014-public-tauri-dialog-final-reviewer-certificate.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-014-public-tauri-dialog-final-security-certificate.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-017-provider-bound-release-reviewer-certificate.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-017-provider-bound-release-security-certificate.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-016-job-release-reviewer-certificate.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-016-job-release-security-certificate.json"
+  ],
+  "remaining_full_release_gates": [
+    "Complete the full RDM-019 real-Tinto composer/dialog denial-and-grant/timeout-disconnect journey.",
+    "Complete the required RDM-023 Node 22/24 and Windows/Linux platform matrix on the PR revision.",
+    "Do not merge or publish from this packet without a recomputed all-required-pass release packet."
+  ],
+  "jira_policy": "skip-no-provider-configured",
+  "release_action": "Commit the approved initiative changes, push the branch, and open a pull request; do not merge, publish, deploy, or mutate Jira."
+}

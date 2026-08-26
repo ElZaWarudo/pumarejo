@@ -1,0 +1,38 @@
+{
+  "acceptance_criteria": [
+    {
+      "id": "ACL-AC-1",
+      "description": "Windows ACL identity and verification scripts resolve Microsoft.PowerShell.Security from the absolute SystemRoot Windows PowerShell module directory, never from ambient PowerShell Core or user module paths."
+    },
+    {
+      "id": "ACL-AC-2",
+      "description": "The injected-runner test proves the bounded PSModulePath, and the native current-host owner-only test passes."
+    },
+    {
+      "id": "ACL-AC-3",
+      "description": "Focused artifact permission tests, lint, and typecheck pass without weakening ACL verification or shell isolation."
+    }
+  ],
+  "closed_decisions": [
+    "The failure is a module-shadowing collision: the inherited PSModulePath exposes a PowerShell Core Microsoft.PowerShell.Security module before the Windows PowerShell module.",
+    "Use only the absolute SystemRoot WindowsPowerShell v1.0 Modules directory for the child PSModulePath; do not import ambient user, project, cache, or PowerShell Core modules.",
+    "Keep powershell.exe and icacls.exe absolute, shell false, current-SID ownership, protected ACL, one-rule, and full-control verification unchanged."
+  ],
+  "commands": {
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/artifact-permissions.test.ts",
+        "pnpm eslint src/artifacts/permissions.ts tests/unit/artifact-permissions.test.ts",
+        "pnpm typecheck"
+      ],
+      "max_retries_per_command": 1
+    }
+  },
+  "contract_hash": "sha256:8f7bd4608189d4e702aeccec07bc7b4cc595475d43e6b61f471f631abee76b88",
+  "owned_files": [
+    "src/artifacts/permissions.ts",
+    "tests/unit/artifact-permissions.test.ts"
+  ],
+  "risk": "high",
+  "unit_id": "rdm-023-windows-acl-module-resolution"
+}

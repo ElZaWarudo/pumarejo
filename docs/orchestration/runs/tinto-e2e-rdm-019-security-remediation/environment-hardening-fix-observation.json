@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "contract_hash": "sha256:76475e9e85b363eb8567c0c9791ac810d738ae832046eeed0787c5c5faf5e5ca",
+  "worker_id": "rdm017_environment_hardening_implementer",
+  "profile": "luna_xhigh",
+  "started_at_ms": 1787653800000,
+  "changed_files": [
+    "src/platform/windows/environment.ts",
+    "src/platform/launch-environment.ts",
+    "tests/unit/windows-environment.test.ts"
+  ],
+  "changed_files_source": "root-diff",
+  "checkpoint_count": 1,
+  "checkpoint": {
+    "event": "discovery_complete",
+    "discovery_complete_at_ms": 1787653801000,
+    "edit_path_found": true,
+    "planned_files": [
+      "src/platform/windows/environment.ts",
+      "src/platform/launch-environment.ts",
+      "tests/unit/windows-environment.test.ts",
+      "tests/unit/launch-environment.test.ts"
+    ],
+    "evidence_digest": "The prior exact-diff security certificate bounded the fix to final internal-overlay expansion and final-pass value-size enforcement in the existing owned edit path."
+  },
+  "discovery_returned_at_ms": 1787653802000,
+  "interventions_sent": ["dispatch_implementation"],
+  "implementation_started_at_ms": 1787653803000,
+  "first_change_at_ms": 1787653810000,
+  "last_required_command_finished_at_ms": 1787653960000,
+  "returned_at_ms": 1787653970000,
+  "phase_duration_ms": {
+    "discovery": 2000,
+    "implementation": 167000
+  },
+  "command_evidence": {
+    "trust": "self-reported",
+    "commands": [
+      {"kind":"verification","command":"pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts"},
+      {"kind":"verification","command":"pnpm build"},
+      {"kind":"verification","command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"}
+    ]
+  },
+  "certifications": [
+    {"role":"reviewer","actor_id":"rdm017-environment-reviewer","status":"passed","contract_hash":"sha256:76475e9e85b363eb8567c0c9791ac810d738ae832046eeed0787c5c5faf5e5ca","diff_digest":"sha256:0180f5954bec370025edfaf3866e9d9d8d323ed4dbb26ea1e5b3b630ba7d3747","findings":[]},
+    {"role":"security-sentinel","actor_id":"rdm017-environment-security","status":"passed","contract_hash":"sha256:76475e9e85b363eb8567c0c9791ac810d738ae832046eeed0787c5c5faf5e5ca","diff_digest":"sha256:0180f5954bec370025edfaf3866e9d9d8d323ed4dbb26ea1e5b3b630ba7d3747","findings":[]}
+  ],
+  "final": {
+    "status": "done",
+    "phase": "closeout",
+    "remaining_actions": [],
+    "terminal_ready": true,
+    "acceptance_criteria_resolved": true,
+    "acceptance_evidence": [
+      {"criterion_id":"WEH-AC-1","status":"satisfied","evidence":"Nested expansion and safe-default reconstruction remain passing. Contract hash sha256:76475e9e85b363eb8567c0c9791ac810d738ae832046eeed0787c5c5faf5e5ca."},
+      {"criterion_id":"WEH-AC-2","status":"satisfied","evidence":"Internal overlay unresolved/secret values are rejected in the bounded final expansion pass, and final token-free replacements enforce maxValueLength."},
+      {"criterion_id":"WEH-AC-3","status":"satisfied","evidence":"Local-drive-only path hardening remains passing with no unsafe derived defaults."},
+      {"criterion_id":"WEH-AC-4","status":"satisfied","evidence":"Focused tests passed (45 passed, 2 skipped), build passed, and the real-Tinto probe exited successfully with first-close idle."}
+    ],
+    "last_required_command": "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+    "verification": {
+      "attempted": [
+        {"command":"pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts","attempts":1,"outcome":"passed"},
+        {"command":"pnpm build","attempts":1,"outcome":"passed"},
+        {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","attempts":1,"outcome":"passed"}
+      ],
+      "skipped": []
+    },
+    "verification_commands_run": [
+      "pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts",
+      "pnpm build",
+      "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+    ],
+    "unowned_failures": [],
+    "scope_extension": null
+  }
+}

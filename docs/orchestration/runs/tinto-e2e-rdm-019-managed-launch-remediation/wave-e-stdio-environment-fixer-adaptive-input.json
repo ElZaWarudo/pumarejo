@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "total_slots": 9,
+  "reserve_slots": 1,
+  "role_caps": {"implementer":2,"reviewer":2,"security":1,"ci-platform":1,"integrator":1,"fixer":1,"planner":1,"documenter":1},
+  "scale_authorized": false,
+  "review_capacity": 2,
+  "wave_history": [
+    {"result":"partial","scope_violations":0,"merge_conflicts":0,"review_lagging":false},
+    {"result":"failed","scope_violations":0,"merge_conflicts":0,"review_lagging":false}
+  ],
+  "requests": [
+    {
+      "id":"rdm-019-managed-launch-stdio-environment-fixer",
+      "role":"fixer",
+      "priority":0,
+      "owned_paths":[
+        "src/mcp/runtime.ts",
+        "src/platform/launch-environment.ts",
+        "src/platform/windows/environment.ts",
+        "src/platform/windows/launch.ts",
+        "tests/unit/launch-environment.test.ts",
+        "tests/unit/mode-config.test.ts",
+        "tests/unit/windows-environment.test.ts"
+      ],
+      "risk_surfaces":["security","release","environment"],
+      "unresolved_dependencies":[],
+      "blocked":false
+    }
+  ]
+}

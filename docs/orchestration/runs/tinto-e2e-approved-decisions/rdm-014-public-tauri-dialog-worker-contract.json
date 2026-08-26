@@ -1,0 +1,108 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "MCP listTools exposes exactly one additive tauri_dialog entry with the existing strict bounded dialog schema and a description that states the explicit authorization boundary.",
+      "id": "DIALOG-AC-1"
+    },
+    {
+      "description": "tauri_dialog routes its validated input and AbortSignal through PumarejoDomainPorts.dialog and PumarejoRuntime.dialog; unsupported ports fail with a sanitized integration error, and supplied stale or foreign bindings fail closed.",
+      "id": "DIALOG-AC-2"
+    },
+    {
+      "description": "Contract and runtime tests prove detect, authorized accept/cancel routing, invalid-input rejection, session scoping, and absence of provider identifiers, grants, nonces, paths, and raw causes in public output.",
+      "id": "DIALOG-AC-3"
+    },
+    {
+      "description": "Focused contract/runtime tests and the TypeScript build pass without regressions to the existing public tool set.",
+      "id": "DIALOG-AC-4"
+    }
+  ],
+  "closed_decisions": [
+    "The public API addition is exactly one additive MCP tool named tauri_dialog; existing tools and names remain unchanged.",
+    "The tool uses the existing strict dialog input schema and PumarejoRuntime.dialog authorization path; no second authorization path or provider endpoint is introduced.",
+    "Detect is observational. Accept and cancel require explicit authorize=true and an effective current surfaceRef/generation binding; omitted binding fields may derive from the active snapshot, while explicitly supplied stale or foreign fields fail closed.",
+    "Public results and errors remain bounded and sanitized and must not disclose provider instance identifiers, grants, nonces, paths, or raw causes."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/contract/mcp-server.test.ts tests/unit/mcp-runtime.test.ts tests/unit/native-control.test.ts",
+        "pnpm build"
+      ],
+      "max_retries_per_command": 1,
+      "natural": []
+    }
+  },
+  "contract_hash": "sha256:74098a80385d9b7af884b0e9c683996e23c403fe7cef4e3a81f338809f0bdaae",
+  "contract_id": "tinto-e2e-approved-decisions:rdm-014-public-tauri-dialog",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "extra_verification": "forbidden",
+    "fix_rounds": 1,
+    "implementation_rounds": 1,
+    "review_rounds": 1
+  },
+  "forbidden_changes": [
+    "Do not edit files outside owned_files.",
+    "Do not broaden the dialog schema, change the provider implementation, installer, dependencies, vendored provider, process custody, manifests, lockfiles, queue/blocker/release files, git, Jira, or pull requests.",
+    "Do not add implicit authorization, wildcard authorization, dialog polling, arbitrary OS-dialog control, provider endpoint exposure, or reusable grants.",
+    "Do not rename, remove, reorder semantically, or weaken validation for existing public MCP tools."
+  ],
+  "lane": "deep",
+  "objective": "Expose the already implemented launch-scoped native dialog boundary as the additive public MCP tool tauri_dialog without weakening authorization, freshness, or sanitization guarantees.",
+  "owned_files": [
+    "src/mcp/domain-ports.ts",
+    "src/mcp/runtime.ts",
+    "src/mcp/schemas.ts",
+    "src/mcp/server.ts",
+    "src/mcp/tools/index.ts",
+    "tests/contract/mcp-server.test.ts",
+    "tests/unit/mcp-runtime.test.ts",
+    "docs/contracts.md",
+    "docs/security.md"
+  ],
+  "profile": "luna_xhigh",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "required_context": [
+    "docs/plans/tinto-e2e-reliability/initiative-requirements.md",
+    "src/mcp/schemas.ts",
+    "src/mcp/runtime.ts",
+    "src/mcp/domain-ports.ts",
+    "src/mcp/server.ts",
+    "src/mcp/tools/index.ts",
+    "src/webdriver/native-control.ts",
+    "tests/contract/mcp-server.test.ts",
+    "tests/unit/mcp-runtime.test.ts",
+    "docs/contracts.md",
+    "docs/security.md"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "discovery-checkpoint",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-014-public-tauri-dialog"
+}

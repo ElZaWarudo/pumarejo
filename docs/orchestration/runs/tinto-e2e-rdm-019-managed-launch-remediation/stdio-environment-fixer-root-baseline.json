@@ -1,0 +1,14 @@
+{
+  "captured_at": "2026-08-25T09:03:00Z",
+  "head": "23fe76ecce1b3cbe8bd58e79ef31518e2d3b8f53",
+  "contract_hash": "sha256:15d0579b85bae5caad23c3e303308dd4b89481ef989f83aaf4eb4e995c1b441d",
+  "files": [
+    {"path":"src/mcp/runtime.ts","sha256":"29a51cb99a1ca08f5a8b7a6a415684fce2598955703bb581b86593fbb7688d0d","git_status":" M src/mcp/runtime.ts"},
+    {"path":"src/platform/launch-environment.ts","sha256":"72c5b835d5ca89dda4a5e6ae006c52778f0b9e76a960f69a7dd2a1d411cff4da","git_status":" M src/platform/launch-environment.ts"},
+    {"path":"src/platform/windows/environment.ts","sha256":"d83cd6cda59dac3f9dbfdbd1dce1b0c3f4cb54d68203af0fa6a0daf74e96a4ea","git_status":"?? src/platform/windows/environment.ts"},
+    {"path":"src/platform/windows/launch.ts","sha256":"b36bf44a32cc5ca8a378234c6b5c7ef1e152944dff64f34bc63509ede9242187","git_status":" M src/platform/windows/launch.ts"},
+    {"path":"tests/unit/launch-environment.test.ts","sha256":"8ac950e5b91da7e482418bcbfc634ff08edb9ee53c3d1b4862a015fa7d89abab","git_status":"?? tests/unit/launch-environment.test.ts"},
+    {"path":"tests/unit/mode-config.test.ts","sha256":"eeaa63ed1d16e8936ad8fdd40a6c032d13b6614329de37e16f9ff65b49199ce0","git_status":" M tests/unit/mode-config.test.ts"},
+    {"path":"tests/unit/windows-environment.test.ts","sha256":"2869fdd30857b241a9b7a270ddc99918256447acd7f5a61c66d5128fb0c5f33d","git_status":"?? tests/unit/windows-environment.test.ts"}
+  ]
+}

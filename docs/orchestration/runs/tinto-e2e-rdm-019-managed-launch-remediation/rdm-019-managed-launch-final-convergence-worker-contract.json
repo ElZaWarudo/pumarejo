@@ -1,0 +1,103 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "The focused remediation suite passes with all managed-launch environment, runtime, custody, lease, and artifact-store checks green.",
+      "id": "FCV-AC-1"
+    },
+    {
+      "description": "The project build passes without changing the working tree.",
+      "id": "FCV-AC-2"
+    },
+    {
+      "description": "The clean real-Tinto stdio probe reaches READY, returns bounded surface and snapshot evidence, and the first close returns idle.",
+      "id": "FCV-AC-3"
+    },
+    {
+      "description": "No files change during this validation unit and no out-of-scope command or mutation occurs.",
+      "id": "FCV-AC-4"
+    }
+  ],
+  "closed_decisions": [
+    "Root aggregate verification passed 124 focused tests with 2 skips, pnpm build, and the real-Tinto stdio probe with READY and first close idle.",
+    "Prior worker terminals failed strict evaluation; their code is preserved but their self-reported readiness evidence is not counted.",
+    "This unit is read-only and exists only to produce contract-valid final verification evidence for the settled diff.",
+    "Public MCP dialog behavior, provider delivery, crash-recovery policy, release mutations, and all further implementation are out of scope."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts tests/integration/artifact-store.test.ts",
+        "pnpm build",
+        "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+      ],
+      "max_retries_per_command": 0,
+      "natural": []
+    }
+  },
+  "contract_hash": "sha256:89229264c1985f4e2f06646ad904165412929732450056de1d804f893d2738fe",
+  "contract_id": "tinto-e2e-rdm-019-managed-launch-remediation:rdm-019-managed-launch-final-convergence",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "extra_verification": "forbidden",
+    "fix_rounds": 0,
+    "implementation_rounds": 1,
+    "review_rounds": 1
+  },
+  "forbidden_changes": [
+    "Do not edit any file.",
+    "Do not change or weaken environment validation, process identity, custody, listener ownership, durable lease state, tests, public MCP behavior, provider/Tinto source, dependencies, manifests, lockfiles, queue/blocker/release files, commits, branches, Jira, or pull requests.",
+    "Do not run commands outside the declared read-only and verification commands."
+  ],
+  "lane": "deep",
+  "objective": "Read-only final convergence validation of the settled managed-launch remediation after root-observed focused tests, build, and real-Tinto first-close success; produce contract-valid evidence for independent certification without changing code.",
+  "owned_files": [
+    "src/platform/launch-environment.ts",
+    "src/platform/windows/environment.ts",
+    "src/platform/tracked-process.ts",
+    "src/session/manager.ts",
+    "tests/unit/windows-environment.test.ts",
+    "tests/unit/mode-config.test.ts",
+    "tests/unit/tracked-process.test.ts",
+    "tests/unit/session-manager.test.ts"
+  ],
+  "profile": "luna_xhigh",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-rdm-019-managed-launch-remediation/stdio-environment-implementer-evaluation.json",
+    "docs/orchestration/runs/tinto-e2e-rdm-019-managed-launch-remediation/close-race-implementer-evaluation.json",
+    "docs/orchestration/runs/tinto-e2e-rdm-019-managed-launch-remediation/lease-transition-implementer-evaluation.json",
+    "src/platform/launch-environment.ts",
+    "src/platform/windows/environment.ts",
+    "src/platform/tracked-process.ts",
+    "src/session/manager.ts"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "discovery-checkpoint",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-019-managed-launch-final-convergence"
+}

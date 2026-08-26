@@ -1,0 +1,13 @@
+{
+  "role": "reviewer",
+  "actor_id": "rdm016-job-release-reviewer",
+  "status": "passed",
+  "contract_hash": "sha256:8cc51a405cc8501d4c239c1bff761bb6d154ae5a7bf83ec44079cc896bf2f55e",
+  "lifecycle_contract_hash": "sha256:bbb5a45513447c07fed2991958eee0ee86031fda29e231ac0708fdb867c96eaf",
+  "remediation_contract_hash": "sha256:f8a293ded554cc65f0b1aa5fc08bc75b0a760128ee9d088a9daa007104aebe26",
+  "mechanical_lint_contract_hash": "sha256:4728f44b5461f10c0815f4547bde035e310d283f7275fcc1b51fbed7ed07474d",
+  "diff_digest": "sha256:81a34fc3f69f4eb47e978d1b973b787725eec7f136a0c469edd6ebfc98cc1f61",
+  "digest_file_count": 19,
+  "digest_convention": "Sort the 19 repository-relative POSIX paths lexicographically; hash the UTF-8 concatenation of each path, one NUL byte, the exact file bytes, and one NUL byte.",
+  "findings": []
+}

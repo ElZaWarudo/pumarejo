@@ -1,0 +1,13 @@
+{
+  "captured_at":"2026-08-25T09:17:00Z",
+  "head":"23fe76ecce1b3cbe8bd58e79ef31518e2d3b8f53",
+  "contract_hash":"sha256:588580e970ca6b67f1405e2ffedaa540225b923d404477616773d1ae77187fb6",
+  "files":[
+    {"path":"src/platform/tracked-process.ts","sha256":"ede8500ed2208ec1614a2cd1edd37a7b0adfc4f5542454ec0ddeccf8aaf1c83d","git_status":" M src/platform/tracked-process.ts"},
+    {"path":"src/platform/windows/process.ts","sha256":"a82dad2ba7a8470153f91667cbf032454326bc56a492f9a11958208d4f56097a","git_status":" M src/platform/windows/process.ts"},
+    {"path":"src/session/manager.ts","sha256":"f5dcd7d6207b87ea668cea1b16b797accca637f12fb36a86beb80dc81a9f5a1e","git_status":" M src/session/manager.ts"},
+    {"path":"tests/unit/tracked-process.test.ts","sha256":"74fe1d60e538b6e0b47afda083e255940d3cb8696632d39c27e096b3a39483d0","git_status":" M tests/unit/tracked-process.test.ts"},
+    {"path":"tests/unit/windows-process.test.ts","sha256":"5b52921ae23d00076a9e24b1d5ae427c81b48c3ce92d8c174eb1931efbdb4b96","git_status":" M tests/unit/windows-process.test.ts"},
+    {"path":"tests/unit/session-manager.test.ts","sha256":"25bb7beb1427d2100b8065a430324db3ccc8b31898d707dc98fec31ecf03d30d","git_status":" M tests/unit/session-manager.test.ts"}
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "Runtime rejects accept/cancel with authorize=false before any dialog dependency call; authorize=true requires a supported concrete current dialog.",
+      "id": "DIALOG-HARDEN-AC-1"
+    },
+    {
+      "description": "NativeDialogSession clears grants on every detection, binding, consumption, provider-decision, and postcondition non-success path, preventing later reuse.",
+      "id": "DIALOG-HARDEN-AC-2"
+    },
+    {
+      "description": "Contradictory provider states and missing/empty surface binding fail closed; public client/session projections omit provider surfaceRef and allowlist all result fields.",
+      "id": "DIALOG-HARDEN-AC-3"
+    },
+    {
+      "description": "Tests directly cover authorize=false, stale-grant reuse, contradictory state, missing surface proof, result-field injection, and all canonical/noncanonical post-decision classes; focused tests and build pass.",
+      "id": "DIALOG-HARDEN-AC-4"
+    }
+  ],
+  "closed_decisions": [
+    "Every accept/cancel MCP call requires authorize=true; authorize=false returns bounded denied state before detecting, authorizing, or deciding.",
+    "Native dialog authority is cleared whenever detection is non-supported or lacks valid private metadata, authorization cannot bind a concrete instance, surface proof is missing/mismatched, grant consumption fails, provider decision is non-supported, or postcondition verification is noncanonical.",
+    "A retained private dialog requires state supported, concrete providerDialog and public dialog metadata, a non-empty instance id, and a non-empty surfaceRef; contradictory provider responses fail closed.",
+    "WebDriverClient public dialog projection omits provider surfaceRef; providerDialog remains private for exact binding. NativeDialogSession explicitly allowlists every returned decision field and never spreads adapter objects.",
+    "Post-decision success requires exactly unavailable/provider_dialog_absent/no retained instance; direct tests cover unsupported, failed, malformed, other unavailable, unchanged, and replaced outcomes."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/native-control.test.ts tests/unit/webdriver-native-control.test.ts",
+        "pnpm build"
+      ],
+      "max_retries_per_command": 1,
+      "natural": []
+    }
+  },
+  "contract_hash": "sha256:f290916bed54ec6bc1b5a1bb64428c3375d0f1a2cd82acae2ec388114b28e5dd",
+  "contract_id": "tinto-e2e-approved-decisions:rdm-014-public-tauri-dialog-final-hardening",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "extra_verification": "forbidden",
+    "fix_rounds": 1,
+    "implementation_rounds": 1,
+    "review_rounds": 1
+  },
+  "forbidden_changes": [
+    "Do not edit files outside the six owned files.",
+    "Do not change tool names/schema, provider routes or vendored Rust, installer, packaging, custody, dependencies, manifests, lockfiles, queue/blocker/release files, git, Jira, or pull requests.",
+    "Do not preserve a grant after any non-success path and do not accept a dialog without an exact provider surface binding.",
+    "Do not expose provider instance ids, surface refs, grants, nonces, paths, raw causes, unexpected enumerable adapter fields, or expected/current binding values."
+  ],
+  "lane": "deep",
+  "objective": "Close the remaining reviewer and security findings for public tauri_dialog by making explicit authorization mandatory, clearing authority on every non-success path, rejecting contradictory or surface-unbound provider dialogs, allowlisting public results, and adding complete regression coverage.",
+  "owned_files": [
+    "src/mcp/runtime.ts",
+    "src/webdriver/native-control.ts",
+    "src/webdriver/client.ts",
+    "tests/unit/mcp-runtime.test.ts",
+    "tests/unit/native-control.test.ts",
+    "tests/unit/webdriver-native-control.test.ts"
+  ],
+  "profile": "luna_xhigh",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-014-public-tauri-dialog-fixer-worker-contract.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-014-public-tauri-dialog-fixer-reviewer-certificate.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-014-public-tauri-dialog-fixer-security-certificate.json",
+    "src/mcp/runtime.ts",
+    "src/webdriver/native-control.ts",
+    "src/webdriver/client.ts",
+    "tests/unit/mcp-runtime.test.ts",
+    "tests/unit/native-control.test.ts",
+    "tests/unit/webdriver-native-control.test.ts"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "discovery-checkpoint",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-014-public-tauri-dialog-final-hardening"
+}

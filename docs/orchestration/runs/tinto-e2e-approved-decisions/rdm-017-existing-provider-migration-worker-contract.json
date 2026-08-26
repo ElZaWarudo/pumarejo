@@ -1,0 +1,104 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "Fresh init accepts the exact supported optional registry dependency, stages 46 provider files, adds only the package-relative path plus attribution, and preserves the preexisting e2e-wdio feature/unrelated Cargo bytes.",
+      "id": "EPM-AC-1"
+    },
+    {
+      "description": "Repeated init is unchanged; doctor is ready; remove restores the exact original Cargo bytes and leaves the preexisting dependency/feature while removing only Pumarejo-owned provider staging.",
+      "id": "EPM-AC-2"
+    },
+    {
+      "description": "Wrong versions, nonoptional dependencies, existing path/git/registry/package aliases, multiline/duplicate/ambiguous shapes, forged attribution, and modified added-path projections fail closed before writes/removal.",
+      "id": "EPM-AC-3"
+    },
+    {
+      "description": "Focused init/remove/doctor/cargo/provider tests, build, pack check, and a root-owned disposable real-Tinto init/doctor/remove round trip pass.",
+      "id": "EPM-AC-4"
+    }
+  ],
+  "closed_decisions": [
+    "Root-observed real Tinto failure CARGO_DEPENDENCY_AMBIGUOUS is authoritative: its fresh source already contains exactly tauri-plugin-wdio-webdriver = { version = \"1.2.0\", optional = true } and feature e2e-wdio; Pumarejo must coexist without claiming or removing Tinto's dependency or feature.",
+    "Fresh init may add the exact PROVIDER_CARGO_PATH only when the existing dependency is an inline-table registry dependency with exactly the supported version, optional=true, no path/git/registry/package alias, and one unambiguous source line. All foreign shapes remain fail-closed.",
+    "Attribution must distinguish a Pumarejo-added path from a Pumarejo-created dependency. Removal deletes only the exact attributed path projection and its marker, restoring the pre-init dependency bytes and preserving Tinto's e2e-wdio feature and unrelated settings.",
+    "Migration must remain idempotent, hash-bound in manifest/doctor/remove, compatible with the existing v1/v2 upgrade path, and must not weaken provider staging, canonical-root, symlink, or afterHash checks.",
+    "The real proving copy is disposable; no user-owned Tinto worktree may be mutated."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/integration/init.test.ts tests/integration/remove.test.ts tests/integration/doctor.test.ts tests/unit/provider-source.test.ts tests/unit/attributed-drift.test.ts tests/platform/cargo-proof.test.ts",
+        "pnpm build",
+        "pnpm pack:check"
+      ],
+      "max_retries_per_command": 1,
+      "natural": [
+        "Root initializes, doctors, and removes the explicit disposable real-Tinto reconstruction and proves exact Cargo restoration without touching a user worktree."
+      ]
+    }
+  },
+  "contract_hash": "sha256:f137f65caec4144d009409b7985a700d9f66054fb72c05b4c4e207b18922fb28",
+  "contract_id": "tinto-e2e-approved-decisions:rdm-017-existing-provider-migration",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "extra_verification": "forbidden",
+    "fix_rounds": 1,
+    "implementation_rounds": 1,
+    "review_rounds": 1
+  },
+  "forbidden_changes": [
+    "Do not edit provider source, public dialog/process custody, dependencies/lockfiles, package contents outside existing bundle behavior, queue/blocker/release files, git, Jira, or pull requests.",
+    "Do not replace or delete a preexisting Tinto dependency/feature, accept arbitrary Cargo forms, store absolute paths, or weaken exact-hash removal/doctor checks.",
+    "Do not mutate C:/Users/User/Documents/personal/tinto or its worktrees; only the explicit OS-temp proving copy may be used by root verification."
+  ],
+  "lane": "deep",
+  "objective": "Allow fresh attributable initialization of real Tinto when it already owns the exact supported optional registry provider dependency, adding only the portable staged path and restoring the original dependency on removal.",
+  "owned_files": [
+    "src/installer/cargo.ts",
+    "src/installer/plan.ts",
+    "tests/integration/init.test.ts",
+    "tests/integration/remove.test.ts",
+    "tests/platform/cargo-proof.test.ts",
+    "docs/contracts.md",
+    "docs/security.md"
+  ],
+  "profile": "luna_xhigh",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-017-portable-provider-delivery-worker-contract.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-017-provider-converged-reviewer-certificate.json",
+    "src/installer/cargo.ts",
+    "src/installer/plan.ts",
+    "tests/integration/init.test.ts",
+    "tests/integration/remove.test.ts"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "discovery-checkpoint",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-017-existing-provider-migration"
+}

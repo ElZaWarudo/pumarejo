@@ -1,0 +1,21 @@
+{
+  "role": "reviewer",
+  "actor_id": "rdm017-provider-final-reviewer",
+  "status": "failed",
+  "contract_hash": "sha256:e1cbe78821646547a1ad8a4bb4b75d1a3bc89db3a7c920df79cc8dce22ff991e",
+  "diff_digest": "sha256:b35083d3addf7f216c0cb0ee86c9ed6882f4c78e0f02bcf4c0e73775a6c835da",
+  "findings": [
+    {
+      "severity": "p1",
+      "file": "tests/contract/package.test.ts",
+      "line": 134,
+      "reason": "The tarball test verifies installation, CLI help/version, and ESM imports only. It never initializes a copied Tauri fixture or verifies the packaged dist/provider bundle, so PROVIDER-AC-4 is unproved and the test could pass with provider delivery omitted."
+    },
+    {
+      "severity": "p1",
+      "file": "scripts/build-provider-bundle.mjs",
+      "line": 87,
+      "reason": "Only the final allowlisted path is lstat-checked. The source root and parent directories are not canonicalized or realpath-checked, so a symlinked source root or parent can cause readFile to copy content outside the explicit provider source root, violating the no-symlink/out-of-root-copy contract."
+    }
+  ]
+}

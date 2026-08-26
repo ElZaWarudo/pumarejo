@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "green_wave_streak": 0,
+  "implementer_cap": 1,
+  "cap_reasons": ["last-wave-not-green"],
+  "allocation": {
+    "schema_version": 1,
+    "total_slots": 9,
+    "reserve_slots": 1,
+    "usable_slots": 8,
+    "role_caps": {
+      "implementer": 1,
+      "reviewer": 2,
+      "security": 1,
+      "ci-platform": 1,
+      "integrator": 1,
+      "fixer": 1,
+      "planner": 1,
+      "documenter": 1
+    },
+    "active_by_role": {"implementer": 1},
+    "admitted": [{"id": "rdm-014-public-tauri-dialog", "role": "implementer", "priority": 0}],
+    "rejected": []
+  }
+}

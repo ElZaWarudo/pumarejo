@@ -1,0 +1,43 @@
+{
+  "schema_version":1,
+  "contract_id":"tinto-e2e-rdm-019-security-remediation:rdm-017-windows-environment-hardening",
+  "unit_id":"rdm-017-windows-environment-hardening",
+  "lane":"deep",
+  "profile":"luna_xhigh",
+  "objective":"Resolve the independently certified Windows environment findings by expanding proven source values before deriving defaults, rejecting self-referential/unresolved expansions, and restricting minimum-path provenance to local drive-rooted paths while preserving the restricted-stdio managed launch.",
+  "owned_files":["src/platform/windows/environment.ts","src/platform/launch-environment.ts","tests/unit/windows-environment.test.ts","tests/unit/launch-environment.test.ts"],
+  "required_context":[
+    "docs/orchestration/runs/tinto-e2e-rdm-019-managed-launch-remediation/final-convergence-v3-reviewer-certificate.json",
+    "docs/orchestration/runs/tinto-e2e-rdm-019-managed-launch-remediation/final-convergence-v3-security-certificate.json",
+    "src/platform/windows/environment.ts","src/platform/launch-environment.ts","tests/unit/windows-environment.test.ts","tests/unit/launch-environment.test.ts"
+  ],
+  "closed_decisions":[
+    "Only already allowlisted, non-secret Windows values may participate in portable expansion.",
+    "SystemRoot and TEMP may be expanded from other proven allowlisted values before deriving ComSpec and TMP.",
+    "Any remaining variable token, including a self-reference whose substitution is textually unchanged, is rejected rather than treated as resolved.",
+    "Safe minimum paths are local drive-rooted absolute paths only; UNC, extended-length, device, relative, traversal, control-character, and unresolved-variable paths are rejected.",
+    "Do not change public MCP behavior, custody semantics, dependencies, provider/Tinto sources, or release state."
+  ],
+  "forbidden_changes":[
+    "Do not edit files outside the four owned files.",
+    "Do not copy unrestricted parent environment values, expose secret values, weaken case-conflict handling, accept unresolved percent variables, or broaden safe paths to UNC/device namespaces.",
+    "Do not change custody, process termination, public MCP tools/schemas/dialog behavior, provider/Tinto source, dependencies, manifests, lockfiles, queue/blocker/release files, commits, branches, Jira, or pull requests."
+  ],
+  "acceptance_criteria":[
+    {"id":"WEH-AC-1","description":"A proven source with SystemDrive=C:, SystemRoot=%SystemDrive%\\Windows, and TEMP=%SystemRoot%\\Temp expands first and reconstructs local ComSpec/TMP with safe-default provenance."},
+    {"id":"WEH-AC-2","description":"Direct and indirect cycles, including %PATH% stored in PATH, unresolved tokens, and bounded-pass exhaustion are rejected with bounded value-free evidence."},
+    {"id":"WEH-AC-3","description":"UNC, extended-length, device, relative, traversal, control-character, and variable-bearing minimum paths remain incomplete and never produce ComSpec/TMP defaults."},
+    {"id":"WEH-AC-4","description":"Focused environment tests, build, and clean real-Tinto stdio READY/first-close-idle probe pass."}
+  ],
+  "commands":{"exact":[],"read_only_prefixes":["rg -n ","Get-Content -LiteralPath ","git diff ","git status "],"verification":{"focused":[
+    "pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts",
+    "pnpm build",
+    "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+  ],"natural":[],"max_retries_per_command":1}},
+  "execution_budget":{"discovery_passes":1,"implementation_rounds":1,"fix_rounds":1,"review_rounds":1,"extra_verification":"forbidden"},
+  "supervision":{"mode":"discovery-checkpoint","transition_after_ms":15000},
+  "terminal_protocol":{"return_when":["acceptance_criteria_resolved","required_checks_attempted","state_reconciled"],"grace_actions":0},
+  "terminal_schema":"worker-terminal-v1",
+  "required_certifications":["reviewer","security-sentinel"],
+  "evidence_policy":{"minimum_command_trust":"self-reported","changed_files_source":"root-diff"}
+}

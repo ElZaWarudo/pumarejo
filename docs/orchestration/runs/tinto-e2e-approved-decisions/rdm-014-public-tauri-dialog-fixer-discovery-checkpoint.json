@@ -1,0 +1,7 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:bf44ef1184d3424c8c9095bd3e4b315b2f9a38a15b7b3dca5c5bff57e7591c5b",
+  "edit_path_found": true,
+  "planned_files": ["src/mcp/runtime.ts", "src/webdriver/native-control.ts", "tests/unit/mcp-runtime.test.ts", "tests/unit/native-control.test.ts"],
+  "evidence_digest": "Require a concrete retained private instance before authorization; require canonical unavailable/provider_dialog_absent/no-instance after a decision; classify unchanged, replaced, unsupported, failed, malformed, and noncanonical unavailable outcomes as non-success; omit provider surfaceRef from public metadata while retaining private mismatch checks."
+}

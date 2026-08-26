@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "contract_hash": "sha256:99df74a152510b96bbb4d2cad5ae57638ffbdc8c8062d1e9e4172771083e83c2",
+  "source": "root-content-hash-before-discovery",
+  "files": [
+    {"path":"src/session/custody-lease.ts","sha256":"e900b93af17be5a57939476c3715b84bcb786cf1eee636ea4a9995cd2239b22d"},
+    {"path":"src/session/process-lease.ts","sha256":"f443dbadc815eb7d02b3ff4d4d10177dc06dc9fe4fee244642b7c9b4dd828145"},
+    {"path":"src/session/manager.ts","sha256":"c140ae63b7345580c60172ab5d16d6bf6d189f821e4d75a0e3574d03dda37cc4"},
+    {"path":"src/platform/tracked-process.ts","sha256":"21ead6d06e7129ba95a6a7483b540184015c070bad44f7604437585e8fc422f1"},
+    {"path":"tests/unit/process-lease.test.ts","sha256":"e649f2a838a67e0da7fbe5e058e0923f0dea8f869a250e05c664fbdb299542d8"},
+    {"path":"tests/unit/session-recovery.test.ts","sha256":"6014d9794d27da6ffe57fe4e14ed5df9f1190a1f9fe34c1b0016dcc03d06fbd8"},
+    {"path":"tests/unit/session-manager.test.ts","sha256":"d1feae3db58e250b75b26d1492c1d35f3ca8a18652cfc440b34e7a9028a71d3e"},
+    {"path":"tests/unit/tracked-process.test.ts","sha256":"dce056a7181fad9f41907bb58dbaaa1e8b156339ac01bd2f0bd573132dd2d7d1"}
+  ]
+}

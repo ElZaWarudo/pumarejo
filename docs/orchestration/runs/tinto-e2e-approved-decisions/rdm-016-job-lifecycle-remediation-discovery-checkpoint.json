@@ -1,0 +1,22 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:bbb5a45513447c07fed2991958eee0ee86031fda29e231ac0708fdb867c96eaf",
+  "edit_path_found": true,
+  "planned_files": [
+    "src/platform/windows/job-object.ts",
+    "src/platform/tracked-process.ts",
+    "src/platform/windows/process.ts",
+    "tests/unit/windows-job-object.test.ts",
+    "tests/unit/windows-custody.test.ts",
+    "tests/unit/windows-process.test.ts",
+    "tests/unit/process-custody.test.ts",
+    "tests/platform/ownership-proof.test.ts",
+    "tests/platform/background-proof.test.ts",
+    "tests/release/release-safety.test.ts",
+    "docs/architecture.md",
+    "docs/contracts.md",
+    "docs/security.md",
+    "docs/compatibility.md"
+  ],
+  "evidence_digest": "Cause isolated and scope sufficient. job-object.ts launches the target with bInheritHandles=true but never sets STARTF_USESTDHANDLES or separate target handles, so target stdin/stdout/stderr alias helper control streams; target bytes can consume control frames, spoof responses, or cause helper loss. tracked-process.ts skips managed output and records helper exit as target exit. send writes before registering a paired waiter, while separate resolver/failure queues leave stale entries. The helper reports terminated immediately after TerminateJobObject without waiting on the held target handle. Remediation isolates target I/O, pairs bounded request state atomically, waits on the target handle, and separates helper/target lifecycle proof."
+}

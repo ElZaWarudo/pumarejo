@@ -1,0 +1,9 @@
+{
+  "action":"contract_violation",
+  "contract_hash":"sha256:89229264c1985f4e2f06646ad904165412929732450056de1d804f893d2738fe",
+  "evidence_trust":"self-reported",
+  "metrics":null,
+  "pending_certifications":["reviewer","security-sentinel"],
+  "reasons":["invalid-terminal-shape","verification-commands-run-not-string-list"],
+  "terminal_status":"done"
+}

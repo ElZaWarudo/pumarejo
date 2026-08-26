@@ -1,0 +1,9 @@
+{
+  "captured_at":"2026-08-25T10:10:00Z","head":"23fe76ecce1b3cbe8bd58e79ef31518e2d3b8f53","contract_hash":"sha256:76475e9e85b363eb8567c0c9791ac810d738ae832046eeed0787c5c5faf5e5ca",
+  "files":[
+    {"path":"src/platform/windows/environment.ts","sha256":"5cbbc6a993c2c870b2aac33a45866232f3300a7242353889d4cbb7900934d5ea"},
+    {"path":"src/platform/launch-environment.ts","sha256":"3f445432643701cfc0b718c8ad970316d5432c1027d3d01f6b20cb36cf009582"},
+    {"path":"tests/unit/windows-environment.test.ts","sha256":"632f015e6f519e43ac219c3c96ee3c3a3902667dfbbe74038786f6d6549a910d"},
+    {"path":"tests/unit/launch-environment.test.ts","sha256":"8ac950e5b91da7e482418bcbfc634ff08edb9ee53c3d1b4862a015fa7d89abab"}
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "role": "reviewer",
+  "actor_id": "rdm017-provider-remediated-reviewer",
+  "status": "failed",
+  "contract_hash": "sha256:e1cbe78821646547a1ad8a4bb4b75d1a3bc89db3a7c920df79cc8dce22ff991e",
+  "diff_digest": "sha256:a010d51dcd38003794f8f8d1190846d5ffc4ce762377435b5a6214a8240e118c",
+  "findings": [
+    {
+      "severity": "p2",
+      "file": "src/installer/doctor.ts",
+      "line": 322,
+      "reason": "Provider manifest validation does not bind each provider entry afterHash to the staged or bundled file. A canonical manifest with a forged provider afterHash can leave doctor ready, contrary to fail-closed provider drift requirements."
+    }
+  ]
+}

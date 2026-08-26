@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "contract_id": "tinto-e2e-rdm-019-managed-launch-remediation:rdm-019-managed-launch-lease-transition-fixer",
+  "unit_id": "rdm-019-managed-launch-lease-transition-fixer",
+  "lane": "deep",
+  "profile": "luna_xhigh",
+  "objective": "Fix the proven durable-custody lease state bug where successful application cleanup persists active-to-closing but later reuses the stale active lease for the closing-to-closed transition, causing the first close to fail while a retry succeeds.",
+  "owned_files": [
+    "src/session/manager.ts",
+    "tests/unit/session-manager.test.ts"
+  ],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-rdm-019-managed-launch-remediation/rdm-019-managed-launch-close-race-fixer-worker-contract.json",
+    "docs/orchestration/runs/tinto-e2e-rdm-019-managed-launch-remediation/close-race-implementer-evaluation.json",
+    "src/session/manager.ts",
+    "src/session/process-lease.ts",
+    "tests/unit/session-manager.test.ts"
+  ],
+  "closed_decisions": [
+    "The clean real-Tinto stdio probe reaches READY and produces bounded observation evidence.",
+    "Recursive close diagnostics prove the sole first-close failure is Invalid custody lease transition active -> closed.",
+    "SessionManager stores the result of active-to-closing in this.#durableLease but keeps using the stale local active lease for closed/retryable transitions.",
+    "The fix must carry the persisted current lease value through all later transitions in the same cleanup attempt.",
+    "Do not change custody termination, ownership proof, public MCP behavior, provider protocol, environment reconstruction, or crash-recovery policy."
+  ],
+  "forbidden_changes": [
+    "Do not edit files outside the two owned files.",
+    "Do not weaken identity, nonce, custody, descendant, listener, or durable transition validation.",
+    "Do not add transition bypasses, force removal, unbounded waits, broader termination, or fallback deletion.",
+    "Do not change public MCP tools/schemas/dialog behavior, provider/Tinto source, dependencies, manifests, lockfiles, queue/blocker/release files, commits, branches, Jira, or pull requests."
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "LTF-AC-1",
+      "description": "Successful owned-process cleanup transitions the same durable lease instance active-to-closing-to-closed and removes it without an invalid stale-state transition."
+    },
+    {
+      "id": "LTF-AC-2",
+      "description": "Retryable and failed postcondition paths transition from the current persisted lease state, retain the lease, and preserve all fail-closed ownership checks."
+    },
+    {
+      "id": "LTF-AC-3",
+      "description": "Focused SessionManager tests prove successful convergence and retryable counterexamples with durable lease state validation."
+    },
+    {
+      "id": "LTF-AC-4",
+      "description": "The clean real Tinto stdio probe reaches READY, returns bounded observation evidence, succeeds on the first close with state idle, and leaves no new current-run durable lease."
+    }
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/session-manager.test.ts",
+        "pnpm build",
+        "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+      ],
+      "natural": [],
+      "max_retries_per_command": 1
+    }
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "implementation_rounds": 1,
+    "fix_rounds": 1,
+    "review_rounds": 1,
+    "extra_verification": "forbidden"
+  },
+  "supervision": {"mode":"discovery-checkpoint","transition_after_ms":15000},
+  "terminal_protocol": {
+    "return_when":["acceptance_criteria_resolved","required_checks_attempted","state_reconciled"],
+    "grace_actions":0
+  },
+  "terminal_schema":"worker-terminal-v1",
+  "required_certifications":["reviewer","security-sentinel"],
+  "evidence_policy":{"minimum_command_trust":"self-reported","changed_files_source":"root-diff"}
+}

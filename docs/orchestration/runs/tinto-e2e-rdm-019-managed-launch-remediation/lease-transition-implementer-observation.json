@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "contract_hash": "sha256:040df2d0168ed8c19dcf3a38a7ad9d4d8281dfa44411f29123f71dc6592c2dea",
+  "worker_id": "rdm-019-managed-launch-lease-transition-fixer",
+  "profile": "luna_xhigh",
+  "started_at_ms": 1787650300000,
+  "changed_files": ["src/session/manager.ts","tests/unit/session-manager.test.ts"],
+  "changed_files_source": "root-diff",
+  "checkpoint_count": 1,
+  "checkpoint": {
+    "event":"discovery_complete",
+    "discovery_complete_at_ms":1787650350000,
+    "edit_path_found":true,
+    "planned_files":["src/session/manager.ts","tests/unit/session-manager.test.ts"],
+    "evidence_digest":"The stale active durable lease must be replaced with the persisted closing lease for all later transitions."
+  },
+  "discovery_returned_at_ms":1787650350000,
+  "implementation_started_at_ms":1787650360000,
+  "interventions_sent":["dispatch_implementation"],
+  "first_change_at_ms":1787650400000,
+  "last_required_command_finished_at_ms":1787650900000,
+  "returned_at_ms":1787650910000,
+  "phase_duration_ms":{"discovery":50000,"implementation":550000},
+  "command_evidence": {
+    "trust":"self-reported",
+    "commands":[
+      {"command":"pnpm vitest run tests/unit/session-manager.test.ts","kind":"verification"},
+      {"command":"pnpm vitest run tests/unit/session-manager.test.ts","kind":"verification"},
+      {"command":"pnpm build","kind":"verification"},
+      {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","kind":"verification"}
+    ]
+  },
+  "certifications":[],
+  "final": {
+    "status":"done",
+    "phase":"closeout",
+    "remaining_actions":[],
+    "terminal_ready":true,
+    "acceptance_criteria_resolved":true,
+    "required_checks_attempted":true,
+    "state_reconciled":true,
+    "acceptance_evidence":[
+      {"criterion_id":"LTF-AC-1","status":"satisfied","evidence":"SessionManager carries the persisted closing lease into closed; tests assert active-to-closing-to-closed and removal."},
+      {"criterion_id":"LTF-AC-2","status":"satisfied","evidence":"Retryable paths assert closing-to-retryable and retained state while ownership validation is unchanged."},
+      {"criterion_id":"LTF-AC-3","status":"satisfied","evidence":"The focused SessionManager command passed all 31 tests."},
+      {"criterion_id":"LTF-AC-4","status":"satisfied","evidence":"The real Tinto probe reached READY and the first close returned idle."}
+    ],
+    "last_required_command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+    "verification": {
+      "attempted":[
+        {"command":"pnpm vitest run tests/unit/session-manager.test.ts","attempts":2,"outcome":"passed"},
+        {"command":"pnpm build","attempts":1,"outcome":"passed"},
+        {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","attempts":1,"outcome":"passed"}
+      ],
+      "skipped":[]
+    },
+    "verification_commands_run":[
+      "pnpm vitest run tests/unit/session-manager.test.ts",
+      "pnpm vitest run tests/unit/session-manager.test.ts",
+      "pnpm build",
+      "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+    ],
+    "changed_files":["src/session/manager.ts","tests/unit/session-manager.test.ts"],
+    "unowned_failures":[],
+    "scope_extension":null
+  }
+}

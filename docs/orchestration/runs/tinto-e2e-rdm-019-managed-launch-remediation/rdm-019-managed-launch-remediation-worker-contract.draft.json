@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "contract_id": "tinto-e2e-rdm-019-managed-launch-remediation:rdm-019-managed-launch-remediation",
+  "unit_id": "rdm-019-managed-launch-remediation",
+  "lane": "deep",
+  "profile": "luna_xhigh",
+  "objective": "Diagnose and fix managed stdio launch of the clean real Tinto proving copy so tauri_launch reaches READY, the original launch failure remains observable when cleanup also has trouble, and artifact/process cleanup converges idempotently without owned residue.",
+  "owned_files": [
+    "src/artifacts/store.ts",
+    "src/mcp/runtime.ts",
+    "src/platform/tracked-process.ts",
+    "src/platform/windows/launch.ts",
+    "src/platform/windows/process.ts",
+    "src/session/manager.ts",
+    "tests/integration/artifact-store.test.ts",
+    "tests/unit/mcp-runtime.test.ts",
+    "tests/unit/session-manager.test.ts",
+    "tests/unit/tracked-process.test.ts",
+    "tests/unit/windows-process.test.ts"
+  ],
+  "required_context": [
+    "docs/plans/tinto-e2e-reliability/initiative-requirements.md",
+    "docs/orchestration/compound-master/tinto-e2e-rdm-019-certification/state.md",
+    "docs/swarm/blockers.yaml",
+    "src/artifacts/store.ts",
+    "src/mcp/runtime.ts",
+    "src/platform/tracked-process.ts",
+    "src/platform/windows/launch.ts",
+    "src/platform/windows/process.ts",
+    "src/session/manager.ts",
+    "tests/integration/artifact-store.test.ts",
+    "tests/unit/mcp-runtime.test.ts",
+    "tests/unit/session-manager.test.ts",
+    "tests/unit/tracked-process.test.ts",
+    "tests/unit/windows-process.test.ts"
+  ],
+  "closed_decisions": [
+    "Use the existing clean disposable Tinto proving copy and its MSVC Rust toolchain configuration; do not retry the known-broken GNU toolchain.",
+    "Preserve the public MCP contract and leave DEC-2026-08-25-008 unresolved; this unit must not expose or rename a dialog operation.",
+    "Preserve ownership-safe process custody, link/race defenses, explicit artifact-retention policy, and the real broker-capable provider.",
+    "Cleanup failure must never replace the original managed launch failure as the observable lastFailure.",
+    "No absolute machine path may be introduced into product, package, generated, or configuration sources."
+  ],
+  "forbidden_changes": [
+    "Do not add, remove, or rename public MCP tools or schemas.",
+    "Do not change Tinto companion sources or vendor provider behavior.",
+    "Do not weaken ownership, custody, nonce, process identity, artifact identity, symlink, reparse-point, quarantine, or retention safeguards.",
+    "Do not add dependencies or edit package manifests, lockfiles, release configuration, Jira state, commits, branches, or pull requests.",
+    "Do not edit queue, blocker, initiative, roadmap, Compound state, or release evidence artifacts."
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "MLR-AC-1",
+      "description": "The managed stdio probe launches the clean real Tinto copy through tauri_launch and reaches state READY before bounded surface discovery and close."
+    },
+    {
+      "id": "MLR-AC-2",
+      "description": "When managed launch fails and cleanup also cannot complete, status and diagnostics preserve the original launch code and phase instead of masking it with CLOSE_FAILED."
+    },
+    {
+      "id": "MLR-AC-3",
+      "description": "Normal close and retry cleanup are idempotent, report truthful pending labels, and leave no Pumarejo-owned process, provider port, empty session directory, manifest, or quarantine residue for the proving run."
+    },
+    {
+      "id": "MLR-AC-4",
+      "description": "Focused runtime, session, Windows process, tracked-process, and artifact-store regression tests pass without weakening existing ownership or destructive-filesystem protections."
+    }
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "Select-String -LiteralPath ",
+      "Get-ChildItem -LiteralPath ",
+      "Test-Path -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm build",
+        "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/integration/artifact-store.test.ts",
+        "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+      ],
+      "natural": [],
+      "max_retries_per_command": 1
+    }
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "implementation_rounds": 1,
+    "fix_rounds": 2,
+    "review_rounds": 1,
+    "extra_verification": "forbidden"
+  },
+  "supervision": {
+    "mode": "discovery-checkpoint",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ],
+    "grace_actions": 0
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "evidence_policy": {
+    "minimum_command_trust": "self-reported",
+    "changed_files_source": "root-diff"
+  }
+}

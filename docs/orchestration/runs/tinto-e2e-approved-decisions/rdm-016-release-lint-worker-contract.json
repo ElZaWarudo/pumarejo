@@ -1,0 +1,30 @@
+{
+  "acceptance_criteria": [
+    {
+      "id": "LINT-AC-1",
+      "description": "The Windows Job Object seam uses a normal type-only import for SpawnRequest and preserves runtime behavior."
+    },
+    {
+      "id": "LINT-AC-2",
+      "description": "ESLint passes for the owned file and TypeScript typecheck passes."
+    }
+  ],
+  "closed_decisions": [
+    "This is a mechanical consistent-type-imports remediation only; no process-custody behavior or public contract may change."
+  ],
+  "commands": {
+    "verification": {
+      "focused": [
+        "pnpm eslint src/platform/windows/process.ts",
+        "pnpm typecheck"
+      ],
+      "max_retries_per_command": 1
+    }
+  },
+  "contract_hash": "sha256:4728f44b5461f10c0815f4547bde035e310d283f7275fcc1b51fbed7ed07474d",
+  "owned_files": [
+    "src/platform/windows/process.ts"
+  ],
+  "risk": "low",
+  "unit_id": "rdm-016-release-lint"
+}

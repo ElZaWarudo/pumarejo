@@ -1,0 +1,50 @@
+{
+  "acceptance_criteria": [
+    {
+      "id": "EOLB-AC-1",
+      "description": "A uniform Cargo source receives exactly one generated, removable EOL binding marker whose lf/crlf value must match its manifest EOL attribution; mixed sources receive neither."
+    },
+    {
+      "id": "EOLB-AC-2",
+      "description": "Doctor, repeated init, and remove fail closed when the known EOL token is swapped, the binding marker is missing/duplicated/changed, or marker and attribution disagree."
+    },
+    {
+      "id": "EOLB-AC-3",
+      "description": "Legitimate external whole-file LF/CRLF normalization remains removable and restores the recorded original EOL bytes; unrelated developer content and mixed-EOL behavior remain compatible."
+    },
+    {
+      "id": "EOLB-AC-4",
+      "description": "Focused attribution/init/remove/doctor tests, build, formatting, and pack check pass."
+    }
+  ],
+  "closed_decisions": [
+    "The manifest EOL token alone is insufficient because both known values were accepted during legitimate external normalization; bind it to an exact owned marker in Cargo source.",
+    "Use one stable generated marker carrying only lf or crlf. Validate exact count and equality with manifest attribution before any readiness or removal mutation, and remove only that marker during uninstall.",
+    "The marker text survives whole-file EOL normalization, so current line endings may differ from the recorded value while the attribution remains independently projection-bound.",
+    "Do not weaken exact created-dependency validation, path-added validation, mixed-source no-token compatibility, unrelated-content tolerance, or exact EOL restoration."
+  ],
+  "commands": {
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/attributed-drift.test.ts tests/integration/init.test.ts tests/integration/remove.test.ts tests/integration/doctor.test.ts",
+        "pnpm build",
+        "pnpm prettier --check src/installer/cargo.ts src/installer/attributed-drift.ts tests/unit/attributed-drift.test.ts tests/integration/init.test.ts tests/integration/remove.test.ts tests/integration/doctor.test.ts",
+        "pnpm pack:check"
+      ],
+      "max_retries_per_command": 1
+    }
+  },
+  "contract_hash": "sha256:de64ccc7e15b272fa8484e87dfe0b88e214f87c0c0d95007bbf6a731d489af62",
+  "owned_files": [
+    "src/installer/cargo.ts",
+    "src/installer/attributed-drift.ts",
+    "tests/unit/attributed-drift.test.ts",
+    "tests/integration/init.test.ts",
+    "tests/integration/remove.test.ts",
+    "tests/integration/doctor.test.ts",
+    "docs/contracts.md",
+    "docs/security.md"
+  ],
+  "risk": "high",
+  "unit_id": "rdm-017-eol-token-binding"
+}

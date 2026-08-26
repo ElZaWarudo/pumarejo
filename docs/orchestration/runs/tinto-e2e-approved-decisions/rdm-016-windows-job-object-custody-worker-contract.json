@@ -1,0 +1,127 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "Default Windows process adapter selects a real package-portable Job Object backend and reports supported only after a successful native capability probe with killOnClose=true.",
+      "id": "JOB-AC-1"
+    },
+    {
+      "description": "Managed launch establishes the Job boundary before descendant escape, verifies the expected process creation identity, and retains opaque handle-bound custody through inspect, graceful/escalated termination, and release.",
+      "id": "JOB-AC-2"
+    },
+    {
+      "description": "Termination and controller-loss cleanup act through the Job handle, converge for the entire owned process family, do not target a PID-reused replacement, and fail closed/retryably on malformed protocol, helper loss, identity mismatch, or unavailable native APIs.",
+      "id": "JOB-AC-3"
+    },
+    {
+      "description": "The raw-PID validated-tree fallback cannot yield a supported release-grade Windows custody capability or proof; unrelated processes and Linux custody behavior remain unchanged.",
+      "id": "JOB-AC-4"
+    },
+    {
+      "description": "Focused unit/platform/release checks, build, and Windows structural/native proof pass; docs accurately state portability, identity, helper lifecycle, failure modes, and support boundaries.",
+      "id": "JOB-AC-5"
+    }
+  ],
+  "closed_decisions": [
+    "Supported Windows managed launch must use a real Job Object whose native handle remains live for custody and whose limits include kill-on-close; the package must not depend on an external unpublished binary, absolute development path, ambient checkout, or runtime download.",
+    "Custody must be established before the launched application can create descendants outside the Job. A post-launch open-by-PID assignment alone is insufficient unless the implementation proves an equivalent no-escape launch barrier.",
+    "The backend must bind the opened/launched process to the expected creation identity before destructive authority exists, and termination must use the retained Job handle rather than taskkill or another raw PID command.",
+    "A helper or bridge that owns the Job handle must fail closed, use bounded framed communication, sanitize errors/evidence, close the Job on controller loss, and leave no independently long-lived helper after normal cleanup.",
+    "If the native Job backend is unavailable, capability and cleanup evidence must report Windows custody unavailable/non-release-grade. The windows_validated_tree raw-PID path may remain only as non-authoritative diagnostics or emergency best effort and must not satisfy supported release criteria.",
+    "Linux process-group behavior and existing identity/nonce/lease checks must remain intact. No new third-party runtime dependency or lockfile change is authorized."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/windows-job-object.test.ts tests/unit/windows-custody.test.ts tests/unit/windows-process.test.ts tests/unit/process-custody.test.ts tests/unit/session-manager.test.ts tests/unit/session-recovery.test.ts tests/platform/ownership-proof.test.ts tests/platform/background-proof.test.ts tests/release/release-safety.test.ts",
+        "pnpm build"
+      ],
+      "max_retries_per_command": 1,
+      "natural": [
+        "On a Windows host, run the repository's bounded native Job Object proof without launching or terminating unrelated processes."
+      ]
+    }
+  },
+  "contract_hash": "sha256:8cc51a405cc8501d4c239c1bff761bb6d154ae5a7bf83ec44079cc896bf2f55e",
+  "contract_id": "tinto-e2e-approved-decisions:rdm-016-windows-job-object-custody",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "extra_verification": "forbidden",
+    "fix_rounds": 1,
+    "implementation_rounds": 1,
+    "review_rounds": 1
+  },
+  "forbidden_changes": [
+    "Do not edit public MCP/dialog behavior, provider source or delivery, artifacts/observability beyond custody evidence compatibility, dependencies/lockfiles, queue/blocker/release files, git, Jira, or pull requests.",
+    "Do not claim a raw-PID revalidation followed by taskkill is identity-bound or release-grade.",
+    "Do not allow a launched child to run before the Job boundary is established, silently fall back after Job setup failure, use shell interpolation, accept unbounded helper output, expose raw command lines/nonces/paths in public evidence, or kill by PID after identity uncertainty.",
+    "Do not download or compile an ambient native dependency at package runtime."
+  ],
+  "lane": "deep",
+  "objective": "Complete the Windows Job Object custody seam with a package-portable native backend that binds custody to the launched process identity before descendant escape, terminates through the held Job handle, and removes the raw-PID validated-tree fallback from release-grade support claims.",
+  "owned_files": [
+    "src/platform/types.ts",
+    "src/platform/tracked-process.ts",
+    "src/platform/windows/process.ts",
+    "src/platform/windows/job-object.ts",
+    "src/platform/linux/process.ts",
+    "src/session/manager.ts",
+    "tests/unit/windows-job-object.test.ts",
+    "tests/unit/windows-custody.test.ts",
+    "tests/unit/windows-process.test.ts",
+    "tests/unit/process-custody.test.ts",
+    "tests/unit/session-manager.test.ts",
+    "tests/unit/session-recovery.test.ts",
+    "tests/platform/ownership-proof.test.ts",
+    "tests/platform/background-proof.test.ts",
+    "tests/release/release-safety.test.ts",
+    "docs/architecture.md",
+    "docs/contracts.md",
+    "docs/security.md",
+    "docs/compatibility.md"
+  ],
+  "profile": "luna_xhigh",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "required_context": [
+    "docs/plans/tinto-e2e-reliability/initiative-requirements.md",
+    "docs/work-packages/RDM-016-process-custody/2026-08-21-016-process-custody-work-package.md",
+    "docs/orchestration/runs/tinto-e2e-rdm-019-managed-launch-remediation/rdm-019-managed-launch-remediation-worker-contract.json",
+    "src/platform/types.ts",
+    "src/platform/tracked-process.ts",
+    "src/platform/windows/process.ts",
+    "src/platform/linux/process.ts",
+    "src/session/manager.ts",
+    "src/session/custody-lease.ts",
+    "tests/unit/windows-custody.test.ts",
+    "tests/unit/process-custody.test.ts",
+    "tests/platform/ownership-proof.test.ts"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "discovery-checkpoint",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-016-windows-job-object-custody"
+}

@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "contract_id": "tinto-e2e-rdm-019-security-remediation:rdm-019-lease-metadata-hardening",
+  "unit_id": "rdm-019-lease-metadata-hardening",
+  "lane": "deep",
+  "profile": "luna_xhigh",
+  "objective": "Resolve the independently certified durable-lease family, lease-scan fail-closed, and untracked-custody proof findings without claiming to solve identity-bound Windows termination.",
+  "owned_files": [
+    "src/session/custody-lease.ts",
+    "src/session/process-lease.ts",
+    "src/session/manager.ts",
+    "src/platform/tracked-process.ts",
+    "tests/unit/process-lease.test.ts",
+    "tests/unit/session-recovery.test.ts",
+    "tests/unit/session-manager.test.ts",
+    "tests/unit/tracked-process.test.ts"
+  ],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-rdm-019-managed-launch-remediation/final-convergence-v3-reviewer-certificate.json",
+    "docs/orchestration/runs/tinto-e2e-rdm-019-managed-launch-remediation/final-convergence-v3-security-certificate.json",
+    "docs/swarm/blockers.yaml",
+    "src/session/custody-lease.ts",
+    "src/session/process-lease.ts",
+    "src/session/manager.ts",
+    "src/platform/tracked-process.ts",
+    "tests/unit/process-lease.test.ts",
+    "tests/unit/session-recovery.test.ts",
+    "tests/unit/session-manager.test.ts",
+    "tests/unit/tracked-process.test.ts"
+  ],
+  "closed_decisions": [
+    "Persist the selected provider loopback family together with the provider port in both in-memory and durable lease state, and use that exact family for normal-close and orphan-recovery listener ownership checks.",
+    "A durable lease that contains a provider port without a valid provider family is malformed and must block launch through the existing bounded scan-failure evidence path.",
+    "Any custody lease scan exception, malformed entry, or skipped entry blocks a new launch after bounded value-free evidence; the manager must not continue into process spawn.",
+    "For identities absent from the adapter's tracked-process map, inspection absence is not exit proof and termination must remain retryable without invoking raw-PID native termination.",
+    "Identity-bound native Windows termination remains an explicit architecture blocker; this unit must preserve rather than disguise that blocker."
+  ],
+  "forbidden_changes": [
+    "Do not edit files outside the eight owned files.",
+    "Do not treat an untracked identity as already exited, remove its retryable durable lease, invoke native raw-PID termination for it, or weaken custody ownership/descendant proof.",
+    "Do not default a missing durable provider family to IPv4 or ignore lease scan exceptions, malformed entries, or skipped entries.",
+    "Do not add dependencies, implement or claim an identity-bound Windows Job Object backend, remove the supported Windows row, change public MCP tools/schemas/dialog behavior, edit provider/Tinto sources, manifests, lockfiles, queue/blocker/release files, commits, branches, Jira, or pull requests."
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "LMH-AC-1",
+      "description": "ProcessLease and CustodyLeaseRecord persist a validated ipv4/ipv6 provider family with provider-port metadata, and both normal close and orphan recovery pass the stored exact family to providerOwner."
+    },
+    {
+      "id": "LMH-AC-2",
+      "description": "A scan exception or any non-empty malformed/skipped result emits bounded value-free custody evidence and rejects launch before process spawn; valid empty scans remain transparent."
+    },
+    {
+      "id": "LMH-AC-3",
+      "description": "Untracked custody never reports already-exited solely from map absence and never invokes destructive native termination; recovery retains or transitions the durable lease as retryable."
+    },
+    {
+      "id": "LMH-AC-4",
+      "description": "Focused custody/session tests, build, and clean real-Tinto stdio READY/first-close-idle probe pass while the identity-bound Windows termination blocker remains unresolved."
+    }
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/process-lease.test.ts tests/unit/session-recovery.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts",
+        "pnpm build",
+        "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+      ],
+      "natural": [],
+      "max_retries_per_command": 1
+    }
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "implementation_rounds": 1,
+    "fix_rounds": 1,
+    "review_rounds": 1,
+    "extra_verification": "forbidden"
+  },
+  "supervision": {
+    "mode": "discovery-checkpoint",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ],
+    "grace_actions": 0
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "evidence_policy": {
+    "minimum_command_trust": "self-reported",
+    "changed_files_source": "root-diff"
+  }
+}

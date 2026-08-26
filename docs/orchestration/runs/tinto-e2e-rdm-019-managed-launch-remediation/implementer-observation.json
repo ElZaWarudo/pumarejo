@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "contract_hash": "sha256:3ca14b84a87b1c2138930bdc897dff6afeb79183b1684653511f1afe87f3d955",
+  "worker_id": "rdm019-managed-launch-implementer",
+  "profile": "luna_xhigh",
+  "started_at_ms": 1000,
+  "changed_files": [
+    "src/artifacts/store.ts",
+    "src/mcp/runtime.ts",
+    "src/session/manager.ts",
+    "tests/integration/artifact-store.test.ts",
+    "tests/unit/mcp-runtime.test.ts"
+  ],
+  "changed_files_source": "root-diff",
+  "checkpoint_count": 1,
+  "checkpoint": {
+    "event": "discovery_complete",
+    "discovery_complete_at_ms": 2000,
+    "edit_path_found": true,
+    "planned_files": [
+      "src/artifacts/store.ts",
+      "src/mcp/runtime.ts",
+      "src/platform/tracked-process.ts",
+      "src/platform/windows/launch.ts",
+      "src/platform/windows/process.ts",
+      "src/session/manager.ts",
+      "tests/integration/artifact-store.test.ts",
+      "tests/unit/mcp-runtime.test.ts",
+      "tests/unit/session-manager.test.ts",
+      "tests/unit/tracked-process.test.ts",
+      "tests/unit/windows-process.test.ts"
+    ],
+    "evidence_digest": "Owned managed-launch edit path confirmed."
+  },
+  "discovery_returned_at_ms": 2000,
+  "implementation_started_at_ms": 3000,
+  "interventions_sent": ["dispatch_implementation"],
+  "first_change_at_ms": 4000,
+  "last_required_command_finished_at_ms": 10000,
+  "returned_at_ms": 11000,
+  "phase_duration_ms": {"discovery": 1000, "implementation": 8000},
+  "command_evidence": {
+    "trust": "self-reported",
+    "commands": [
+      {"command":"pnpm build","kind":"verification"},
+      {"command":"pnpm build","kind":"verification"},
+      {"command":"pnpm build","kind":"verification"},
+      {"command":"pnpm build","kind":"verification"},
+      {"command":"pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/integration/artifact-store.test.ts","kind":"verification"},
+      {"command":"pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/integration/artifact-store.test.ts","kind":"verification"},
+      {"command":"pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/integration/artifact-store.test.ts","kind":"verification"},
+      {"command":"pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/integration/artifact-store.test.ts","kind":"verification"},
+      {"command":"pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/integration/artifact-store.test.ts","kind":"verification"},
+      {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","kind":"verification"},
+      {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","kind":"verification"},
+      {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","kind":"verification"},
+      {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","kind":"verification"},
+      {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","kind":"verification"}
+    ]
+  },
+  "certifications": [],
+  "final": {
+    "status": "needs_review",
+    "phase": "closeout",
+    "remaining_actions": ["Resolve the remaining real-probe APP_START_FAILED."],
+    "terminal_ready": false,
+    "acceptance_criteria_resolved": false,
+    "acceptance_evidence": [
+      {"criterion_id":"MLR-AC-1","status":"not_satisfied","evidence":"The required real probe still returned APP_START_FAILED."},
+      {"criterion_id":"MLR-AC-2","status":"satisfied","evidence":"Focused regression preserves the original launch error when artifact cleanup remains pending."},
+      {"criterion_id":"MLR-AC-3","status":"not_satisfied","evidence":"Focused empty-session cleanup passes, but proving-run residue is not certified."},
+      {"criterion_id":"MLR-AC-4","status":"satisfied","evidence":"The final focused suite passed 73 tests."}
+    ],
+    "last_required_command": "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+    "verification": {
+      "attempted": [
+        {"command":"pnpm build","attempts":4,"outcome":"passed"},
+        {"command":"pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/integration/artifact-store.test.ts","attempts":5,"outcome":"passed"},
+        {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","attempts":5,"outcome":"failed"}
+      ],
+      "skipped": []
+    },
+    "verification_commands_run": [
+      "pnpm build","pnpm build","pnpm build","pnpm build",
+      "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/integration/artifact-store.test.ts",
+      "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/integration/artifact-store.test.ts",
+      "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/integration/artifact-store.test.ts",
+      "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/integration/artifact-store.test.ts",
+      "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/integration/artifact-store.test.ts",
+      "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+      "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+      "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+      "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+      "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+    ],
+    "unowned_failures": ["The required real probe still reports APP_START_FAILED."]
+  }
+}

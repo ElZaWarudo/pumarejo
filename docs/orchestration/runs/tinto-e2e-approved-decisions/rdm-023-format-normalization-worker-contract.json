@@ -1,0 +1,49 @@
+{
+  "acceptance_criteria": [
+    {
+      "id": "FMT-AC-1",
+      "description": "Every path selected by the repository format:check script is rewritten only by the pinned Prettier formatter."
+    },
+    {
+      "id": "FMT-AC-2",
+      "description": "pnpm format:check passes after normalization."
+    }
+  ],
+  "closed_decisions": [
+    "This is a deterministic formatting-only gate; no manual semantic edits, generated artifacts, documentation, Git operations, or out-of-list paths are allowed.",
+    "The authoritative path set is exactly the argument list in package.json scripts.format:check."
+  ],
+  "commands": {
+    "implementation": "Run the repository-pinned Prettier with --write against exactly the paths in scripts.format:check.",
+    "verification": {
+      "focused": [
+        "pnpm format:check"
+      ],
+      "max_retries_per_command": 1
+    }
+  },
+  "contract_hash": "sha256:f0d38b264eb4dcce1c08c70c61539eca4aef04c72578c5a30040df89edd9aa11",
+  "owned_paths": [
+    "package.json",
+    "tsconfig.json",
+    "tsconfig.build.json",
+    "eslint.config.js",
+    "vitest.config.ts",
+    "src",
+    "tests/platform",
+    "tests/unit",
+    "tests/integration",
+    "tests/contract",
+    "tests/agent",
+    "tests/release",
+    "tests/fixtures/tauri-app/.pumarejo.json",
+    "tests/fixtures/tauri-app/package.json",
+    "tests/fixtures/tauri-app/src",
+    "tests/fixtures/tauri-app/src-tauri/tauri.conf.json",
+    "tests/fixtures/tauri-app/src-tauri/capabilities/default.json",
+    "tests/fixtures/projects/**/*.json",
+    "tests/fixtures/projects/**/*.json5"
+  ],
+  "risk": "low",
+  "unit_id": "rdm-023-format-normalization"
+}

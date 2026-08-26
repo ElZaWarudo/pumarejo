@@ -1,0 +1,8 @@
+{
+  "role": "reviewer",
+  "actor_id": "rdm017-environment-reviewer",
+  "status": "passed",
+  "contract_hash": "sha256:76475e9e85b363eb8567c0c9791ac810d738ae832046eeed0787c5c5faf5e5ca",
+  "diff_digest": "sha256:2f317bb124954da7e5610baa1655288a84411d71fe922fb47b1ce1f8efd238df",
+  "findings": []
+}

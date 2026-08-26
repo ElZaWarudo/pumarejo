@@ -1,0 +1,17 @@
+{
+  "role": "security-sentinel",
+  "actor_id": "rdm017-environment-security",
+  "status": "failed",
+  "contract_hash": "sha256:76475e9e85b363eb8567c0c9791ac810d738ae832046eeed0787c5c5faf5e5ca",
+  "diff_digest": "sha256:2f317bb124954da7e5610baa1655288a84411d71fe922fb47b1ce1f8efd238df",
+  "findings": [
+    {
+      "severity": "p1",
+      "evidence": "buildChildEnvironment merges filtered internalOverlay after final expansion; allowlisted internal values can bypass unresolved-token and secret-value rejection."
+    },
+    {
+      "severity": "p2",
+      "evidence": "expandValue does not recheck maxValueLength after the final permitted replacement, allowing a token-free oversized result when the bound is exceeded on the last pass."
+    }
+  ]
+}

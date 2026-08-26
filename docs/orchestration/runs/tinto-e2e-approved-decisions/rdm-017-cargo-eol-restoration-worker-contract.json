@@ -1,0 +1,98 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "Fresh init records bounded attribution for the original uniform Cargo EOL style without storing Cargo content or absolute paths.",
+      "id": "EOL-AC-1"
+    },
+    {
+      "description": "After an external whole-file LF/CRLF normalization, remove deletes only Pumarejo-owned Cargo projections and restores the original uniform EOL style and exact pre-init bytes when no other content changed.",
+      "id": "EOL-AC-2"
+    },
+    {
+      "description": "Mixed EOL inputs remain byte-preserving in ordinary init/remove; missing, duplicate, forged, or unsupported EOL attribution and modified owned projections fail closed.",
+      "id": "EOL-AC-3"
+    },
+    {
+      "description": "Focused Cargo/init/remove/doctor tests, build, and root real-Tinto cached journey plus exact hash restoration pass.",
+      "id": "EOL-AC-4"
+    }
+  ],
+  "closed_decisions": [
+    "Root proved the Cargo planner round-trips the original CRLF source exactly, while the real Tauri/Cargo launch externally normalized all 75 line endings to LF before removal.",
+    "Persist only a bounded uniform EOL attribution (LF or CRLF), never full Cargo content, line maps, paths, secrets, or raw diffs.",
+    "Normalization resilience applies only when the current Cargo file is itself uniform and all existing owned projection and manifest checks pass; mixed current content must not be globally rewritten.",
+    "Unrelated textual edits remain preserved; only line-ending style may be restored to the attributed pre-init uniform convention."
+  ],
+  "commands": {
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/attributed-drift.test.ts tests/integration/init.test.ts tests/integration/remove.test.ts tests/integration/doctor.test.ts",
+        "pnpm build",
+        "pnpm pack:check"
+      ],
+      "max_retries_per_command": 1,
+      "natural": [
+        "Root repeats cached disposable real-Tinto init/ready/surface/snapshot/close/remove and matches the original Cargo SHA-256."
+      ]
+    }
+  },
+  "contract_hash": "sha256:7649c4aa274221594d622e7f33253350cc8e28546637cc4153fe60a8cd6ebfb9",
+  "contract_id": "tinto-e2e-approved-decisions:rdm-017-cargo-eol-restoration",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "extra_verification": "forbidden",
+    "fix_rounds": 1,
+    "implementation_rounds": 1,
+    "review_rounds": 1
+  },
+  "forbidden_changes": [
+    "Do not store Cargo content, absolute paths, raw diffs, or arbitrary line-ending maps in the manifest.",
+    "Do not edit provider source, dialog/process custody, dependencies/lockfiles, public schemas outside bounded attribution, git, Jira, queue/blocker/release files, or Tinto worktrees.",
+    "Do not normalize mixed current Cargo files, weaken projection/hash validation, or remove unrelated developer content."
+  ],
+  "lane": "deep",
+  "objective": "Make attributable Cargo removal restore the original uniform line-ending convention after a real Tauri/Cargo journey normalizes the manifest.",
+  "owned_files": [
+    "src/installer/cargo.ts",
+    "src/installer/plan.ts",
+    "src/installer/attributed-drift.ts",
+    "tests/unit/attributed-drift.test.ts",
+    "tests/integration/init.test.ts",
+    "tests/integration/remove.test.ts",
+    "tests/integration/doctor.test.ts",
+    "docs/contracts.md",
+    "docs/security.md"
+  ],
+  "profile": "luna_xhigh",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-017-existing-provider-migration-v2-worker-contract.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-017-existing-provider-doctor-alignment-worker-contract.json",
+    "src/installer/cargo.ts",
+    "src/installer/plan.ts",
+    "src/installer/attributed-drift.ts",
+    "tests/integration/remove.test.ts"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "discovery-checkpoint",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-017-cargo-eol-restoration"
+}

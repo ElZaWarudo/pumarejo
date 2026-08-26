@@ -1,0 +1,7 @@
+{
+  "event":"discovery_complete",
+  "contract_hash":"sha256:040df2d0168ed8c19dcf3a38a7ad9d4d8281dfa44411f29123f71dc6592c2dea",
+  "edit_path_found":true,
+  "planned_files":["src/session/manager.ts","tests/unit/session-manager.test.ts"],
+  "evidence_digest":"terminateOwnedProcess persists active-to-closing into #durableLease but reuses the stale local durable record for retryable and closed transitions; the bounded fix and durable-state regressions are confined to the two owned files."
+}

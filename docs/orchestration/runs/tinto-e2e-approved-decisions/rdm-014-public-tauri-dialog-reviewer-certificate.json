@@ -1,0 +1,13 @@
+{
+  "role": "reviewer",
+  "actor_id": "rdm014-dialog-reviewer",
+  "status": "failed",
+  "contract_hash": "sha256:74098a80385d9b7af884b0e9c683996e23c403fe7cef4e3a81f338809f0bdaae",
+  "diff_digest": "sha256:58099f67ab31cbcacbf210cbcabd5bdfa5fc9ac70d55dd8967ac815ef7d9d590",
+  "findings": [
+    {"severity": "p1", "evidence": "NativeDialogSession treated any final detection without providerDialog as proof of disappearance, including unsupported/unavailable/failed uncertainty; success requires an explicit confirmed-absent postcondition."},
+    {"severity": "p1", "evidence": "Runtime authorized after detection without requiring a concrete current dialog instance, allowing an undefined-instance grant to match a later dialog; authorization must fail closed when no instance was observed."},
+    {"severity": "p2", "evidence": "Provider-supplied surfaceRef was forwarded into public dialog metadata without validation; it must be validated as the active public reference or omitted."},
+    {"severity": "p2", "evidence": "Worker terminal command order was invalid; root verification passed independently but worker self-report is not acceptance evidence."}
+  ]
+}

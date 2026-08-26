@@ -1,0 +1,8 @@
+{
+  "role":"security-sentinel",
+  "actor_id":"rdm019-lease-metadata-security",
+  "status":"failed",
+  "contract_hash":"sha256:99df74a152510b96bbb4d2cad5ae57638ffbdc8c8062d1e9e4172771083e83c2",
+  "diff_digest":"sha256:42a312b16410db70781590ffd8940edd9a921685e9532c011ec1cb05835f6987",
+  "findings":[{"severity":"p1","evidence":"Orphan recovery gates providerOwner on claimed.providerPid, so a valid lease with providerPort/providerFamily but no providerPid skips the exact-family listener postcondition and can be closed while its provider listener survives."}]
+}

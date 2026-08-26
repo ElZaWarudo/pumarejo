@@ -1,0 +1,17 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:74098a80385d9b7af884b0e9c683996e23c403fe7cef4e3a81f338809f0bdaae",
+  "edit_path_found": true,
+  "planned_files": [
+    "src/mcp/domain-ports.ts",
+    "src/mcp/runtime.ts",
+    "src/mcp/schemas.ts",
+    "src/mcp/server.ts",
+    "src/mcp/tools/index.ts",
+    "tests/contract/mcp-server.test.ts",
+    "tests/unit/mcp-runtime.test.ts",
+    "docs/contracts.md",
+    "docs/security.md"
+  ],
+  "evidence_digest": "The strict bounded dialog schema and launch-scoped NativeDialogSession already exist. Public wiring is absent. Explicit surface/generation values must be compared to the active snapshot or window fallback and fail closed on mismatch without echoing current values; omitted values may derive from active state. Accept/cancel require authorize=true; detect remains observational. Add one public tool, port/stub wiring, focused contract/runtime coverage, and contract/security documentation without exposing provider or grant material."
+}

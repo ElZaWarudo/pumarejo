@@ -1,0 +1,13 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:f8a293ded554cc65f0b1aa5fc08bc75b0a760128ee9d088a9daa007104aebe26",
+  "edit_path_found": true,
+  "planned_files": [
+    "src/platform/windows/job-object.ts",
+    "src/platform/tracked-process.ts",
+    "tests/unit/windows-job-object.test.ts",
+    "tests/unit/tracked-process.test.ts",
+    "tests/release/release-safety.test.ts"
+  ],
+  "evidence_digest": "Use STARTUPINFOEX with PROC_THREAD_ATTRIBUTE_HANDLE_LIST for only target stdio; terminate and bounded-wait the held suspended target on every post-CreateProcess pre-assignment failure; make attach timeout/invalid frame synchronously fail the handle, close stdin, terminate the exact helper, and await bounded helper exit; make readiness poll identity-bound target custody rather than helper exitCode. Add structural/fault-injection and bounded native proofs without raw-PID target authority."
+}

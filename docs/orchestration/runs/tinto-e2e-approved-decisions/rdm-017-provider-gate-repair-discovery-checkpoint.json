@@ -1,0 +1,13 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:0f8e4582b4591d456fd49c1c48127688a297ef083c623e014e3e97f71c467cbe",
+  "edit_path_found": true,
+  "planned_files": [
+    "src/installer/doctor.ts",
+    "tests/contract/package.test.ts",
+    "tests/integration/init.test.ts",
+    "tests/integration/remove.test.ts",
+    "tests/integration/doctor.test.ts"
+  ],
+  "evidence_digest": "Validated the repair contract and required provider-delivery context. Doctor calls contentHash without importing it, causing a caught ReferenceError and false drift/error diagnostics. Package tests pass command-name npm_execpath to Node as though it were a JavaScript path. Init still expects five total entries instead of five base entries plus PROVIDER_SOURCE_ALLOWLIST.length. The forged-manifest removal test incorrectly expects clean initialization to reject before a manifest exists. Risks: preserve fail-closed attribution/hash/path checks and shell=false package invocation. Verification: run the contract focused provider suite, pnpm build, and pnpm pack:check."
+}

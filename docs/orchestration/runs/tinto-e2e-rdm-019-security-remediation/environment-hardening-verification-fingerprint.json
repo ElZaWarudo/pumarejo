@@ -1,0 +1,28 @@
+{
+  "base_revision": "23fe76ecce1b3cbe8bd58e79ef31518e2d3b8f53",
+  "changed_paths": [
+    {
+      "digest": "sha256:15973e9c3a9e11a0cf3ee14b9300eac442ea9299563eadc232e9460f59f40018",
+      "path": "src/platform/launch-environment.ts"
+    },
+    {
+      "digest": "sha256:c9d32a9295f9efb8acc8c03001e1707c5950be51205acfad103f53c04ff460aa",
+      "path": "src/platform/windows/environment.ts"
+    },
+    {
+      "digest": "sha256:8ac950e5b91da7e482418bcbfc634ff08edb9ee53c3d1b4862a015fa7d89abab",
+      "path": "tests/unit/launch-environment.test.ts"
+    },
+    {
+      "digest": "sha256:8f3f6c87517fb19fc4bf57258cab9df0a551fc58c2b4b4b3e37e9f1bb7483569",
+      "path": "tests/unit/windows-environment.test.ts"
+    }
+  ],
+  "commands": [
+    "pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts",
+    "pnpm build",
+    "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+  ],
+  "fingerprint": "sha256:da462368bd4d05028008b4d797ef2fed2f213ff739720a4127b6d456a93652ef",
+  "schema_version": 1
+}

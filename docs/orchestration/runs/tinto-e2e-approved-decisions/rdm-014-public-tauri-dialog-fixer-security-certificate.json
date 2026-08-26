@@ -1,0 +1,13 @@
+{
+  "role": "security-sentinel",
+  "actor_id": "rdm014-public-tauri-dialog-security",
+  "status": "failed",
+  "contract_hash": "sha256:bf44ef1184d3424c8c9095bd3e4b315b2f9a38a15b7b3dca5c5bff57e7591c5b",
+  "diff_digest": "sha256:fca71d21b5c77e17d027c67bcb4152d1fc2d0e4a460d299e97aa111d82940fd9",
+  "findings": [
+    {"severity": "p1", "evidence": "Pre-decision absence, uncertainty, surface mismatch, or consume failure left the grant armed for later use."},
+    {"severity": "p1", "evidence": "Contradictory non-supported detection carrying providerDialog could retain and use authority."},
+    {"severity": "p2", "evidence": "Missing provider surfaceRef bypassed the private surface proof."},
+    {"severity": "p2", "evidence": "Non-supported provider decision results were spread rather than projected through an explicit public allowlist."}
+  ]
+}

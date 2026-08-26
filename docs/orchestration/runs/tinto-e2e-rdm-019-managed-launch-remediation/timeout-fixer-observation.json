@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "contract_hash": "sha256:62fc7085e79f6f36584ce6a99af6845d956692a1684abb8eda5c8373f938162e",
+  "worker_id": "rdm019-timeout-fixer",
+  "profile": "luna",
+  "started_at_ms": 1787647440000,
+  "changed_files": [
+    "src/session/manager.ts",
+    "tests/unit/session-manager.test.ts"
+  ],
+  "changed_files_source": "root-diff",
+  "checkpoint_count": 0,
+  "interventions_sent": [],
+  "first_change_at_ms": 1787647450000,
+  "last_required_command_finished_at_ms": 1787647490000,
+  "returned_at_ms": 1787647500000,
+  "phase_duration_ms": {
+    "implementation": 60000
+  },
+  "command_evidence": {
+    "trust": "self-reported",
+    "commands": [
+      {
+        "command": "pnpm vitest run tests/unit/session-manager.test.ts",
+        "kind": "verification"
+      },
+      {
+        "command": "pnpm build",
+        "kind": "verification"
+      },
+      {
+        "command": "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+        "kind": "verification"
+      }
+    ]
+  },
+  "certifications": [],
+  "final": {
+    "schema_version": "worker-terminal-v1",
+    "unit_id": "rdm-019-managed-launch-timeout-fixer",
+    "contract_hash": "sha256:62fc7085e79f6f36584ce6a99af6845d956692a1684abb8eda5c8373f938162e",
+    "acceptance_criteria_resolved": false,
+    "required_checks_attempted": true,
+    "state_reconciled": true,
+    "terminal_ready": true,
+    "remaining_actions": [],
+    "acceptance_evidence": [
+      {
+        "criterion_id": "TF-AC-1",
+        "status": "satisfied",
+        "evidence": "The readiness timeout defaults to 300000 ms and clamps at 600000 ms."
+      },
+      {
+        "criterion_id": "TF-AC-2",
+        "status": "satisfied",
+        "evidence": "The focused SessionManager suite passed 28 tests."
+      },
+      {
+        "criterion_id": "TF-AC-3",
+        "status": "not_satisfied",
+        "evidence": "The real stdio probe returned APP_START_FAILED."
+      }
+    ],
+    "verification_commands_run": [
+      "pnpm vitest run tests/unit/session-manager.test.ts",
+      "pnpm build",
+      "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+    ],
+    "scope_extension": null,
+    "blockers": [
+      "The clean real-Tinto stdio probe did not reach READY."
+    ],
+    "release_readiness": "not_ready",
+    "next_role": "root"
+  }
+}

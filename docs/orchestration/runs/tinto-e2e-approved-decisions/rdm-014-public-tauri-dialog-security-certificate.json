@@ -1,0 +1,8 @@
+{
+  "role": "security-sentinel",
+  "actor_id": "rdm014-public-tauri-dialog-security",
+  "status": "passed",
+  "contract_hash": "sha256:74098a80385d9b7af884b0e9c683996e23c403fe7cef4e3a81f338809f0bdaae",
+  "diff_digest": "sha256:58099f67ab31cbcacbf210cbcabd5bdfa5fc9ac70d55dd8967ac815ef7d9d590",
+  "findings": []
+}

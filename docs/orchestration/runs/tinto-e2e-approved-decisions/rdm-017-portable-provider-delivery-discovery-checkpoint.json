@@ -1,0 +1,7 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:e1cbe78821646547a1ad8a4bb4b75d1a3bc89db3a7c920df79cc8dce22ff991e",
+  "edit_path_found": true,
+  "planned_files": ["package.json", "scripts/build-provider-bundle.mjs", "src/version.ts", "src/installer/provider-source.ts", "src/installer/cargo.ts", "src/installer/manifest.ts", "src/installer/plan.ts", "src/installer/remove.ts", "src/installer/attributed-drift.ts", "src/installer/doctor.ts", "tests/unit/provider-source.test.ts", "tests/unit/attributed-drift.test.ts", "tests/integration/init.test.ts", "tests/integration/remove.test.ts", "tests/integration/doctor.test.ts", "tests/contract/package.test.ts", "tests/release/release-safety.test.ts", "tests/platform/cargo-proof.test.ts", "tests/platform/provider-proof.test.ts", "tests/fixtures/tauri-app/src-tauri/Cargo.toml", "docs/architecture.md", "docs/contracts.md", "docs/security.md", "docs/compatibility.md"],
+  "evidence_digest": "A 46-file curated text bundle covers Cargo.toml, build.rs, license/patch docs, permissions, and required Rust sources including dialog additions. Build copies only that allowlist into dist/provider; init stages it under .pumarejo/provider and writes a project-relative Cargo path. Provider-aware manifest, legacy migration, doctor/drift, exact-file removal, foreign/link refusal, tarball-consumer proof, and docs fit the owned paths."
+}

@@ -1,0 +1,34 @@
+{
+  "role": "reviewer",
+  "actor_id": "rdm016-job-final-reviewer",
+  "status": "failed",
+  "contract_hash": "sha256:8cc51a405cc8501d4c239c1bff761bb6d154ae5a7bf83ec44079cc896bf2f55e",
+  "lifecycle_contract_hash": "sha256:bbb5a45513447c07fed2991958eee0ee86031fda29e231ac0708fdb867c96eaf",
+  "diff_digest": "sha256:d512255992ca5d8846a8ba2778822de47f6837623ea4a836a08310f7744824cf",
+  "findings": [
+    {
+      "severity": "p1",
+      "file": "src/platform/windows/job-object.ts",
+      "line": 131,
+      "reason": "A suspended target is created before Job setup, but the CreateJobObjectW failure branch and the catch covering SetInformationJobObject/AssignProcessToJobObject only close the target handles (and terminate the Job, which does not contain the target on those paths). The suspended target can therefore remain orphaned indefinitely after native setup failure, violating fail-closed launch cleanup."
+    },
+    {
+      "severity": "p1",
+      "file": "src/platform/windows/job-object.ts",
+      "line": 123,
+      "reason": "CreateProcessW is called with bInheritHandles=true without an explicit inherited-handle allow-list or clearing inheritance on the helper's own controller stdin/stdout/stderr. The target receives the intended std handles, but can also inherit controller handles and consume or write the helper protocol, so protocol spoofing and controller-loss signals remain possible."
+    },
+    {
+      "severity": "p1",
+      "file": "src/platform/windows/job-object.ts",
+      "line": 472,
+      "reason": "The attached-frame waiter has a timeout, but a timeout is not caught to close/kill the helper or dispose the native Job. managedLaunch rejects while the helper and potentially its target remain alive and untracked, leaving a bounded wait with an unbounded custody leak."
+    },
+    {
+      "severity": "p2",
+      "file": "src/platform/tracked-process.ts",
+      "line": 404,
+      "reason": "Managed Windows launches pass the PowerShell controller ChildProcess to waitForPort. That process is the helper, not the target; a target that exits before readiness leaves the helper waiting for control input, so readiness waits until the full timeout instead of failing on target exit and delaying cleanup."
+    }
+  ]
+}

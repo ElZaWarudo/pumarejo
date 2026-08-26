@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-21T11:07:06Z",
+  "bundleId": "sha256:b0f646489c37c205beccbe6cbe26cb5aa1169b73d8d83922d6a0fb8af5a48d12",
+  "artifacts": [
+    {
+      "path": "docs/plans/tinto-e2e-reliability/initiative-requirements.md",
+      "sha256": "316162394faf3dc5a898e6af7f915ac712fd8e24d22af79ee1c220a0adba4805"
+    },
+    {
+      "path": "docs/product/roadmap.md",
+      "sha256": "846b74d7607dbe5ae8e2e5a24425d0dbb63262f947c7b1b1760330fe5d44a0d6"
+    }
+  ]
+}

@@ -6,6 +6,41 @@ contract_version: 1
 
 # pumarejo Public Contracts
 
+## Provider staging contract
+
+The published package contains one explicit provider bundle. Initialization is
+read-only in planning and dry-run modes. Apply creates only regular files
+inside `.pumarejo/provider/tauri-plugin-wdio-webdriver`; every file is bounded,
+canonical, and attributed as
+`provider:tauri-plugin-wdio-webdriver:<source-relative-path>`.
+
+The Cargo integration is optional and debug-feature gated. Its path is always
+the project-relative `../.pumarejo/provider/tauri-plugin-wdio-webdriver`; an
+absolute path or an unproven external provider is not a valid integration.
+Repeated init, doctor, and remove require the complete ordered manifest and
+reject missing, changed, linked, malformed, or foreign provider content.
+
+When a Tinto dependency already exists as
+`tauri-plugin-wdio-webdriver = { version = "1.2.0", optional = true }`, init adds
+only the attributed relative path projection and marker so the original dependency
+bytes and the existing `e2e-wdio` feature are preserved byte-for-byte. On remove,
+the same bytes are restored exactly when unchanged, and only foreignly attributed
+or drifted sections block removal.
+
+Cargo attribution may also contain one bounded EOL token: `eol:cargo:lf` or
+`eol:cargo:crlf`. Init records it only when the source Cargo file uses one
+uniform style and adds exactly one matching removable marker,
+`# <pumarejo:cargo-eol:lf>` or `# <pumarejo:cargo-eol:crlf>`. A uniform current
+file must retain exactly one known token and its matching marker, while mixed or
+unsupported line endings receive neither. A created dependency attribution is
+valid only with the single generated Cargo marker immediately followed by one
+canonical inline declaration containing exactly `path`, `version`, and
+`optional` keys. After an external whole-file normalization, remove accepts a
+uniform current file, removes only the attributed projections and EOL marker,
+and restores the recorded style. Missing, duplicate, or unknown EOL tokens or
+markers on uniform files, EOL tokens or markers on mixed files, foreign
+dependency keys, missing markers, and changed owned projections fail closed.
+
 ## CLI
 
 ```text
@@ -55,6 +90,7 @@ may qualify earlier executable and WebView heuristics.
     }
   },
   "window": "main",
+  "initialWindow": { "width": 1280, "height": 800 },
   "artifactsDirectory": ".pumarejo/artifacts",
   "retainArtifacts": false
 }
@@ -79,9 +115,22 @@ Rules:
 - The runtime keeps the provider port private and exposes only an agent-owned loopback proxy authenticated with a per-session nonce; an MCP caller never receives a reusable unauthenticated provider endpoint.
 - Launch never evaluates this profile through a shell.
 - `webdriverPort` is an optional integer from `1024` through `65535`; omission selects an unpredictable available high port.
+- Loopback readiness is family-aware. IPv4 (`127.0.0.1`) remains the default;
+  IPv6 uses bracketed `::1` URLs and is accepted only when reservation,
+  listener probing, and process ownership proof agree on IPv6.
 - `window` is a non-empty Tauri window label.
+- `initialWindow`, when present, is an additive bounded `{width,height}`
+  request from `200` through `8192`; launch reports the requested and
+  observed effective dimensions. Omission preserves existing behavior.
 - `artifactsDirectory` is resolved inside the project and may not escape it.
-- `retainArtifacts` defaults to `false`; when false, session artifacts are deleted by `tauri_close`.
+- `retainArtifacts` defaults to `false`; when false, `tauri_close`
+  quarantines session artifacts and completes deletion only through an
+  identity-bound native adapter. Without one, cleanup remains retryable and
+  bytes are preserved.
+- Recovery preserves active, unclosed, foreign, malformed, and ownership-unproven
+  manifests. Non-retained crash residue is deleted only after an explicit
+  orphan/non-active ownership proof; retained cleanup requires an explicit
+  finite policy and affirmative ownership metadata.
 - Unknown fields are rejected to expose configuration drift.
 
 The private integration manifest uses schema version `2` and records the
@@ -90,7 +139,107 @@ those values against the installed Cargo integration and current CLI.
 Canonical schema-v1 integrations remain removable, and rerunning `init`
 migrates an intact v1 integration or refreshes version-only drift to v2.
 
+`doctor` treats the attributed projections in the applied manifest as the
+authority for integration drift. Unrelated edits outside the generated Rust
+marker/wrapper, attributed Cargo dependency or feature values, the marked
+`.gitignore` entry, and the integration-owned `.pumarejo.json` fields remain
+ready; the recorded full-file hashes are secondary evidence. Missing,
+duplicated, malformed, linked, or otherwise unsafe owned content is reported
+as drift/error and is never repaired by `doctor`. The isolated
+`.pumarejo/agent-capability.json` must contain exactly the generated
+`pumarejo-agent` identifier, the initialized window label, and the ordered
+permissions in the current `AGENT_PERMISSIONS` list (including
+`wdio-webdriver:allow-request-dialog`); wildcard windows, extra or reordered
+permissions, and extra keys are rejected.
+
 ## MCP tools
+
+### Truthful native control (RDM-014)
+
+The runtime probes the authenticated provider's dedicated
+`/pumarejo/window-capabilities` route before treating initial sizing as
+effective. A window action is successful only after a fresh window-rect read
+verifies the postcondition. Provider absence, denial, incompatibility, or
+uncertainty remains a bounded capability state; static tool presence is not
+capability evidence.
+
+Native dialog detection and decisions use a separate authenticated provider
+boundary. Existing WebDriver alert endpoints are not treated as Tauri-dialog
+support. Metadata is bounded before evidence projection, and a private random
+launch-scoped grant binds an explicit accept/cancel decision to the current
+session, process, nonce, surface, generation, and dialog instance. The grant
+is consumed once; timeout, replay, mismatch, and provider uncertainty never
+choose a button. The additive `tauri_dialog` operation exposes only the bounded
+detection/decision projection. `detect` is observational; `accept` and
+`cancel` require `authorize:true` and an effective current `surfaceRef` and
+`generation` binding. Omitted binding fields derive from the active snapshot;
+explicit stale or foreign bindings fail closed without returning current or
+private binding values.
+
+### `tauri_dialog`
+
+Input is `{ "action": "detect|accept|cancel", "surfaceRef"?,
+"generation"?, "authorize"? }`. The strict schema rejects unknown fields and
+keeps action, reference, generation, and authorization bounds explicit. The
+result contains only capability state, a stable bounded code, the requested
+action for decisions, and sanitized dialog title/message/buttons. Provider
+identifiers, grants, nonces, paths, and raw causes are never returned.
+
+The original observation and interaction tools remain compatible. RDM-013 adds
+three bounded surface operations for the one owned session; clients that do
+not call them continue to observe the configured primary window as before.
+
+### `tauri_surface_discover`
+
+Input is `{ "refresh": true }`; `refresh` defaults to `true`. The result is a
+bounded graph with an opaque `surfaceRef`, non-actionable correlation
+`identity`, parentage, lifecycle, dimensions, active state, and per-operation
+capability evidence. Capability states are limited to `supported`,
+`unsupported`, `unavailable`, `denied`, and `failed`, each with a stable code
+and bounded sanitized evidence. Provider ports, nonces, URLs, raw handles, and
+application-sensitive content never cross the MCP boundary. Refreshing
+discovery increments graph generation.
+
+### `tauri_surface_select`
+
+Input is `{ "surfaceRef": "s1-...", "graphGeneration": 1 }`. Selection
+requires a current graph generation and a surface whose selection capability is
+`supported`; stale, foreign, denied, unavailable, or unsupported surfaces fail
+closed. A successful selection returns the graph and a fresh snapshot whose
+`surface` field contains only the bounded surface reference, identity, and kind.
+All element refs from the prior surface are invalidated before the fresh
+generation is published.
+
+### `tauri_surface_coverage`
+
+Input is an empty object. The operation compares validated screenshot size with
+provider-reported bounded surface regions and current semantic coverage. It
+returns `covered`, `gap`, or conservative `coverage_unknown` status plus a
+bounded list of surface-owned non-actionable gap evidence. It never returns
+OCR, selectors, coordinates, screenshot bytes, or an interaction fallback.
+
+### `tauri_diagnostics`
+
+This additive read-only operation queries finite sanitized evidence for the
+currently owned session. Its input is an optional `sources` array (limited to
+`console`, `process_stdout`, `process_stderr`, `invocation`, `phase`, and
+`last_error`), an optional current `surfaceRef`, and bounded `maxRecords` and
+`maxBytes` limits. The result contains stable chronological records, a latest
+error projection, explicit capability outcomes, and truncation/eviction
+metadata. Capability states are exactly `supported`, `unsupported`,
+`unavailable`, `denied`, and `failed`, with stable codes and bounded evidence.
+
+Diagnostic records are sanitized before entering the in-memory ring buffer;
+secrets, sensitive content, paths, provider identifiers, arguments, and raw
+causes are never stored or returned. The console source reports
+`unsupported` unless an approved provider console boundary is proven. A
+foreign surface returns `denied` with no records. Existing tools remain
+unchanged when this query is not called.
+
+The buffer has finite count and byte limits and evicts oldest records first.
+Buffers are memory-only and cleared when the owned session closes. Retention
+requires an explicit bounded opt-in sink and never infers a cleanup or deletion
+policy.
 
 ### `tauri_launch`
 
@@ -482,10 +631,66 @@ return a typed interaction error. None of these tools use operating-system
 input. Since native options are normally hidden, discover their refs with
 `tauri_snapshot` using `visibleOnly: false` and `roles: ["option"]`.
 
+### `tauri_sequence`
+
+`tauri_sequence` is additive. It accepts a starting `generation`, one to 32
+strict steps, `maxSteps` (default 8), and one wall-clock `timeoutMs` (default
+10000, maximum 30000). Step kinds are `click`, `type`, `pressKey`, `pointer`,
+`scroll`, `selectOption`, and bounded `wait`. Target actions require an exact
+current ref; sequence key dispatch additionally requires the ref to be the
+current actionable focus. Window and dialog operations are excluded.
+
+The runtime validates the complete request before dispatch and retains the
+session FIFO for the whole sequence. A rejection stops by default; a state
+change or uncertain effect stops immediately and marks later steps `not_run`.
+The result reports only bounded status/effect/reason/timing evidence and at
+most one final `snapshotAfter`. Typed text, provider handles, raw causes, and
+intermediate snapshots are never returned. After any attempted `type` step the
+final snapshot is omitted as well, so application reflection cannot echo the
+typed value through text, values, accessible names, or the window title.
+Deadline signals propagate through the internal interaction port; the runtime
+keeps its FIFO until that port confirms completion or cancellation, so a timed
+out mutation cannot continue after the sequence response.
+
 ### `tauri_close`
 
 Input is an empty object.
 Closing an already-closed or absent session succeeds with `alreadyClosed: true`.
+
+For non-retained artifacts, `tauri_close` first moves the owned session
+manifest and bytes into a private quarantine. It may preserve those bytes when
+identity-bound deletion is unavailable; cleanup is retryable and the operation
+does not guarantee deletion. Only an injected native adapter with a matching
+identity attestation and an absent quarantine path can complete deletion.
+
+## Self-diagnostic CLI
+
+`pumarejo doctor --self [--json]` is additive and independent from project
+doctor mode. It emits the ten stable `self.*` diagnostic identities for package
+metadata, paths/links, dependency and lock/bin coherence, Node/package-manager
+compatibility, host/child comparison, and shared bounds. The command is
+read-only: actions are manual guidance and never run an install, repair,
+lifecycle script, or cleanup.
+
+Toolchain diagnostics consume only already-resolved, structured RDM-017
+evidence. When effective child evidence is absent—or Windows cannot prove the
+required identity—the result remains `warn`/unknown and is never promoted to
+ready. Human and JSON projections contain bounded logical subjects, versions,
+sources, counts, reason codes, and actions; executable paths, environment
+values, command arguments, and raw subprocess output are excluded.
+
+Windows process custody is an internal launch contract. The packaged bridge
+creates the target suspended, configures and assigns a kill-on-close Job Object,
+verifies the expected creation identity, and resumes only after that barrier is
+complete. Cleanup uses the retained opaque Job handle and bounded framed
+control. The helper control stream is isolated from target stdin/stdout/stderr;
+target output is emitted as bounded, tagged diagnostic frames and cannot resolve
+a control request. The helper remains live across inspect and termination and
+waits on the target handle for convergence; helper exit is not target-exit
+evidence. Explicit release or helper EOF/controller loss closes the Job. Native capability is
+supported only after a successful probe. Raw-PID validated-tree cleanup is
+diagnostic-only, never a release-grade support claim, and PID-based reattach is
+not permitted after an ambiguous controller loss.
 
 ## Error contract
 

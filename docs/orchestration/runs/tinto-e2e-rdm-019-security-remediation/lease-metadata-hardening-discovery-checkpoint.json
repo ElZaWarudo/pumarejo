@@ -1,0 +1,16 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:99df74a152510b96bbb4d2cad5ae57638ffbdc8c8062d1e9e4172771083e83c2",
+  "edit_path_found": true,
+  "planned_files": [
+    "src/session/custody-lease.ts",
+    "src/session/process-lease.ts",
+    "src/session/manager.ts",
+    "src/platform/tracked-process.ts",
+    "tests/unit/process-lease.test.ts",
+    "tests/unit/session-recovery.test.ts",
+    "tests/unit/session-manager.test.ts",
+    "tests/unit/tracked-process.test.ts"
+  ],
+  "evidence_digest": "Validated contract canonical digest and confirmed current code lacks persisted provider family, hard-codes IPv4 during recovery, continues after scan errors, and treats untracked custody absence as already-exited. Existing failed reviewer/security certificates and BLK-2026-08-25-011 confirm the identity-bound Windows termination blocker remains explicitly unresolved."
+}

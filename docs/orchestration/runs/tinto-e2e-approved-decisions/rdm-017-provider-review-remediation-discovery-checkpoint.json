@@ -1,0 +1,21 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:bf8ab6c900d5d977dde287ca1b147637c475e12c91753a8db673b8962ad4d122",
+  "edit_path_found": true,
+  "planned_files": [
+    "scripts/build-provider-bundle.mjs",
+    "tests/contract/package.test.ts",
+    "tests/release/release-safety.test.ts"
+  ],
+  "evidence_digest": "The builder should canonicalize the source root before output creation and require each allowlisted entry to be a canonical regular file; source-root realpath equality also rejects linked ancestors. The package test should copy the neutral pnpm-json Tauri fixture, run the installed binary real init command, and verify 46 attributable provider entries, project-relative Cargo, staged dialog route, and request-dialog permission from the installed package. Release safety can provide static proof of canonical-source guards. The neutral fixture contains no provider source, so the tarball proof avoids repository vendor reliance.",
+  "risks": [
+    "Windows realpath casing or path-format differences may require platform-safe canonical comparison.",
+    "Tarball installation depends on pnpm availability and local package-store behavior.",
+    "The init proof must avoid parsing incidental package-manager output as the CLI JSON result."
+  ],
+  "verification": [
+    "pnpm vitest run tests/contract/package.test.ts tests/release/release-safety.test.ts",
+    "pnpm build",
+    "pnpm pack:check"
+  ]
+}

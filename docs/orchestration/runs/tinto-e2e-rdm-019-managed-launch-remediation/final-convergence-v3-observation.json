@@ -1,0 +1,39 @@
+{
+  "schema_version":1,
+  "contract_hash":"sha256:2d3c16125bb869a5f4332cd5b4237bf5035a98ce6672b11043ff42cc0a8225d8",
+  "worker_id":"rdm019_final_convergence_v3",
+  "profile":"luna",
+  "started_at_ms":1787651600000,
+  "changed_files":[],
+  "changed_files_source":"root-diff",
+  "checkpoint_count":0,
+  "interventions_sent":[],
+  "implementation_started_at_ms":1787651600000,
+  "first_change_at_ms":null,
+  "last_required_command_finished_at_ms":1787652100000,
+  "returned_at_ms":1787652110000,
+  "phase_duration_ms":{"implementation":510000},
+  "command_evidence":{"trust":"self-reported","commands":[
+    {"kind":"verification","command":"pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts tests/integration/artifact-store.test.ts"},
+    {"kind":"verification","command":"pnpm build"},
+    {"kind":"verification","command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"}
+  ]},
+  "certifications":[
+    {"role":"reviewer","actor_id":"rdm019-final-reviewer","status":"failed","contract_hash":"sha256:2d3c16125bb869a5f4332cd5b4237bf5035a98ce6672b11043ff42cc0a8225d8","diff_digest":"sha256:5168040f0dd3584b686c0d62071ec4b236e95759eb5c7f919a827574a718dcb7","findings":[{"severity":"p1"},{"severity":"p1"},{"severity":"p1"}]},
+    {"role":"security-sentinel","actor_id":"rdm019-final-security","status":"failed","contract_hash":"sha256:2d3c16125bb869a5f4332cd5b4237bf5035a98ce6672b11043ff42cc0a8225d8","diff_digest":"sha256:5168040f0dd3584b686c0d62071ec4b236e95759eb5c7f919a827574a718dcb7","findings":[{"severity":"p1"},{"severity":"p1"},{"severity":"p2"},{"severity":"p2"},{"severity":"p2"}]}
+  ],
+  "final":{"status":"done","phase":"closeout","remaining_actions":[],"terminal_ready":true,"acceptance_criteria_resolved":true,"acceptance_evidence":[
+    {"criterion_id":"FCV-AC-1","status":"satisfied","evidence":"Focused suite passed: 124 passed, 2 skipped."},
+    {"criterion_id":"FCV-AC-2","status":"satisfied","evidence":"Build passed and pre/post status was unchanged."},
+    {"criterion_id":"FCV-AC-3","status":"satisfied","evidence":"Probe passed with bounded status, surface, and snapshot evidence; first close returned idle."},
+    {"criterion_id":"FCV-AC-4","status":"satisfied","evidence":"No files changed during validation."}
+  ],"last_required_command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","verification":{"attempted":[
+    {"command":"pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts tests/integration/artifact-store.test.ts","attempts":1,"outcome":"passed"},
+    {"command":"pnpm build","attempts":1,"outcome":"passed"},
+    {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","attempts":1,"outcome":"passed"}
+  ],"skipped":[]},"verification_commands_run":[
+    "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts tests/integration/artifact-store.test.ts",
+    "pnpm build",
+    "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+  ],"unowned_failures":[],"scope_extension":null}
+}

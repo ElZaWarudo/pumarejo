@@ -1,0 +1,90 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "Provider readiness uses a 300000 ms default and remains bounded to a maximum of 600000 ms instead of clamping all valid launches to 30000 ms.",
+      "id": "TF-AC-1"
+    },
+    {
+      "description": "Focused SessionManager tests cover the default, maximum, and invalid readiness timeout behavior without real wall-clock delay.",
+      "id": "TF-AC-2"
+    },
+    {
+      "description": "The clean real Tinto managed stdio probe reaches READY, returns bounded surfaces/snapshot evidence, and closes successfully without owned residue.",
+      "id": "TF-AC-3"
+    }
+  ],
+  "closed_decisions": [
+    "The root diagnostic proved a cold real Tinto launch reaches waiting_provider but exceeds the current 30000 ms clamp before the provider listener appears.",
+    "Keep readiness bounded: accept integer values from 1000 through 600000 ms, retain a 300000 ms default, and use the existing fail-closed fallback for invalid values.",
+    "Do not change the readiness ownership proof, provider endpoint family, custody logic, public MCP contract, or artifact cleanup behavior.",
+    "The prior implementation changes are preserved for root review; this fixer owns only the timeout correction and its focused unit coverage."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/session-manager.test.ts",
+        "pnpm build",
+        "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+      ],
+      "max_retries_per_command": 1,
+      "natural": []
+    }
+  },
+  "contract_hash": "sha256:62fc7085e79f6f36584ce6a99af6845d956692a1684abb8eda5c8373f938162e",
+  "contract_id": "tinto-e2e-rdm-019-managed-launch-remediation:rdm-019-managed-launch-timeout-fixer",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 0,
+    "extra_verification": "forbidden",
+    "fix_rounds": 1,
+    "implementation_rounds": 1,
+    "review_rounds": 1
+  },
+  "forbidden_changes": [
+    "Do not edit files outside src/session/manager.ts and tests/unit/session-manager.test.ts.",
+    "Do not change public tools, schemas, provider behavior, Tinto sources, dependencies, manifests, lockfiles, queue state, blockers, release files, commits, branches, Jira, or pull requests.",
+    "Do not remove or weaken process identity, custody, ownership, cleanup, or loopback verification."
+  ],
+  "lane": "standard",
+  "objective": "Fix the proven managed provider-readiness timeout defect by preserving the documented 300000 ms default and permitting only bounded configured values through 600000 ms, then prove the clean real Tinto managed stdio launch reaches READY and closes without residue.",
+  "owned_files": [
+    "src/session/manager.ts",
+    "tests/unit/session-manager.test.ts"
+  ],
+  "profile": "luna",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-rdm-019-managed-launch-remediation/rdm-019-managed-launch-remediation-worker-contract.json",
+    "docs/orchestration/runs/tinto-e2e-rdm-019-managed-launch-remediation/implementer-evaluation.json",
+    "src/session/manager.ts",
+    "tests/unit/session-manager.test.ts"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "terminal-only",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-019-managed-launch-timeout-fixer"
+}

@@ -1,0 +1,13 @@
+{
+  "role": "security-sentinel",
+  "actor_id": "rdm017-provider-converged-security-v2",
+  "status": "passed",
+  "contract_hash": "sha256:e1cbe78821646547a1ad8a4bb4b75d1a3bc89db3a7c920df79cc8dce22ff991e",
+  "primary_contract_hash": "sha256:e1cbe78821646547a1ad8a4bb4b75d1a3bc89db3a7c920df79cc8dce22ff991e",
+  "remediation_hashes": [
+    "sha256:bf8ab6c900d5d977dde287ca1b147637c475e12c91753a8db673b8962ad4d122",
+    "sha256:d64fb314a5fbc8ca30abbaa54b227c57483868433ebd569dde648936d5df1064"
+  ],
+  "diff_digest": "sha256:8235966a9bda02f2a0da3258c0a9b04675e349e8f4a77cae429c617d55fe2c51",
+  "findings": []
+}

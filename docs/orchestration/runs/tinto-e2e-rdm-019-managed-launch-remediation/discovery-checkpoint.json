@@ -1,0 +1,24 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:3ca14b84a87b1c2138930bdc897dff6afeb79183b1684653511f1afe87f3d955",
+  "edit_path_found": true,
+  "planned_files": [
+    "src/artifacts/store.ts",
+    "src/mcp/runtime.ts",
+    "src/platform/tracked-process.ts",
+    "src/platform/windows/launch.ts",
+    "src/platform/windows/process.ts",
+    "src/session/manager.ts",
+    "tests/integration/artifact-store.test.ts",
+    "tests/unit/mcp-runtime.test.ts",
+    "tests/unit/session-manager.test.ts",
+    "tests/unit/tracked-process.test.ts",
+    "tests/unit/windows-process.test.ts"
+  ],
+  "evidence_digest": "Runtime launch paths record APP_START_FAILED but can replace the thrown failure with CLOSE_FAILED when artifact cleanup fails. ArtifactStore quarantines non-retained sessions when no identity-bound deleter is supplied, while default runtime artifact creation supplies none, leaving empty proving-run quarantine residue. Existing tests do not cover the combined real managed-launch failure path, original-failure preservation with cleanup failure, or empty-session convergence.",
+  "root_validation": {
+    "accepted": true,
+    "checkpoint_count": 1,
+    "planned_files_within_contract": true
+  }
+}

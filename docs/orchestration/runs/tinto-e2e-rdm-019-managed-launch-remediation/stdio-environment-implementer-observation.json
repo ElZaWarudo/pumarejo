@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "contract_hash": "sha256:15d0579b85bae5caad23c3e303308dd4b89481ef989f83aaf4eb4e995c1b441d",
+  "worker_id": "rdm-019-managed-launch-stdio-environment-fixer",
+  "profile": "luna_xhigh",
+  "started_at_ms": 1787648400000,
+  "changed_files": [
+    "src/platform/launch-environment.ts",
+    "src/platform/windows/environment.ts",
+    "tests/unit/windows-environment.test.ts"
+  ],
+  "changed_files_source": "root-diff",
+  "checkpoint_count": 1,
+  "checkpoint": {
+    "event": "discovery_complete",
+    "discovery_complete_at_ms": 1787648450000,
+    "edit_path_found": true,
+    "planned_files": [
+      "src/platform/launch-environment.ts",
+      "src/platform/windows/environment.ts",
+      "src/platform/windows/launch.ts",
+      "tests/unit/launch-environment.test.ts",
+      "tests/unit/mode-config.test.ts",
+      "tests/unit/windows-environment.test.ts"
+    ],
+    "evidence_digest": "The bounded edit path is the existing Windows environment and launch seam; no runtime or public MCP edit is required."
+  },
+  "discovery_returned_at_ms": 1787648450000,
+  "implementation_started_at_ms": 1787648460000,
+  "interventions_sent": ["dispatch_implementation"],
+  "first_change_at_ms": 1787648500000,
+  "last_required_command_finished_at_ms": 1787649000000,
+  "returned_at_ms": 1787649010000,
+  "phase_duration_ms": {"discovery":50000,"implementation":550000},
+  "command_evidence": {
+    "trust": "self-reported",
+    "commands": [
+      {"command":"pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts","kind":"verification"},
+      {"command":"pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts","kind":"verification-retry"},
+      {"command":"pnpm build","kind":"verification"},
+      {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","kind":"verification"}
+    ]
+  },
+  "certifications": [],
+  "final": {
+    "status": "needs_review",
+    "phase": "verification",
+    "remaining_actions": [
+      "Reconcile the focused-suite failures and application-process close residue.",
+      "Required reviewer and security-sentinel certifications remain pending."
+    ],
+    "terminal_ready": false,
+    "acceptance_criteria_resolved": false,
+    "acceptance_evidence": [
+      {"criterion_id":"SEF-AC-1","status":"satisfied","evidence":"The restricted stdio environment reconstructs the fixed Windows minimum and the real probe reached READY."},
+      {"criterion_id":"SEF-AC-2","status":"not_satisfied","evidence":"Fail-closed paths were implemented but the focused command was not green after the final expectation correction."},
+      {"criterion_id":"SEF-AC-3","status":"not_satisfied","evidence":"The focused suite failed on both allowed attempts."},
+      {"criterion_id":"SEF-AC-4","status":"not_satisfied","evidence":"The probe reached READY and returned bounded observations, but close returned CLOSE_FAILED with application-process cleanup pending."}
+    ],
+    "last_required_command": "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+    "verification": {
+      "status": "failed",
+      "commands": [
+        {"command":"pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts","outcome":"attempted","result":"failed","reason":"Mode-config canonical executable expectations and an environment expectation failed."},
+        {"command":"pnpm build","outcome":"attempted","result":"passed","reason":"Build completed."},
+        {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","outcome":"attempted","result":"failed","reason":"READY succeeded, but close retained application-process cleanup."}
+      ]
+    },
+    "verification_commands_run": [
+      "pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts",
+      "pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts",
+      "pnpm build",
+      "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+    ],
+    "unowned_failures": [
+      "Mode-config expects the NVM shim path while safe executable resolution returns its canonical installed Node path.",
+      "The real probe close path retained application-process cleanup after READY."
+    ]
+  }
+}

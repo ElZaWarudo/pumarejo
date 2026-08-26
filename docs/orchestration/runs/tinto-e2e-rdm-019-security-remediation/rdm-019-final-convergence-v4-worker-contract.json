@@ -1,0 +1,107 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "The broad focused suite passes across MCP runtime, session/custody/lease, Windows process/environment, launch environment, mode config, and artifact store.",
+      "id": "FC4-AC-1"
+    },
+    {
+      "description": "The project build passes without changing the working tree.",
+      "id": "FC4-AC-2"
+    },
+    {
+      "description": "The clean real-Tinto stdio probe reaches READY, returns bounded surface/snapshot evidence, and first close returns idle.",
+      "id": "FC4-AC-3"
+    },
+    {
+      "description": "No file changes occur and the terminal explicitly preserves BLK-2026-08-25-011 plus existing external release blockers.",
+      "id": "FC4-AC-4"
+    }
+  ],
+  "closed_decisions": [
+    "The bounded environment and lease/listener remediation units are independently certified and root-verified.",
+    "This unit is read-only and must not claim BLK-2026-08-25-011 resolved; identity-bound Windows termination remains a release architecture decision.",
+    "Public dialog behavior and attributable portable provider delivery remain outside this remediation and retain their existing release blockers."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/session-recovery.test.ts tests/unit/process-lease.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts tests/integration/artifact-store.test.ts",
+        "pnpm build",
+        "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+      ],
+      "max_retries_per_command": 0,
+      "natural": []
+    }
+  },
+  "contract_hash": "sha256:623eb9c2f163939e72a0d5e2d88b144408eeab07183f3baba375ad90c02d4ff0",
+  "contract_id": "tinto-e2e-rdm-019-security-remediation:rdm-019-final-convergence-v4",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 0,
+    "extra_verification": "forbidden",
+    "fix_rounds": 0,
+    "implementation_rounds": 1,
+    "review_rounds": 1
+  },
+  "forbidden_changes": [
+    "Do not edit any file.",
+    "Do not run commands outside the declared read-only and verification commands.",
+    "Do not change git, Jira, release state, dependencies, provider/Tinto sources, public MCP behavior, blocker or queue artifacts."
+  ],
+  "lane": "standard",
+  "objective": "Read-only final convergence validation of the current environment, custody, durable-lease, managed-launch, and artifact remediation state before release handoff.",
+  "owned_files": [
+    "src/platform/launch-environment.ts",
+    "src/platform/windows/environment.ts",
+    "src/platform/tracked-process.ts",
+    "src/session/manager.ts",
+    "src/session/custody-lease.ts",
+    "src/session/process-lease.ts",
+    "tests/unit/windows-environment.test.ts",
+    "tests/unit/launch-environment.test.ts",
+    "tests/unit/mode-config.test.ts",
+    "tests/unit/tracked-process.test.ts",
+    "tests/unit/session-manager.test.ts",
+    "tests/unit/session-recovery.test.ts",
+    "tests/unit/process-lease.test.ts"
+  ],
+  "profile": "luna",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-rdm-019-security-remediation/environment-hardening-evaluation-complete.json",
+    "docs/orchestration/runs/tinto-e2e-rdm-019-security-remediation/listener-postcondition-evaluation-complete.json",
+    "docs/swarm/blockers.yaml",
+    "src/platform/tracked-process.ts",
+    "src/session/manager.ts",
+    "src/session/custody-lease.ts",
+    "src/platform/windows/environment.ts"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "terminal-only",
+    "transition_after_ms": 0
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-019-final-convergence-v4"
+}

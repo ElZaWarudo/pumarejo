@@ -1,0 +1,28 @@
+{
+  "acceptance_criteria": [
+    {"id":"TYPE-AC-1","description":"All test harnesses conform to the already-approved dialog, manifest, and spawn request types without changing runtime behavior."},
+    {"id":"TYPE-AC-2","description":"Typecheck and the touched tests pass."}
+  ],
+  "closed_decisions": [
+    "Add missing mock members and explicit test-only fields/annotations; do not change production interfaces.",
+    "Dialog detect calls pass authorize=false; the authorization-required test also passes authorize=false to preserve its expected denial.",
+    "SpawnRequest test fixtures pass shell=false, matching the public request shape."
+  ],
+  "commands":{"verification":{"focused":["pnpm typecheck","pnpm vitest run tests/contract/real-usage-journey.test.ts tests/integration/init.test.ts tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts"],"max_retries_per_command":1,"natural":[]}},
+  "contract_hash":"sha256:5116ad9b29a5655eda68bb94c1b9a779a2edb39d8f2fe10511307f5c8f5928d7",
+  "contract_id":"tinto-e2e-approved-decisions:release-typecheck-harness",
+  "evidence_policy":{"changed_files_source":"root-diff","minimum_command_trust":"self-reported"},
+  "execution_budget":{"discovery_passes":0,"extra_verification":"forbidden","fix_rounds":1,"implementation_rounds":1,"review_rounds":0},
+  "forbidden_changes":["Do not edit production source, docs outside this contract, dependencies/lockfiles, git, Jira, or Tinto."],
+  "lane":"fast",
+  "objective":"Repair compile-only test harness drift exposed by the aggregate release typecheck.",
+  "owned_files":["tests/contract/real-usage-journey.test.ts","tests/integration/init.test.ts","tests/unit/mcp-runtime.test.ts","tests/unit/session-manager.test.ts"],
+  "profile":"spark",
+  "required_certifications":[],
+  "required_context":["src/mcp/domain-ports.ts","src/mcp/runtime.ts","src/platform/types.ts"],
+  "schema_version":1,
+  "supervision":{"mode":"none","transition_after_ms":0},
+  "terminal_protocol":{"grace_actions":0,"return_when":["acceptance_criteria_resolved","required_checks_attempted","state_reconciled"]},
+  "terminal_schema":"worker-terminal-v1",
+  "unit_id":"release-typecheck-harness"
+}

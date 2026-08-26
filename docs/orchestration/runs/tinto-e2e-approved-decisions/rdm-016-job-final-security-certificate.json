@@ -1,0 +1,37 @@
+{
+  "role": "security-sentinel",
+  "actor_id": "rdm016-final-security",
+  "status": "failed",
+  "contract_hash": "sha256:8cc51a405cc8501d4c239c1bff761bb6d154ae5a7bf83ec44079cc896bf2f55e",
+  "lifecycle_contract_hash": "sha256:bbb5a45513447c07fed2991958eee0ee86031fda29e231ac0708fdb867c96eaf",
+  "diff_digest": "sha256:d512255992ca5d8846a8ba2778822de47f6837623ea4a836a08310f7744824cf",
+  "findings": [
+    {
+      "severity": "p1",
+      "title": "Target process inherits an uncontrolled handle set across the helper trust boundary.",
+      "evidence": "src/platform/windows/job-object.ts:66,103-123 calls CreateProcessW with inherit=true and a STARTUPINFO, without STARTUPINFOEX/PROC_THREAD_ATTRIBUTE_HANDLE_LIST; only three pipe handles are passed through SetHandleInformation and its return values are ignored. The helper's own standard handles and any other inheritable helper handles are therefore eligible for inheritance.",
+      "impact": "A target capable of enumerating its inherited handle table can access the helper's control streams or unrelated inherited handles, allowing control-frame spoofing/consumption and cross-process handle disclosure. This violates the explicit target/control-channel separation requirement even though the disposable proof only exercised target stdout spoofing.",
+      "remediation": "Launch with an explicit inherited-handle allowlist (STARTUPINFOEX PROC_THREAD_ATTRIBUTE_HANDLE_LIST) or an equivalent non-inheriting design; fail closed when handle-isolation setup fails and check every handle-flag operation.",
+      "verification": "Add a bounded Windows proof that inspects the target's inherited handles/standard streams and demonstrates that only the target stdin/stdout/stderr handles are present and helper control frames cannot be read or written by the target.",
+      "confidence": "high"
+    },
+    {
+      "severity": "p2",
+      "title": "Native launch setup failure can strand an unowned suspended process.",
+      "evidence": "src/platform/windows/job-object.ts:132-143 closes pi.hThread/pi.hProcess after CreateJobObjectW, SetInformationJobObject, or AssignProcessToJobObject failure; the job=zero path at line 132 and the catch path call TerminateJobObject on an empty/unassigned Job but never call TerminateProcess(pi.hProcess).",
+      "impact": "A native-policy/API failure can leave the CREATE_SUSPENDED target alive indefinitely outside the Job. Repeated failures consume process and kernel resources and violate the fail-closed managed-launch boundary.",
+      "remediation": "Track whether assignment completed and explicitly terminate the suspended process with its held process handle on every pre-assignment failure before closing handles; verify the process handle signals or report cleanup failure.",
+      "verification": "Inject or reproduce CreateJobObjectW, SetInformationJobObject, and AssignProcessToJobObject failures and assert no target PID remains after the bounded cleanup path.",
+      "confidence": "high"
+    },
+    {
+      "severity": "p2",
+      "title": "Malformed control or launch-frame timeout does not reliably close the Job.",
+      "evidence": "The helper's ConvertFrom-Json catch at src/platform/windows/job-object.ts:218-219 emits an error frame and continues. waitForFrame at lines 367-381 only removes a timed-out waiter; managedLaunch awaits readyPromise at lines 472-474 without a timeout cleanup path, while failHandle at lines 357-365 marks the handle closed and rejects waiters without closing or killing the helper.",
+      "impact": "A malformed/desynchronized control stream or a helper that never produces its attached frame can leave the opaque Job owner and target alive after the caller has lost a usable attachment. This contradicts the documented malformed-control/fatal-failure cleanup guarantee and creates a local custody/resource leak.",
+      "remediation": "Treat malformed control and bounded protocol timeouts as fatal: terminate/close the helper so kill-on-close executes, await bounded helper exit, and surface a retryable failure only after the target absence/cleanup postcondition is established.",
+      "verification": "Bounded proofs for malformed JSON, oversized/incomplete frames, and missing attached response must prove helper exit, target absence, and no unrelated process impact.",
+      "confidence": "high"
+    }
+  ]
+}

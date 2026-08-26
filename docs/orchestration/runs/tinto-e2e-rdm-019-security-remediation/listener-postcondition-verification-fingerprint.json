@@ -1,0 +1,20 @@
+{
+  "base_revision": "23fe76ecce1b3cbe8bd58e79ef31518e2d3b8f53",
+  "changed_paths": [
+    {
+      "digest": "sha256:ffb220e6ae94e2760b34f2ac26ac6689185e2e902930fd073647866a6e55a98f",
+      "path": "src/session/manager.ts"
+    },
+    {
+      "digest": "sha256:649f0933bc6709c791198b83d87106677dd6396c6fd04b6cf575cfffb035b35b",
+      "path": "tests/unit/session-recovery.test.ts"
+    }
+  ],
+  "commands": [
+    "pnpm vitest run tests/unit/session-recovery.test.ts tests/unit/session-manager.test.ts",
+    "pnpm build",
+    "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+  ],
+  "fingerprint": "sha256:84fc5c1a9ef48c59c6b85e64941325392aae9100bdf694ea26d15128a026a82f",
+  "schema_version": 1
+}

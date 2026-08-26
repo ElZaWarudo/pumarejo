@@ -1,0 +1,22 @@
+{
+  "schema_version":1,"contract_hash":"sha256:623eb9c2f163939e72a0d5e2d88b144408eeab07183f3baba375ad90c02d4ff0","worker_id":"rdm019_final_convergence_v4_validator","profile":"luna","started_at_ms":1787655900000,
+  "changed_files":[],"changed_files_source":"root-diff","checkpoint_count":0,"interventions_sent":[],"implementation_started_at_ms":1787655910000,"first_change_at_ms":null,"last_required_command_finished_at_ms":1787656240000,"returned_at_ms":1787656250000,"phase_duration_ms":{"implementation":340000},
+  "command_evidence":{"trust":"self-reported","commands":[
+    {"kind":"verification","command":"pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/session-recovery.test.ts tests/unit/process-lease.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts tests/integration/artifact-store.test.ts"},
+    {"kind":"verification","command":"pnpm build"},
+    {"kind":"verification","command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"}
+  ]},"certifications":[
+    {"role":"reviewer","actor_id":"rdm019-final-v4-reviewer","status":"passed","contract_hash":"sha256:623eb9c2f163939e72a0d5e2d88b144408eeab07183f3baba375ad90c02d4ff0","diff_digest":"sha256:8054d09187891d988f8172b185fa596a74c615bef82c93ff702be65a4edb2929","findings":[]},
+    {"role":"security-sentinel","actor_id":"rdm019-final-v4-security","status":"passed","contract_hash":"sha256:623eb9c2f163939e72a0d5e2d88b144408eeab07183f3baba375ad90c02d4ff0","diff_digest":"sha256:8054d09187891d988f8172b185fa596a74c615bef82c93ff702be65a4edb2929","findings":[]}
+  ],
+  "final":{"status":"done_with_baseline_gaps","phase":"closeout","remaining_actions":[],"terminal_ready":true,"acceptance_criteria_resolved":true,"acceptance_evidence":[
+    {"criterion_id":"FC4-AC-1","status":"satisfied","evidence":"Broad suite passed: 10 files, 136 tests passed, 3 skipped. Contract hash sha256:623eb9c2f163939e72a0d5e2d88b144408eeab07183f3baba375ad90c02d4ff0."},
+    {"criterion_id":"FC4-AC-2","status":"satisfied","evidence":"pnpm build passed."},
+    {"criterion_id":"FC4-AC-3","status":"satisfied","evidence":"Real-Tinto probe reached READY, returned bounded status/surface/snapshot evidence, and close returned state idle."},
+    {"criterion_id":"FC4-AC-4","status":"satisfied","evidence":"No files were edited. BLK-2026-08-25-011 and existing external release blockers remain preserved and unresolved."}
+  ],"last_required_command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","verification":{"attempted":[
+    {"command":"pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/session-recovery.test.ts tests/unit/process-lease.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts tests/integration/artifact-store.test.ts","attempts":1,"outcome":"passed"},
+    {"command":"pnpm build","attempts":1,"outcome":"passed"},
+    {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","attempts":1,"outcome":"passed"}
+  ],"skipped":[]},"verification_commands_run":["pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/session-recovery.test.ts tests/unit/process-lease.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts tests/integration/artifact-store.test.ts","pnpm build","node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"],"unowned_failures":["BLK-2026-08-25-011 remains unresolved: identity-bound Windows termination architecture decision.","Existing external release blockers remain unresolved: public dialog behavior and attributable portable provider delivery."],"scope_extension":null}
+}

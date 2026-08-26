@@ -1,0 +1,17 @@
+{
+  "captured_at": "2026-08-25T09:27:00Z",
+  "head": "23fe76ecce1b3cbe8bd58e79ef31518e2d3b8f53",
+  "files": [
+    {"path":"src/artifacts/store.ts","sha256":"9cca42a790f5569e770a743eeec34f3969d37f2016531d521624382d91f1bb8d","git_status":" M src/artifacts/store.ts"},
+    {"path":"src/mcp/runtime.ts","sha256":"56b6f971c0e1faa58b3825f047bc30c3c5098d3cc5a108ff4e85b6f6997012b3","git_status":" M src/mcp/runtime.ts"},
+    {"path":"src/platform/tracked-process.ts","sha256":"ede8500ed2208ec1614a2cd1edd37a7b0adfc4f5542454ec0ddeccf8aaf1c83d","git_status":" M src/platform/tracked-process.ts"},
+    {"path":"src/platform/windows/launch.ts","sha256":"b36bf44a32cc5ca8a378234c6b5c7ef1e152944dff64f34bc63509ede9242187","git_status":" M src/platform/windows/launch.ts"},
+    {"path":"src/platform/windows/process.ts","sha256":"a82dad2ba7a8470153f91667cbf032454326bc56a492f9a11958208d4f56097a","git_status":" M src/platform/windows/process.ts"},
+    {"path":"src/session/manager.ts","sha256":"a1a5ffd1a3cc8ce751e6999264b0e4a1994d6a10250b26531ef5730b7e3b80db","git_status":" M src/session/manager.ts"},
+    {"path":"tests/integration/artifact-store.test.ts","sha256":"e8758c2cc380c7270e83998fb5084836e39adcbafd9edb141b119b935d56ea0c","git_status":" M tests/integration/artifact-store.test.ts"},
+    {"path":"tests/unit/mcp-runtime.test.ts","sha256":"c66d7ae1559fea07a5ce11400b7635ed3a9c80c9cd79af62f2ab2a1a21ebf692","git_status":" M tests/unit/mcp-runtime.test.ts"},
+    {"path":"tests/unit/session-manager.test.ts","sha256":"280da8d0c4e25296c377f53fdbfd1a9d0306493af814ec2e66217a4dd629089a","git_status":" M tests/unit/session-manager.test.ts"},
+    {"path":"tests/unit/tracked-process.test.ts","sha256":"74fe1d60e538b6e0b47afda083e255940d3cb8696632d39c27e096b3a39483d0","git_status":" M tests/unit/tracked-process.test.ts"},
+    {"path":"tests/unit/windows-process.test.ts","sha256":"5b52921ae23d00076a9e24b1d5ae427c81b48c3ce92d8c174eb1931efbdb4b96","git_status":" M tests/unit/windows-process.test.ts"}
+  ]
+}

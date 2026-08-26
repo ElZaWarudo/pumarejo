@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "contract_hash": "sha256:76475e9e85b363eb8567c0c9791ac810d738ae832046eeed0787c5c5faf5e5ca",
+  "worker_id": "rdm017_environment_hardening_implementer",
+  "profile": "luna_xhigh",
+  "started_at_ms": 1787652400000,
+  "changed_files": [
+    "src/platform/windows/environment.ts",
+    "src/platform/launch-environment.ts",
+    "tests/unit/windows-environment.test.ts"
+  ],
+  "changed_files_source": "root-diff",
+  "checkpoint_count": 1,
+  "checkpoint": {
+    "event": "discovery_complete",
+    "discovery_complete_at_ms": 1787652440000,
+    "edit_path_found": true,
+    "planned_files": [
+      "src/platform/windows/environment.ts",
+      "src/platform/launch-environment.ts",
+      "tests/unit/windows-environment.test.ts",
+      "tests/unit/launch-environment.test.ts"
+    ],
+    "evidence_digest": "Validated the immutable contract and mapped the nested-expansion, cycle-rejection, and local-drive-only path changes exclusively to the four owned files."
+  },
+  "discovery_returned_at_ms": 1787652450000,
+  "interventions_sent": ["dispatch_implementation"],
+  "implementation_started_at_ms": 1787652500000,
+  "first_change_at_ms": 1787652600000,
+  "last_required_command_finished_at_ms": 1787653200000,
+  "returned_at_ms": 1787653210000,
+  "phase_duration_ms": {
+    "discovery": 100000,
+    "implementation": 710000
+  },
+  "command_evidence": {
+    "trust": "self-reported",
+    "commands": [
+      {
+        "kind": "verification",
+        "command": "pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts"
+      },
+      {
+        "kind": "verification",
+        "command": "pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts"
+      },
+      {
+        "kind": "verification",
+        "command": "pnpm build"
+      },
+      {
+        "kind": "verification",
+        "command": "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+      }
+    ]
+  },
+  "certifications": [
+    {
+      "role": "reviewer",
+      "actor_id": "rdm017-environment-reviewer",
+      "status": "passed",
+      "contract_hash": "sha256:76475e9e85b363eb8567c0c9791ac810d738ae832046eeed0787c5c5faf5e5ca",
+      "diff_digest": "sha256:2f317bb124954da7e5610baa1655288a84411d71fe922fb47b1ce1f8efd238df",
+      "findings": []
+    },
+    {
+      "role": "security-sentinel",
+      "actor_id": "rdm017-environment-security",
+      "status": "failed",
+      "contract_hash": "sha256:76475e9e85b363eb8567c0c9791ac810d738ae832046eeed0787c5c5faf5e5ca",
+      "diff_digest": "sha256:2f317bb124954da7e5610baa1655288a84411d71fe922fb47b1ce1f8efd238df",
+      "findings": [
+        {"severity": "p1"},
+        {"severity": "p2"}
+      ]
+    }
+  ],
+  "final": {
+    "status": "done",
+    "phase": "closeout",
+    "remaining_actions": [],
+    "terminal_ready": true,
+    "acceptance_criteria_resolved": true,
+    "acceptance_evidence": [
+      {
+        "criterion_id": "WEH-AC-1",
+        "status": "satisfied",
+        "evidence": "Nested SystemDrive/SystemRoot/TEMP expansion now precedes local ComSpec/TMP reconstruction with safe-default provenance. Contract hash sha256:76475e9e85b363eb8567c0c9791ac810d738ae832046eeed0787c5c5faf5e5ca."
+      },
+      {
+        "criterion_id": "WEH-AC-2",
+        "status": "satisfied",
+        "evidence": "Self, indirect, unresolved, and bounded expansion cases reject with value-free key/code evidence; focused tests passed."
+      },
+      {
+        "criterion_id": "WEH-AC-3",
+        "status": "satisfied",
+        "evidence": "UNC, extended-length, device, relative, traversal, control-character, and variable-bearing paths are rejected without derived defaults."
+      },
+      {
+        "criterion_id": "WEH-AC-4",
+        "status": "satisfied",
+        "evidence": "Focused tests passed (43 passed, 2 skipped), build passed, and the real-Tinto probe exited successfully with first-close idle."
+      }
+    ],
+    "last_required_command": "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+    "verification": {
+      "attempted": [
+        {
+          "command": "pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts",
+          "attempts": 2,
+          "outcome": "passed"
+        },
+        {
+          "command": "pnpm build",
+          "attempts": 1,
+          "outcome": "passed"
+        },
+        {
+          "command": "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+          "attempts": 1,
+          "outcome": "passed"
+        }
+      ],
+      "skipped": []
+    },
+    "verification_commands_run": [
+      "pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts",
+      "pnpm vitest run tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts",
+      "pnpm build",
+      "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+    ],
+    "unowned_failures": [],
+    "scope_extension": null
+  }
+}

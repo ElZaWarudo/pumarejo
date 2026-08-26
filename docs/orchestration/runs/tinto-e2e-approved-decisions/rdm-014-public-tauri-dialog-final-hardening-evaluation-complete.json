@@ -1,0 +1,7 @@
+{
+  "action": "complete",
+  "metrics": {"discovery_implementation_ratio": 0.02, "last_required_command_to_return_ms": 10000, "out_of_manifest_commands": 0, "root_interventions": 1, "time_to_first_change_ms": 40000},
+  "reasons": [],
+  "terminal_status": "needs_review",
+  "root_disposition": "Root independently verified the corrected final state before certification."
+}

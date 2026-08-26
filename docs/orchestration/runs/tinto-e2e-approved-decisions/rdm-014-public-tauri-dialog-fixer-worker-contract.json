@@ -1,0 +1,100 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "Accept/cancel with authorize=true and no concrete detected dialog returns bounded non-success and neither issues nor consumes a grant nor calls the provider decision route.",
+      "id": "DIALOG-FIX-AC-1"
+    },
+    {
+      "description": "After a supported decision, only explicit provider_dialog_absent is success; unsupported, failed, malformed, other unavailable codes, unchanged, or replaced dialogs produce bounded non-success.",
+      "id": "DIALOG-FIX-AC-2"
+    },
+    {
+      "description": "Sanitized detection and decision metadata never contains provider-supplied surfaceRef or other private provider material, while private surface mismatch checks remain enforced.",
+      "id": "DIALOG-FIX-AC-3"
+    },
+    {
+      "description": "Focused runtime/native-control tests and build pass, including regressions for all three findings.",
+      "id": "DIALOG-FIX-AC-4"
+    }
+  ],
+  "closed_decisions": [
+    "Authorization is issued only when the immediately preceding detection retained a concrete private provider dialog instance; absence or uncertainty returns a bounded non-success result and issues no grant.",
+    "A supported provider decision is publicly verified only when the post-decision detection is the canonical confirmed-absent state: state unavailable, code provider_dialog_absent, and no retained dialog instance.",
+    "Provider-supplied surfaceRef remains available only for private binding checks and is omitted from all sanitized public dialog metadata; the runtime binding is authoritative.",
+    "Preserve explicit authorize=true, current binding checks, one-shot grant consumption, and the existing public tauri_dialog name/schema."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/native-control.test.ts",
+        "pnpm build"
+      ],
+      "max_retries_per_command": 1,
+      "natural": []
+    }
+  },
+  "contract_hash": "sha256:bf44ef1184d3424c8c9095bd3e4b315b2f9a38a15b7b3dca5c5bff57e7591c5b",
+  "contract_id": "tinto-e2e-approved-decisions:rdm-014-public-tauri-dialog-fixer",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "extra_verification": "forbidden",
+    "fix_rounds": 1,
+    "implementation_rounds": 1,
+    "review_rounds": 1
+  },
+  "forbidden_changes": [
+    "Do not edit files outside the four owned files.",
+    "Do not change public tool names or schema, provider routes, installer, vendored provider, packaging, process custody, dependencies, manifests, lockfiles, queue/blocker/release files, git, Jira, or pull requests.",
+    "Do not treat unsupported, unavailable-with-another-code, failed, malformed, or thrown postcondition checks as success.",
+    "Do not expose provider instance identifiers, grants, nonces, provider surface references, paths, raw causes, or expected/current binding values."
+  ],
+  "lane": "deep",
+  "objective": "Close the three independent review findings exposed by public tauri_dialog: require a concrete detected instance before authorization, require confirmed absence after a decision, and omit provider-supplied surface references from public dialog metadata.",
+  "owned_files": [
+    "src/mcp/runtime.ts",
+    "src/webdriver/native-control.ts",
+    "tests/unit/mcp-runtime.test.ts",
+    "tests/unit/native-control.test.ts"
+  ],
+  "profile": "luna_xhigh",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-014-public-tauri-dialog-worker-contract.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-014-public-tauri-dialog-reviewer-certificate.json",
+    "src/mcp/runtime.ts",
+    "src/webdriver/native-control.ts",
+    "src/webdriver/client.ts",
+    "tests/unit/mcp-runtime.test.ts",
+    "tests/unit/native-control.test.ts",
+    "tests/unit/webdriver-native-control.test.ts"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "discovery-checkpoint",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-014-public-tauri-dialog-fixer"
+}

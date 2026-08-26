@@ -1,0 +1,15 @@
+{
+  "captured_at":"2026-08-25T09:44:00Z",
+  "head":"23fe76ecce1b3cbe8bd58e79ef31518e2d3b8f53",
+  "contract_hash":"sha256:89229264c1985f4e2f06646ad904165412929732450056de1d804f893d2738fe",
+  "files":[
+    {"path":"src/platform/launch-environment.ts","sha256":"3f445432643701cfc0b718c8ad970316d5432c1027d3d01f6b20cb36cf009582"},
+    {"path":"src/platform/windows/environment.ts","sha256":"5cbbc6a993c2c870b2aac33a45866232f3300a7242353889d4cbb7900934d5ea"},
+    {"path":"src/platform/tracked-process.ts","sha256":"21ead6d06e7129ba95a6a7483b540184015c070bad44f7604437585e8fc422f1"},
+    {"path":"src/session/manager.ts","sha256":"c140ae63b7345580c60172ab5d16d6bf6d189f821e4d75a0e3574d03dda37cc4"},
+    {"path":"tests/unit/windows-environment.test.ts","sha256":"632f015e6f519e43ac219c3c96ee3c3a3902667dfbbe74038786f6d6549a910d"},
+    {"path":"tests/unit/mode-config.test.ts","sha256":"37a898a368d7fb9a51daccbefb464e225f58d56c4b0358663ca59262a92df2fd"},
+    {"path":"tests/unit/tracked-process.test.ts","sha256":"dce056a7181fad9f41907bb58dbaaa1e8b156339ac01bd2f0bd573132dd2d7d1"},
+    {"path":"tests/unit/session-manager.test.ts","sha256":"d1feae3db58e250b75b26d1492c1d35f3ca8a18652cfc440b34e7a9028a71d3e"}
+  ]
+}

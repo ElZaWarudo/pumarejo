@@ -1,0 +1,9 @@
+{
+  "captured_at":"2026-08-25T09:30:00Z",
+  "head":"23fe76ecce1b3cbe8bd58e79ef31518e2d3b8f53",
+  "contract_hash":"sha256:040df2d0168ed8c19dcf3a38a7ad9d4d8281dfa44411f29123f71dc6592c2dea",
+  "files":[
+    {"path":"src/session/manager.ts","sha256":"f5dcd7d6207b87ea668cea1b16b797accca637f12fb36a86beb80dc81a9f5a1e","git_status":" M src/session/manager.ts"},
+    {"path":"tests/unit/session-manager.test.ts","sha256":"25bb7beb1427d2100b8065a430324db3ccc8b31898d707dc98fec31ecf03d30d","git_status":" M tests/unit/session-manager.test.ts"}
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "contract_hash": "sha256:bf44ef1184d3424c8c9095bd3e4b315b2f9a38a15b7b3dca5c5bff57e7591c5b",
+  "worker_id": "rdm014_dialog_fixer",
+  "profile": "luna_xhigh",
+  "started_at_ms": 1787658500000,
+  "owned_files": ["src/mcp/runtime.ts", "src/webdriver/native-control.ts", "tests/unit/mcp-runtime.test.ts", "tests/unit/native-control.test.ts"],
+  "changed_files": ["src/mcp/runtime.ts", "src/webdriver/native-control.ts", "tests/unit/mcp-runtime.test.ts", "tests/unit/native-control.test.ts"],
+  "changed_files_source": "root-diff",
+  "checkpoint_count": 1,
+  "checkpoint": {
+    "event": "discovery_complete",
+    "discovery_complete_at_ms": 1787658510000,
+    "edit_path_found": true,
+    "planned_files": ["src/mcp/runtime.ts", "src/webdriver/native-control.ts", "tests/unit/mcp-runtime.test.ts", "tests/unit/native-control.test.ts"],
+    "evidence_digest": "Four-file edit path closes concrete-instance authorization, canonical absence verification, and public surfaceRef omission."
+  },
+  "discovery_returned_at_ms": 1787658520000,
+  "interventions_sent": ["dispatch_implementation"],
+  "implementation_started_at_ms": 1787658530000,
+  "first_change_at_ms": 1787658540000,
+  "last_required_command_finished_at_ms": 1787659080000,
+  "returned_at_ms": 1787659090000,
+  "phase_duration_ms": {"discovery": 20000, "implementation": 560000},
+  "verification_manifest": {
+    "focused": ["pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/native-control.test.ts", "pnpm build"],
+    "natural": [],
+    "max_retries_per_command": 1
+  },
+  "final": {
+    "status": "done",
+    "phase": "closeout",
+    "remaining_actions": [],
+    "terminal_ready": true,
+    "acceptance_criteria_resolved": true,
+    "acceptance_evidence": [
+      {"criterion_id": "DIALOG-FIX-AC-1", "status": "satisfied", "evidence": "Concrete supported detection is required before a grant."},
+      {"criterion_id": "DIALOG-FIX-AC-2", "status": "satisfied", "evidence": "Only canonical provider_dialog_absent verifies a decision."},
+      {"criterion_id": "DIALOG-FIX-AC-3", "status": "satisfied", "evidence": "Public metadata omits surfaceRef while private mismatch checks remain."},
+      {"criterion_id": "DIALOG-FIX-AC-4", "status": "satisfied", "evidence": "31 focused tests and build passed."}
+    ],
+    "last_required_command": "pnpm build",
+    "verification": {"attempted": [
+      {"command": "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/native-control.test.ts", "attempts": 1, "outcome": "passed"},
+      {"command": "pnpm build", "attempts": 1, "outcome": "passed"}
+    ], "skipped": []},
+    "verification_commands_run": ["pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/native-control.test.ts", "pnpm build"],
+    "unowned_failures": [],
+    "scope_extension": null
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "The three package contract tests pass on the current Windows Codex runtime.",
+      "id": "SHIM-AC-1"
+    }
+  ],
+  "closed_decisions": [
+    "Match the quoted pnpm script target after %~dp0 without assuming an extra separator, allow pnpm.cjs and pnpm.mjs, resolve its dot-segment path relative to the shim directory, and execute it with process.execPath.",
+    "Keep shell false and preserve the existing direct JavaScript CLI path and executable-command fallbacks."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/contract/package.test.ts"
+      ],
+      "max_retries_per_command": 1,
+      "natural": []
+    }
+  },
+  "contract_hash": "sha256:428feed52fa96f1e4c5ed23eea245b3df2590527aab643034ae014a22d221972",
+  "contract_id": "tinto-e2e-approved-decisions:rdm-017-pnpm-shim-compat",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 0,
+    "extra_verification": "forbidden",
+    "fix_rounds": 1,
+    "implementation_rounds": 1,
+    "review_rounds": 0
+  },
+  "forbidden_changes": [
+    "Do not edit production code or any other file, enable shell execution, commit, push, open a PR, or touch Jira."
+  ],
+  "lane": "fast",
+  "objective": "Make the package-test pnpm resolver recognize Windows command shims whose quoted target is a package-relative pnpm.cjs or pnpm.mjs path, while retaining shell-free execution.",
+  "owned_files": [
+    "tests/contract/package.test.ts"
+  ],
+  "profile": "spark",
+  "required_certifications": [],
+  "required_context": [
+    "tests/contract/package.test.ts"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "terminal-only",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-017-pnpm-shim-compat"
+}

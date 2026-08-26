@@ -1,0 +1,36 @@
+{
+  "schema_version":1,
+  "contract_id":"tinto-e2e-rdm-019-security-remediation:rdm-019-listener-postcondition",
+  "unit_id":"rdm-019-listener-postcondition",
+  "lane":"deep",
+  "profile":"luna_xhigh",
+  "objective":"Close the independently certified orphan-recovery listener postcondition gap by checking every stored provider port with its stored family regardless of providerPid presence.",
+  "owned_files":["src/session/manager.ts","tests/unit/session-recovery.test.ts","tests/unit/session-manager.test.ts"],
+  "required_context":["docs/orchestration/runs/tinto-e2e-rdm-019-security-remediation/lease-metadata-hardening-security-certificate.json","src/session/manager.ts","tests/unit/session-recovery.test.ts","tests/unit/session-manager.test.ts"],
+  "closed_decisions":[
+    "providerPort and providerFamily are the sufficient durable inputs to the root-owned providerOwner listener postcondition; providerPid is not a gate for performing the check.",
+    "A surviving listener keeps the claimed lease retryable and prevents closed/removal even when providerPid was never persisted.",
+    "Do not change identity-bound termination behavior or claim its architecture blocker is resolved."
+  ],
+  "forbidden_changes":[
+    "Do not edit files outside the three owned files.",
+    "Do not weaken provider ownership, lease transitions, scan fail-closed behavior, untracked-custody retryability, or family validation.",
+    "Do not change dependencies, provider/Tinto sources, public MCP behavior, manifests, lockfiles, queue/blocker/release files, git, Jira, or pull requests."
+  ],
+  "acceptance_criteria":[
+    {"id":"LPC-AC-1","description":"Orphan recovery calls providerOwner with claimed.pid, claimed.providerPort, and claimed.providerFamily whenever port/family exist, regardless of providerPid."},
+    {"id":"LPC-AC-2","description":"A matching or otherwise present listener keeps the lease retryable and prevents closed/removal when providerPid is absent; an absent listener permits existing convergence semantics."},
+    {"id":"LPC-AC-3","description":"Focused recovery/manager tests, build, and clean real-Tinto READY/first-close-idle probe pass while the identity-bound Windows termination blocker remains explicit."}
+  ],
+  "commands":{"exact":[],"read_only_prefixes":["rg -n ","Get-Content -LiteralPath ","git diff ","git status "],"verification":{"focused":[
+    "pnpm vitest run tests/unit/session-recovery.test.ts tests/unit/session-manager.test.ts",
+    "pnpm build",
+    "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+  ],"natural":[],"max_retries_per_command":1}},
+  "execution_budget":{"discovery_passes":1,"implementation_rounds":1,"fix_rounds":1,"review_rounds":1,"extra_verification":"forbidden"},
+  "supervision":{"mode":"discovery-checkpoint","transition_after_ms":15000},
+  "terminal_protocol":{"return_when":["acceptance_criteria_resolved","required_checks_attempted","state_reconciled"],"grace_actions":0},
+  "terminal_schema":"worker-terminal-v1",
+  "required_certifications":["reviewer","security-sentinel"],
+  "evidence_policy":{"minimum_command_trust":"self-reported","changed_files_source":"root-diff"}
+}

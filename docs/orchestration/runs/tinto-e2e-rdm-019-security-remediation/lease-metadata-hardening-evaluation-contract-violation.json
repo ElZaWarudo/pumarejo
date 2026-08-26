@@ -1,0 +1,17 @@
+{
+  "action": "contract_violation",
+  "contract_hash": "sha256:99df74a152510b96bbb4d2cad5ae57638ffbdc8c8062d1e9e4172771083e83c2",
+  "evidence_trust": "not-terminal",
+  "pending_certifications": [],
+  "reasons": [
+    "real-probe-failed-after-permitted-retry",
+    "verification_commands_run-not-list-of-strings",
+    "worker-terminal-schema-invalid"
+  ],
+  "terminal_status": "needs_review",
+  "fixture_diagnosis": {
+    "cause": "The proving copy contained eight historical retryable leases created before providerFamily became mandatory.",
+    "preserved_at": "C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-clean\\.pumarejo\\sessions-pre-provider-family-20260825T1036Z",
+    "process_action": "none"
+  }
+}

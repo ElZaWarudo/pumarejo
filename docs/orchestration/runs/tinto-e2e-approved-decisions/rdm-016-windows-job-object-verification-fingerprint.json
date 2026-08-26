@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "unit_id": "rdm-016-windows-job-object-custody",
+  "owner": "wave-root",
+  "fingerprint": "sha256:a2bace65a959dd29c1ca05d97c49fba672022425be1c04187bed30543c834995",
+  "diff_digest": "sha256:81a34fc3f69f4eb47e978d1b973b787725eec7f136a0c469edd6ebfc98cc1f61",
+  "commands": [
+    "pnpm vitest run tests/unit/windows-job-object.test.ts tests/unit/windows-custody.test.ts tests/unit/windows-process.test.ts tests/unit/process-custody.test.ts tests/unit/session-manager.test.ts tests/unit/session-recovery.test.ts tests/platform/ownership-proof.test.ts tests/platform/background-proof.test.ts tests/release/release-safety.test.ts",
+    "pnpm validate"
+  ],
+  "result": "passed",
+  "evidence": [
+    "Focused custody verification passed 59 tests with 2 intentional platform skips and build.",
+    "Root aggregate validation passed build, typecheck, lint, formatting, 723 tests with 19 intentional skips, and pack verification.",
+    "The bounded native Windows proof passed normal termination, early exit, spoof isolation, and unrelated-process negative control.",
+    "Fresh exact-digest reviewer and security certificates passed with no findings.",
+    "Managed launch establishes a kill-on-close Job before resume, binds authority to creation identity and the retained handle, and refuses raw-PID release-grade custody."
+  ],
+  "certificates": [
+    "rdm-016-job-release-reviewer-certificate.json",
+    "rdm-016-job-release-security-certificate.json"
+  ]
+}

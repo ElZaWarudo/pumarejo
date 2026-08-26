@@ -1,0 +1,17 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:3fe1f8f7dcc9be9f27bbfdf2c9606f7684e14d8142cd41190fd55345c90fb222",
+  "edit_path_found": true,
+  "planned_files": [
+    "src/installer/cargo.ts",
+    "src/installer/plan.ts",
+    "src/installer/attributed-drift.ts",
+    "tests/integration/init.test.ts",
+    "tests/integration/remove.test.ts",
+    "tests/unit/attributed-drift.test.ts",
+    "tests/platform/cargo-proof.test.ts",
+    "docs/contracts.md",
+    "docs/security.md"
+  ],
+  "evidence_digest": "Accept only one exact single-line inline supported registry dependency; add and attribute only the portable path while preserving other bytes; teach manifest validation and attributed drift the distinct path-added projection; removal strips only that exact path/marker and restores original Cargo bytes; all aliases, wrong versions, nonoptional, multiline, duplicate, forged, or modified projections fail closed. V2 expands the immutable v1 scope only to the discovered attribution validator and its unit test."
+}

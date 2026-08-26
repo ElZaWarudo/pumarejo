@@ -1,0 +1,5 @@
+{"schema_version":1,"contract_hash":"sha256:20c96ca4bfa5bfdee1c45af26ab3dbfc8a7b961a7f466568547bda21bc15e530","source":"root-content-hash-before-discovery","files":[
+  {"path":"src/session/manager.ts","sha256":"51ea5b71ac7a525dd17e68f7bd9ae324b59a90855564812fd29379fb4e3902a6"},
+  {"path":"tests/unit/session-recovery.test.ts","sha256":"3a682b6ad57d56459b31134d52d48804444db56adac6da9af9afeeadd886f508"},
+  {"path":"tests/unit/session-manager.test.ts","sha256":"d7f44e06f9755372972a47bdb47f5a78333cb982e00a8122f50dd8ae20904063"}
+]}

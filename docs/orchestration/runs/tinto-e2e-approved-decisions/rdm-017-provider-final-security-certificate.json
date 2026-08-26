@@ -1,0 +1,8 @@
+{
+  "role": "security-sentinel",
+  "actor_id": "rdm017-provider-final-security",
+  "status": "passed",
+  "contract_hash": "sha256:e1cbe78821646547a1ad8a4bb4b75d1a3bc89db3a7c920df79cc8dce22ff991e",
+  "diff_digest": "sha256:b35083d3addf7f216c0cb0ee86c9ed6882f4c78e0f02bcf4c0e73775a6c835da",
+  "findings": []
+}

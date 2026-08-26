@@ -1,0 +1,28 @@
+{
+  "action": "contract_violation",
+  "contract_hash": "sha256:62fc7085e79f6f36584ce6a99af6845d956692a1684abb8eda5c8373f938162e",
+  "evidence_trust": "self-reported",
+  "metrics": {
+    "acceptance_latency_ms": null,
+    "discovery_implementation_ratio": 0.0,
+    "evidence_trust": "self-reported",
+    "last_required_command_to_return_ms": 10000,
+    "out_of_manifest_commands": 0,
+    "repeated_verification_commands": 0,
+    "review_findings_p0": 0,
+    "review_findings_p1": 0,
+    "review_findings_p2": 0,
+    "root_interventions": 0,
+    "scope_violations": 0,
+    "time_to_first_change_ms": 10000
+  },
+  "pending_certifications": [],
+  "reasons": [
+    "invalid-terminal-status",
+    "invalid-terminal-shape",
+    "invalid-unowned-failures",
+    "invalid-verification-result",
+    "terminal-schema-missing-fields"
+  ],
+  "terminal_status": null
+}

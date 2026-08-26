@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "contract_id": "autonomy-2026-08-21-tinto-e2e-reliability",
+  "issued_at": "2026-08-21T11:18:58Z",
+  "expires_at": "2026-09-20T11:18:58Z",
+  "status": "active",
+  "issuer": {
+    "type": "user",
+    "id": "user",
+    "approval_ref": "codex-thread:user-approval:2026-08-21T11:18:58Z",
+    "approval_hash": "sha256:da7006516dd4fa817584830d21d2f4bd806cdc577ea0fa49d778346219bc0912"
+  },
+  "scope": {
+    "repository": "ElZaWarudo/pumarejo",
+    "base_branch": "main",
+    "branch_patterns": ["codex/tinto-e2e-*"],
+    "jira_projects": [],
+    "jira_keys": []
+  },
+  "allowed_mutations": [
+    "branch_push",
+    "pr_create",
+    "pr_update",
+    "pr_ready",
+    "reviewer_request"
+  ],
+  "stop_conditions": [
+    "contract_expired",
+    "scope_mismatch",
+    "required_checks_not_green",
+    "review_findings_at_or_above_threshold",
+    "security_gate_failed",
+    "branch_protection_rejected",
+    "user_owned_changes_would_be_overwritten",
+    "audit_write_failed"
+  ],
+  "audit": {
+    "path": "docs/orchestration/autonomy-ledgers/tinto-e2e-reliability-audit",
+    "head_hash": "GENESIS"
+  },
+  "contract_hash": "69fd844328c04dd4ae9b8b56b41a02ff75279b3f627d342393217544c819254b"
+}

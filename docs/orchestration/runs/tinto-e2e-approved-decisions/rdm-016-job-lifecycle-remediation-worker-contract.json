@@ -1,0 +1,110 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "The embedded helper remains live across multiple inspect/control frames and closes only on explicit release, controller EOF, or fatal failure.",
+      "id": "LIFE-AC-1"
+    },
+    {
+      "description": "Target I/O cannot spoof helper protocol; bounded target output remains observable through the existing onOutput seam without exposing control frames.",
+      "id": "LIFE-AC-2"
+    },
+    {
+      "description": "Full createWindowsProcessAdapter native spawn/inspect/terminate/release returns terminated or already-exited (never retryable for the healthy disposable child), proves target absence and helper exit, and affects no unrelated process.",
+      "id": "LIFE-AC-3"
+    },
+    {
+      "description": "Focused suite, build, and bounded Windows native proof pass; raw-PID fallback remains unavailable/non-release-grade and docs match actual lifecycle behavior.",
+      "id": "LIFE-AC-4"
+    }
+  ],
+  "closed_decisions": [
+    "Root-observed failure is authoritative: full createWindowsProcessAdapter spawn -> custody.inspect -> custody.terminate failed with 'Windows Job handle is unavailable' although the lower-level proof passed.",
+    "The target must not share the helper control stdin/stdout. Give the target a non-control stdin and route target stdout/stderr through a separate inherited handle or explicit bounded frames that cannot be parsed as control responses; frame-like target output must never satisfy a pending control request.",
+    "The helper must read control bytes from the actual standard-input stream and remain alive until explicit release, controller EOF, or fatal bounded protocol/native failure. Controller EOF must close the Job and kill remaining members.",
+    "Control requests must enqueue one paired resolver/rejector before writing, remove both together, reject all on helper loss, and enforce finite frame/output/pending/time bounds.",
+    "Termination convergence must be based on the target process held in the Job, not the helper ChildProcess exit. A successful Job termination must wait boundedly for the held target handle to signal; subsequent native inspect returns absence, while helper remains available until release.",
+    "The full tracked-adapter Windows native proof must spawn only a disposable child, prove identity-bound inspect, terminate without retryable state, prove target absence, release, and prove helper exit. Preserve no-supported-raw-PID fallback and Linux behavior."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/windows-job-object.test.ts tests/unit/windows-custody.test.ts tests/unit/windows-process.test.ts tests/unit/process-custody.test.ts tests/platform/ownership-proof.test.ts tests/platform/background-proof.test.ts tests/release/release-safety.test.ts",
+        "pnpm build"
+      ],
+      "max_retries_per_command": 1,
+      "natural": [
+        "On Windows, run a bounded full createWindowsProcessAdapter spawn/inspect/terminate/release proof using only a disposable child and verify target absence plus helper exit."
+      ]
+    }
+  },
+  "contract_hash": "sha256:bbb5a45513447c07fed2991958eee0ee86031fda29e231ac0708fdb867c96eaf",
+  "contract_id": "tinto-e2e-approved-decisions:rdm-016-job-lifecycle-remediation",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "extra_verification": "forbidden",
+    "fix_rounds": 1,
+    "implementation_rounds": 1,
+    "review_rounds": 1
+  },
+  "forbidden_changes": [
+    "Do not edit session manager, provider/dialog behavior, dependencies/lockfiles, queue/blocker/release files, git, Jira, or pull requests.",
+    "Do not treat helper exit as target exit, share target stdin with the control channel, parse target bytes as control frames, kill/revalidate by raw PID, weaken the suspended assignment barrier, or target any unrelated process in proof."
+  ],
+  "lane": "deep",
+  "objective": "Repair the Windows Job bridge so the full tracked adapter retains live handle-bound custody through inspect, termination, and release, with target I/O isolated from the control protocol.",
+  "owned_files": [
+    "src/platform/tracked-process.ts",
+    "src/platform/windows/job-object.ts",
+    "src/platform/windows/process.ts",
+    "tests/unit/windows-job-object.test.ts",
+    "tests/unit/windows-custody.test.ts",
+    "tests/unit/windows-process.test.ts",
+    "tests/unit/process-custody.test.ts",
+    "tests/platform/ownership-proof.test.ts",
+    "tests/platform/background-proof.test.ts",
+    "tests/release/release-safety.test.ts",
+    "docs/architecture.md",
+    "docs/contracts.md",
+    "docs/security.md",
+    "docs/compatibility.md"
+  ],
+  "profile": "luna_xhigh",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-016-windows-job-object-custody-worker-contract.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-016-windows-job-object-custody-discovery-checkpoint.json",
+    "src/platform/windows/job-object.ts",
+    "src/platform/tracked-process.ts",
+    "tests/unit/windows-job-object.test.ts",
+    "tests/unit/process-custody.test.ts"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "discovery-checkpoint",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-016-job-lifecycle-remediation"
+}

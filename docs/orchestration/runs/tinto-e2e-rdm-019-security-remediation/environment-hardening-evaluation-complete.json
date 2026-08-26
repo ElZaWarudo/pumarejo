@@ -1,0 +1,22 @@
+{
+  "action": "complete",
+  "contract_hash": "sha256:76475e9e85b363eb8567c0c9791ac810d738ae832046eeed0787c5c5faf5e5ca",
+  "evidence_trust": "self-reported",
+  "metrics": {
+    "acceptance_latency_ms": 600000,
+    "discovery_implementation_ratio": 0.012,
+    "evidence_trust": "self-reported",
+    "last_required_command_to_return_ms": 10000,
+    "out_of_manifest_commands": 0,
+    "repeated_verification_commands": 0,
+    "review_findings_p0": 0,
+    "review_findings_p1": 0,
+    "review_findings_p2": 0,
+    "root_interventions": 1,
+    "scope_violations": 0,
+    "time_to_first_change_ms": 10000
+  },
+  "pending_certifications": [],
+  "reasons": [],
+  "terminal_status": "done"
+}

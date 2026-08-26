@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "unit_id": "rdm-017-provider-delivery",
+  "owner": "wave-root",
+  "fingerprint": "sha256:7b127853bdec851312d43803972456ae90ad7e46ef0989f06b491887c2cd0942",
+  "diff_digest": "sha256:8c998eb29861cfe6c75b22ea7796ac333d633371683a8a9c949333d3bb0f83ad",
+  "commands": [
+    "pnpm vitest run tests/unit/attributed-drift.test.ts tests/integration/init.test.ts tests/integration/remove.test.ts tests/integration/doctor.test.ts",
+    "pnpm validate"
+  ],
+  "result": "passed",
+  "evidence": [
+    "Root focused verification passed 100 tests, build, formatting, and pack checks.",
+    "Root aggregate validation passed build, typecheck, lint, formatting, 723 tests with 19 intentional skips, and pack verification.",
+    "The disposable real-Tinto journey passed tool listing, managed launch, discovery, snapshot, close, ready doctor, and exact original Cargo SHA restoration.",
+    "Fresh exact-digest reviewer and security certificates passed with no findings.",
+    "Uniform Cargo EOL provenance is bound to an exact owned marker; swapped tokens, marker drift, and foreign dependency shape fail closed."
+  ],
+  "certificates": [
+    "rdm-017-provider-bound-release-reviewer-certificate.json",
+    "rdm-017-provider-bound-release-security-certificate.json"
+  ]
+}

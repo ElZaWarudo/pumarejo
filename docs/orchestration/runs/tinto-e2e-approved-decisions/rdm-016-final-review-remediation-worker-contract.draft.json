@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "contract_id": "tinto-e2e-approved-decisions:rdm-016-final-review-remediation",
+  "unit_id": "rdm-016-final-review-remediation",
+  "objective": "Close the four exact-hash final-review findings in the Windows Job Object launch boundary without weakening identity-bound custody or introducing raw-PID authority.",
+  "lane": "deep",
+  "profile": "luna_xhigh",
+  "owned_files": [
+    "src/platform/windows/job-object.ts",
+    "src/platform/tracked-process.ts",
+    "tests/unit/windows-job-object.test.ts",
+    "tests/unit/tracked-process.test.ts",
+    "tests/release/release-safety.test.ts"
+  ],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-016-windows-job-object-custody-worker-contract.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-016-job-lifecycle-remediation-worker-contract.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-016-job-final-reviewer-certificate.json",
+    "src/platform/windows/job-object.ts",
+    "src/platform/tracked-process.ts"
+  ],
+  "closed_decisions": [
+    "Every native failure after CreateProcessW succeeds but before Job assignment completes must terminate the still-suspended target through its already-held process handle before closing handles; closing handles alone is not cleanup.",
+    "CreateProcessW may inherit only the three explicitly intended target stdio handles. Clearing merely the three controller standard-handle inherit flags is acceptable only if the implementation also proves no other helper handle can cross; otherwise use an explicit inherited-handle allow-list.",
+    "Any attached-frame timeout or invalid attached response must synchronously fail the handle, close helper stdin, terminate the exact helper ChildProcess, wait boundedly for helper exit, and thereby close the Job before managedLaunch rejects.",
+    "Managed readiness must observe target liveness through the identity-bound native attachment, never the helper ChildProcess exitCode. Target exit before provider readiness fails promptly and triggers custody cleanup.",
+    "All helper/output/request/frame limits, suspended-before-assignment barrier, target-handle termination convergence, raw-PID refusal, Linux behavior, and public contracts remain unchanged."
+  ],
+  "acceptance_criteria": [
+    {"id": "FRR-AC-1", "description": "CreateJob/configure/assign/resume failure paths leave no suspended target, helper, or Job residue, with focused fault-injection/static proof."},
+    {"id": "FRR-AC-2", "description": "The target inherits only intended stdio handles and cannot read/write the controller protocol even when it emits protocol-shaped output."},
+    {"id": "FRR-AC-3", "description": "Attach timeout/invalid identity tears down helper and Job boundedly before rejection; managed readiness detects target exit independently of helper lifecycle."},
+    {"id": "FRR-AC-4", "description": "Focused tests, build, and a bounded full native adapter proof pass with target absence, helper exit, spoof isolation, and no unrelated-process impact."}
+  ],
+  "forbidden_changes": [
+    "Do not edit session manager, provider/dialog behavior, dependencies/lockfiles, documentation outside the owned release assertion, queue/blocker/release files, git, Jira, or pull requests.",
+    "Do not add raw-PID cleanup authority, taskkill, shell interpolation, unbounded waits/output, post-resume Job assignment, or a silent fallback when native setup fails.",
+    "Do not terminate any process except disposable targets/helpers created by a bounded proof and identified through the launch-owned handles."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": ["rg -n ", "Get-Content -LiteralPath ", "git diff ", "git status "],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/windows-job-object.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-custody.test.ts tests/unit/process-custody.test.ts tests/release/release-safety.test.ts",
+        "pnpm build"
+      ],
+      "natural": ["On Windows, run one <=30 second full adapter proof with try/finally cleanup and verify target absence, helper exit, spoof isolation, and prompt target-exit readiness failure."],
+      "max_retries_per_command": 1
+    }
+  },
+  "required_certifications": ["reviewer", "security-sentinel"],
+  "evidence_policy": {"changed_files_source": "root-diff", "minimum_command_trust": "self-reported"},
+  "execution_budget": {"discovery_passes": 1, "implementation_rounds": 1, "fix_rounds": 1, "review_rounds": 1, "extra_verification": "forbidden"},
+  "supervision": {"mode": "discovery-checkpoint", "transition_after_ms": 15000},
+  "terminal_schema": "worker-terminal-v1",
+  "terminal_protocol": {"return_when": ["acceptance_criteria_resolved", "required_checks_attempted", "state_reconciled"], "grace_actions": 0}
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "unit_id": "rdm-014-public-tauri-dialog",
+  "owner": "wave-root",
+  "fingerprint": "sha256:11ff635d0684aca62c935ac113279be9bf11ef9442d931423e9453dd6041f61d",
+  "commands": [
+    "pnpm vitest run tests/contract/mcp-server.test.ts tests/unit/mcp-runtime.test.ts tests/unit/native-control.test.ts tests/unit/webdriver-native-control.test.ts",
+    "pnpm build"
+  ],
+  "result": "passed",
+  "evidence": [
+    "Root aggregate passed 91 tests across four files.",
+    "TypeScript build passed.",
+    "Final exact-hash reviewer and security-sentinel certificates passed with no findings.",
+    "Public tool is additive, strict, explicitly authorized, current-binding checked, one-shot, provider-verified, and sanitized."
+  ]
+}

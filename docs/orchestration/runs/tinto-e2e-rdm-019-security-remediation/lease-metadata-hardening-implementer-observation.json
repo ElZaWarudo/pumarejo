@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "contract_hash": "sha256:99df74a152510b96bbb4d2cad5ae57638ffbdc8c8062d1e9e4172771083e83c2",
+  "worker_id": "rdm019_lease_metadata_implementer",
+  "profile": "luna_xhigh",
+  "started_at_ms": 1787654400000,
+  "changed_files": [
+    "src/session/custody-lease.ts",
+    "src/session/process-lease.ts",
+    "src/session/manager.ts",
+    "src/platform/tracked-process.ts",
+    "tests/unit/process-lease.test.ts",
+    "tests/unit/session-recovery.test.ts",
+    "tests/unit/session-manager.test.ts",
+    "tests/unit/tracked-process.test.ts"
+  ],
+  "changed_files_source": "root-diff",
+  "checkpoint_count": 1,
+  "checkpoint": {
+    "event": "discovery_complete",
+    "discovery_complete_at_ms": 1787654410000,
+    "edit_path_found": true,
+    "planned_files": [
+      "src/session/custody-lease.ts",
+      "src/session/process-lease.ts",
+      "src/session/manager.ts",
+      "src/platform/tracked-process.ts",
+      "tests/unit/process-lease.test.ts",
+      "tests/unit/session-recovery.test.ts",
+      "tests/unit/session-manager.test.ts",
+      "tests/unit/tracked-process.test.ts"
+    ],
+    "evidence_digest": "Validated contract and mapped all four criteria to the eight owned files while preserving the identity-bound Windows termination blocker."
+  },
+  "discovery_returned_at_ms": 1787654420000,
+  "interventions_sent": ["dispatch_implementation"],
+  "implementation_started_at_ms": 1787654430000,
+  "first_change_at_ms": 1787654440000,
+  "last_required_command_finished_at_ms": 1787654800000,
+  "returned_at_ms": 1787654810000,
+  "phase_duration_ms": {"discovery":20000,"implementation":390000},
+  "command_evidence": {
+    "trust": "self-reported",
+    "commands": [
+      {"kind":"verification","command":"pnpm vitest run tests/unit/process-lease.test.ts tests/unit/session-recovery.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts"},
+      {"kind":"verification","command":"pnpm build"},
+      {"kind":"verification","command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"},
+      {"kind":"verification","command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"}
+    ]
+  },
+  "certifications": [],
+  "final": {
+    "status": "needs_review",
+    "phase": "verification",
+    "remaining_actions": ["Investigate and rerun the real-Tinto READY/first-close-idle probe after APP_START_FAILED."],
+    "terminal_ready": false,
+    "acceptance_criteria_resolved": ["LMH-AC-1","LMH-AC-2","LMH-AC-3"],
+    "acceptance_evidence": [
+      {"criterion_id":"LMH-AC-1","status":"satisfied","evidence":"Persisted and validated providerFamily metadata; normal-close and orphan-recovery ownership checks pass the stored family."},
+      {"criterion_id":"LMH-AC-2","status":"satisfied","evidence":"Scan malformed/skipped results now emit bounded evidence and fail before spawn; focused tests pass."},
+      {"criterion_id":"LMH-AC-3","status":"satisfied","evidence":"Untracked custody returns retryable without native termination and recovery retains retryable leases."},
+      {"criterion_id":"LMH-AC-4","status":"not_satisfied","evidence":"Focused tests and build passed, but both permitted real-Tinto probe attempts failed with APP_START_FAILED."}
+    ],
+    "last_required_command": "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+    "verification": {"attempted":true,"skipped":[]},
+    "verification_commands_run": [
+      {"command":"pnpm vitest run tests/unit/process-lease.test.ts tests/unit/session-recovery.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts","attempt":1,"status":"passed"},
+      {"command":"pnpm build","attempt":1,"status":"passed"},
+      {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","attempt":1,"status":"failed"},
+      {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","attempt":2,"status":"failed"}
+    ],
+    "unowned_failures": [],
+    "scope_extension": {"additional_files":[],"reason":null}
+  }
+}

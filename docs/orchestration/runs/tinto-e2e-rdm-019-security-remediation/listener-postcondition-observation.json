@@ -1,0 +1,43 @@
+{
+  "schema_version":1,
+  "contract_hash":"sha256:20c96ca4bfa5bfdee1c45af26ab3dbfc8a7b961a7f466568547bda21bc15e530",
+  "worker_id":"rdm019_listener_postcondition_implementer",
+  "profile":"luna_xhigh",
+  "started_at_ms":1787655500000,
+  "changed_files":["src/session/manager.ts","tests/unit/session-recovery.test.ts"],
+  "changed_files_source":"root-diff",
+  "checkpoint_count":1,
+  "checkpoint":{"event":"discovery_complete","discovery_complete_at_ms":1787655510000,"edit_path_found":true,"planned_files":["src/session/manager.ts","tests/unit/session-recovery.test.ts"],"evidence_digest":"Validated the exact contract and bounded the edit path to removal of the providerPid listener-check gate plus one recovery regression."},
+  "discovery_returned_at_ms":1787655520000,
+  "interventions_sent":["dispatch_implementation"],
+  "implementation_started_at_ms":1787655530000,
+  "first_change_at_ms":1787655540000,
+  "last_required_command_finished_at_ms":1787655800000,
+  "returned_at_ms":1787655810000,
+  "phase_duration_ms":{"discovery":20000,"implementation":280000},
+  "command_evidence":{"trust":"self-reported","commands":[
+    {"kind":"verification","command":"pnpm vitest run tests/unit/session-recovery.test.ts tests/unit/session-manager.test.ts"},
+    {"kind":"verification","command":"pnpm build"},
+    {"kind":"verification","command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"}
+  ]},
+  "certifications":[
+    {"role":"reviewer","actor_id":"rdm019-listener-postcondition-reviewer","status":"passed","contract_hash":"sha256:20c96ca4bfa5bfdee1c45af26ab3dbfc8a7b961a7f466568547bda21bc15e530","diff_digest":"sha256:355362c45f9c4bbd038ea0c44962add186735cbd64d0116da20c36e03763b6fe","findings":[]},
+    {"role":"security-sentinel","actor_id":"rdm019-listener-postcondition-security","status":"passed","contract_hash":"sha256:20c96ca4bfa5bfdee1c45af26ab3dbfc8a7b961a7f466568547bda21bc15e530","diff_digest":"sha256:355362c45f9c4bbd038ea0c44962add186735cbd64d0116da20c36e03763b6fe","findings":[]}
+  ],
+  "final":{
+    "status":"done","phase":"closeout","remaining_actions":[],"terminal_ready":true,"acceptance_criteria_resolved":true,
+    "acceptance_evidence":[
+      {"criterion_id":"LPC-AC-1","status":"satisfied","evidence":"Orphan recovery invokes providerOwner whenever providerPort and providerFamily exist, using claimed.pid regardless of providerPid."},
+      {"criterion_id":"LPC-AC-2","status":"satisfied","evidence":"Regression coverage proves a surviving listener keeps a providerPid-less lease retryable; absent-listener convergence remains covered."},
+      {"criterion_id":"LPC-AC-3","status":"satisfied","evidence":"Focused suites passed 35 tests, build passed, and the clean real-Tinto probe returned status/snapshot/surface evidence with close state idle. The identity-bound Windows termination blocker remains unchanged."}
+    ],
+    "last_required_command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+    "verification":{"attempted":[
+      {"command":"pnpm vitest run tests/unit/session-recovery.test.ts tests/unit/session-manager.test.ts","attempts":1,"outcome":"passed"},
+      {"command":"pnpm build","attempts":1,"outcome":"passed"},
+      {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","attempts":1,"outcome":"passed"}
+    ],"skipped":[]},
+    "verification_commands_run":["pnpm vitest run tests/unit/session-recovery.test.ts tests/unit/session-manager.test.ts","pnpm build","node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"],
+    "unowned_failures":[],"scope_extension":null
+  }
+}

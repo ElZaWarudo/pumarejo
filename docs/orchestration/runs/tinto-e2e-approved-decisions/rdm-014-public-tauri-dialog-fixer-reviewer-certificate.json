@@ -1,0 +1,12 @@
+{
+  "role": "reviewer",
+  "actor_id": "rdm014-dialog-fixer-reviewer",
+  "status": "failed",
+  "contract_hash": "sha256:bf44ef1184d3424c8c9095bd3e4b315b2f9a38a15b7b3dca5c5bff57e7591c5b",
+  "diff_digest": "sha256:fca71d21b5c77e17d027c67bcb4152d1fc2d0e4a460d299e97aa111d82940fd9",
+  "findings": [
+    {"severity": "p1", "evidence": "Accept/cancel still called decide when authorize=false, allowing a stale grant to be consumed later."},
+    {"severity": "p1", "evidence": "Required noncanonical post-decision classes lacked direct regression coverage."},
+    {"severity": "p2", "evidence": "WebDriverClient detection still typed and returned provider surfaceRef in its public dialog projection before the session-level sanitizer."}
+  ]
+}

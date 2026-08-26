@@ -1,0 +1,7 @@
+{
+  "event": "discovery_complete",
+  "contract_hash": "sha256:f290916bed54ec6bc1b5a1bb64428c3375d0f1a2cd82acae2ec388114b28e5dd",
+  "edit_path_found": true,
+  "planned_files": ["src/mcp/runtime.ts", "src/webdriver/native-control.ts", "src/webdriver/client.ts", "tests/unit/mcp-runtime.test.ts", "tests/unit/native-control.test.ts", "tests/unit/webdriver-native-control.test.ts"],
+  "evidence_digest": "Fail closed before decide when authorize=false; clear authority on every non-success path; require supported concrete metadata and exact non-empty surface proof; explicitly project client/session results; directly cover stale reuse, contradictory/missing binding, injected fields, and all noncanonical postconditions."
+}

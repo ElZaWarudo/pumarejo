@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "total_slots": 9,
+  "reserve_slots": 1,
+  "role_caps": {
+    "implementer": 1,
+    "reviewer": 2,
+    "security": 1,
+    "ci-platform": 1,
+    "integrator": 1,
+    "fixer": 1,
+    "planner": 1,
+    "documenter": 1
+  },
+  "scale_authorized": false,
+  "review_capacity": 2,
+  "wave_history": [
+    {
+      "result": "failed",
+      "scope_violations": 0,
+      "merge_conflicts": 0,
+      "review_lagging": false
+    }
+  ],
+  "requests": [
+    {
+      "id": "rdm-014-public-tauri-dialog",
+      "role": "implementer",
+      "priority": 0,
+      "owned_paths": [
+        "src/mcp/domain-ports.ts",
+        "src/mcp/runtime.ts",
+        "src/mcp/schemas.ts",
+        "src/mcp/server.ts",
+        "src/mcp/tools/index.ts",
+        "tests/contract/mcp-server.test.ts",
+        "tests/unit/mcp-runtime.test.ts",
+        "docs/contracts.md",
+        "docs/security.md"
+      ],
+      "risk_surfaces": ["public-contract", "auth", "security-production"],
+      "unresolved_dependencies": [],
+      "blocked": false
+    }
+  ]
+}

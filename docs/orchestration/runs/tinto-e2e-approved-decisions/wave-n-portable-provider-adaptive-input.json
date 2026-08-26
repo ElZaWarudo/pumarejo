@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "total_slots": 9,
+  "reserve_slots": 1,
+  "role_caps": {"implementer": 1, "reviewer": 2, "security": 1, "ci-platform": 1, "integrator": 1, "fixer": 1, "planner": 1, "documenter": 1},
+  "scale_authorized": false,
+  "review_capacity": 2,
+  "wave_history": [{"result": "green", "scope_violations": 0, "merge_conflicts": 0, "review_lagging": false}],
+  "requests": [
+    {
+      "id": "rdm-017-portable-provider-delivery",
+      "role": "implementer",
+      "priority": 0,
+      "owned_paths": ["package.json", "scripts/build-provider-bundle.mjs", "src/version.ts", "src/installer/provider-source.ts", "src/installer/cargo.ts", "src/installer/manifest.ts", "src/installer/plan.ts", "src/installer/remove.ts", "src/installer/attributed-drift.ts", "src/installer/doctor.ts", "tests/unit/provider-source.test.ts", "tests/unit/attributed-drift.test.ts", "tests/integration/init.test.ts", "tests/integration/remove.test.ts", "tests/integration/doctor.test.ts", "tests/contract/package.test.ts", "tests/release/release-safety.test.ts", "tests/platform/cargo-proof.test.ts", "tests/platform/provider-proof.test.ts", "tests/fixtures/tauri-app/src-tauri/Cargo.toml", "docs/architecture.md", "docs/contracts.md", "docs/security.md", "docs/compatibility.md"],
+      "risk_surfaces": ["dependency-manifest", "generated", "release-infrastructure", "security-production"],
+      "unresolved_dependencies": [],
+      "blocked": false
+    }
+  ]
+}

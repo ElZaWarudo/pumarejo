@@ -1,0 +1,8 @@
+{
+  "role": "reviewer",
+  "actor_id": "rdm014-dialog-final-reviewer",
+  "status": "passed",
+  "contract_hash": "sha256:f290916bed54ec6bc1b5a1bb64428c3375d0f1a2cd82acae2ec388114b28e5dd",
+  "diff_digest": "sha256:698280461fab03f6a8e19647d4e4276b3407bb927e04919d7e880db9383580b9",
+  "findings": []
+}

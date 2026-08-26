@@ -1,0 +1,53 @@
+{
+  "role": "reviewer",
+  "actor_id": "rdm017-provider-final-converged-reviewer",
+  "status": "failed",
+  "contract_hash": "sha256:e1cbe78821646547a1ad8a4bb4b75d1a3bc89db3a7c920df79cc8dce22ff991e",
+  "primary_contract_hash": "sha256:e1cbe78821646547a1ad8a4bb4b75d1a3bc89db3a7c920df79cc8dce22ff991e",
+  "migration_v2_contract_hash": "sha256:3fe1f8f7dcc9be9f27bbfdf2c9606f7684e14d8142cd41190fd55345c90fb222",
+  "doctor_alignment_contract_hash": "sha256:e4a2f3eee6e8244e825f036b78460ee9c8f43a014ff7c6a95b5316d90af23a99",
+  "eol_restoration_contract_hash": "sha256:7649c4aa274221594d622e7f33253350cc8e28546637cc4153fe60a8cd6ebfb9",
+  "diff_digest": "sha256:e5054b4b267f6190b49a2239f418e4a272064b934a62f7d177c7a16313124419",
+  "digest_file_count": 24,
+  "digest_files": [
+    "package.json",
+    "scripts/build-provider-bundle.mjs",
+    "src/version.ts",
+    "src/installer/provider-source.ts",
+    "src/installer/cargo.ts",
+    "src/installer/manifest.ts",
+    "src/installer/plan.ts",
+    "src/installer/remove.ts",
+    "src/installer/attributed-drift.ts",
+    "src/installer/doctor.ts",
+    "tests/unit/provider-source.test.ts",
+    "tests/unit/attributed-drift.test.ts",
+    "tests/integration/init.test.ts",
+    "tests/integration/remove.test.ts",
+    "tests/integration/doctor.test.ts",
+    "tests/contract/package.test.ts",
+    "tests/release/release-safety.test.ts",
+    "tests/platform/cargo-proof.test.ts",
+    "tests/platform/provider-proof.test.ts",
+    "tests/fixtures/tauri-app/src-tauri/Cargo.toml",
+    "docs/architecture.md",
+    "docs/contracts.md",
+    "docs/security.md",
+    "docs/compatibility.md"
+  ],
+  "digest_convention": "Sort the 24 repository-relative POSIX paths lexicographically; hash the UTF-8 concatenation of each path, one NUL byte, the exact file bytes, and one NUL byte.",
+  "findings": [
+    {
+      "severity": "p1",
+      "file": "src/installer/attributed-drift.ts",
+      "line": 285,
+      "reason": "A uniform Cargo projection with its EOL attribution forged or removed is accepted as intact: cargoProjectionIntact validates EOL style only when an EOL token is present. Together with validateAppliedManifest allowing a dependency-only attribution, doctor remains ready and remove skips restoration after external LF/CRLF normalization, violating fail-closed attribution and exact EOL restoration. Reproduced with the current built code: deleting the generated eol:cargo:lf token returned {owned:'intact', hashMatched:true, reason:'intact'}."
+    },
+    {
+      "severity": "p1",
+      "file": "src/installer/attributed-drift.ts",
+      "line": 256,
+      "reason": "The created-dependency attribution path checks only optional=true, supported version, and the project-relative path; unlike the path-added branch it does not require the exact generated dependency keys, inline declaration, or cargo-dependency marker. A foreign extra key is therefore reported intact by doctor, despite the contract requiring foreign/forged Cargo content to fail closed. Reproduced with the current built code by adding registry='foreign' to the generated dependency; evaluateAttributedEntry returned {owned:'intact', hashMatched:true, reason:'intact'}."
+    }
+  ]
+}

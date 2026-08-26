@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "contract_hash": "sha256:99df74a152510b96bbb4d2cad5ae57638ffbdc8c8062d1e9e4172771083e83c2",
+  "worker_id": "rdm019_lease_metadata_implementer",
+  "profile": "luna_xhigh",
+  "started_at_ms": 1787654800000,
+  "changed_files": [
+    "src/session/custody-lease.ts",
+    "src/session/process-lease.ts",
+    "src/session/manager.ts",
+    "src/platform/tracked-process.ts",
+    "tests/unit/process-lease.test.ts",
+    "tests/unit/session-recovery.test.ts",
+    "tests/unit/session-manager.test.ts",
+    "tests/unit/tracked-process.test.ts"
+  ],
+  "changed_files_source": "root-diff",
+  "checkpoint_count": 1,
+  "checkpoint": {
+    "event": "discovery_complete",
+    "discovery_complete_at_ms": 1787654801000,
+    "edit_path_found": true,
+    "planned_files": [
+      "src/session/custody-lease.ts",
+      "src/session/process-lease.ts",
+      "src/session/manager.ts",
+      "src/platform/tracked-process.ts",
+      "tests/unit/process-lease.test.ts",
+      "tests/unit/session-recovery.test.ts",
+      "tests/unit/session-manager.test.ts",
+      "tests/unit/tracked-process.test.ts"
+    ],
+    "evidence_digest": "The implementation edit path remained unchanged; root diagnosed and preserved eight pre-providerFamily fixture leases before the clean-session verification fix round."
+  },
+  "discovery_returned_at_ms": 1787654802000,
+  "interventions_sent": ["dispatch_implementation"],
+  "implementation_started_at_ms": 1787654803000,
+  "first_change_at_ms": 1787654804000,
+  "last_required_command_finished_at_ms": 1787655000000,
+  "returned_at_ms": 1787655010000,
+  "phase_duration_ms": {"discovery":2000,"implementation":207000},
+  "command_evidence": {
+    "trust": "self-reported",
+    "commands": [
+      {"kind":"verification","command":"pnpm vitest run tests/unit/process-lease.test.ts tests/unit/session-recovery.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts"},
+      {"kind":"verification","command":"pnpm build"},
+      {"kind":"verification","command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"}
+    ]
+  },
+  "certifications": [
+    {"role":"reviewer","actor_id":"rdm019-lease-metadata-reviewer","status":"passed","contract_hash":"sha256:99df74a152510b96bbb4d2cad5ae57638ffbdc8c8062d1e9e4172771083e83c2","diff_digest":"sha256:42a312b16410db70781590ffd8940edd9a921685e9532c011ec1cb05835f6987","findings":[]},
+    {"role":"security-sentinel","actor_id":"rdm019-lease-metadata-security","status":"failed","contract_hash":"sha256:99df74a152510b96bbb4d2cad5ae57638ffbdc8c8062d1e9e4172771083e83c2","diff_digest":"sha256:42a312b16410db70781590ffd8940edd9a921685e9532c011ec1cb05835f6987","findings":[{"severity":"p1"}]}
+  ],
+  "final": {
+    "status": "done",
+    "phase": "closeout",
+    "remaining_actions": [],
+    "terminal_ready": true,
+    "acceptance_criteria_resolved": true,
+    "acceptance_evidence": [
+      {"criterion_id":"LMH-AC-1","status":"satisfied","evidence":"Provider family is persisted and validated with provider-port metadata; normal close and orphan recovery pass the exact stored family. contract_hash=sha256:99df74a152510b96bbb4d2cad5ae57638ffbdc8c8062d1e9e4172771083e83c2."},
+      {"criterion_id":"LMH-AC-2","status":"satisfied","evidence":"Custody scan errors and malformed/skipped entries fail closed before spawn with bounded value-free evidence; focused tests pass. contract_hash=sha256:99df74a152510b96bbb4d2cad5ae57638ffbdc8c8062d1e9e4172771083e83c2."},
+      {"criterion_id":"LMH-AC-3","status":"satisfied","evidence":"Untracked custody remains retryable and never invokes native termination; recovery preserves retryable leases. contract_hash=sha256:99df74a152510b96bbb4d2cad5ae57638ffbdc8c8062d1e9e4172771083e83c2."},
+      {"criterion_id":"LMH-AC-4","status":"satisfied","evidence":"Focused tests passed (44 passed, 1 skipped), build passed, and clean real-Tinto probe reached READY, returned snapshot/surface evidence, and closed idle. Identity-bound Windows termination remains explicitly unresolved. contract_hash=sha256:99df74a152510b96bbb4d2cad5ae57638ffbdc8c8062d1e9e4172771083e83c2."}
+    ],
+    "last_required_command": "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs",
+    "verification": {
+      "attempted": [
+        {"command":"pnpm vitest run tests/unit/process-lease.test.ts tests/unit/session-recovery.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts","attempts":1,"outcome":"passed"},
+        {"command":"pnpm build","attempts":1,"outcome":"passed"},
+        {"command":"node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs","attempts":1,"outcome":"passed"}
+      ],
+      "skipped": []
+    },
+    "verification_commands_run": [
+      "pnpm vitest run tests/unit/process-lease.test.ts tests/unit/session-recovery.test.ts tests/unit/session-manager.test.ts tests/unit/tracked-process.test.ts",
+      "pnpm build",
+      "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+    ],
+    "unowned_failures": [],
+    "scope_extension": null
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "contract_id": "tinto-e2e-approved-decisions:rdm-017-portable-provider-delivery",
+  "unit_id": "rdm-017-portable-provider-delivery",
+  "lane": "deep",
+  "profile": "luna_xhigh",
+  "objective": "Deliver the modified tauri-plugin-wdio-webdriver source as a curated package artifact, stage it attributable and atomically into initialized projects, and reference it from Cargo through a portable project-relative path without external publication or absolute machine paths.",
+  "owned_files": [
+    "package.json",
+    "scripts/build-provider-bundle.mjs",
+    "src/version.ts",
+    "src/installer/provider-source.ts",
+    "src/installer/cargo.ts",
+    "src/installer/manifest.ts",
+    "src/installer/plan.ts",
+    "src/installer/remove.ts",
+    "src/installer/attributed-drift.ts",
+    "src/installer/doctor.ts",
+    "tests/unit/provider-source.test.ts",
+    "tests/unit/attributed-drift.test.ts",
+    "tests/integration/init.test.ts",
+    "tests/integration/remove.test.ts",
+    "tests/integration/doctor.test.ts",
+    "tests/contract/package.test.ts",
+    "tests/release/release-safety.test.ts",
+    "tests/platform/cargo-proof.test.ts",
+    "tests/platform/provider-proof.test.ts",
+    "tests/fixtures/tauri-app/src-tauri/Cargo.toml",
+    "docs/architecture.md",
+    "docs/contracts.md",
+    "docs/security.md",
+    "docs/compatibility.md"
+  ],
+  "required_context": [
+    "docs/plans/tinto-e2e-reliability/initiative-requirements.md",
+    "package.json",
+    "scripts/build-browser-bundle.mjs",
+    "src/installer/cargo.ts",
+    "src/installer/manifest.ts",
+    "src/installer/plan.ts",
+    "src/installer/write.ts",
+    "src/installer/remove.ts",
+    "src/installer/attributed-drift.ts",
+    "src/installer/doctor.ts",
+    "tests/contract/package.test.ts",
+    "tests/release/release-safety.test.ts",
+    "vendor/tauri-plugin-wdio-webdriver/Cargo.toml",
+    "vendor/tauri-plugin-wdio-webdriver/PATCHES.md",
+    "vendor/tauri-plugin-wdio-webdriver/LICENSE"
+  ],
+  "closed_decisions": [
+    "The modified provider is bundled inside the pumarejo package from an explicit curated source allowlist that excludes target, VCS, caches, lock artifacts not required by the crate, symlinks, and unrelated files.",
+    "Initialization stages the bundled provider under .pumarejo/provider/tauri-plugin-wdio-webdriver and writes Cargo path = \"../.pumarejo/provider/tauri-plugin-wdio-webdriver\" with optional=true and the compatible version constraint; generated target configuration contains no absolute path.",
+    "Every staged provider file is a canonical manifest entry with a dedicated provider kind, exact source-relative attribution, beforeHash null, and afterHash; ordering and paths are deterministic and bounded.",
+    "Planning and dry-run are read-only. Apply uses the existing atomic no-link write boundary and rolls back partial staging. Doctor and repeated init fail closed on missing, linked, extra-attributed, malformed, or changed owned provider files.",
+    "Remove deletes only exact unchanged attributed provider files, refuses the whole removal on any drift or unsafe path, and removes empty generated directories without recursive unproven deletion.",
+    "The packed tarball is the delivery proof: a consumer installed from the tarball can initialize a copied Tauri fixture without relying on the repository vendor directory or an externally published modified crate."
+  ],
+  "forbidden_changes": [
+    "Do not edit the vendored provider source, public MCP/dialog behavior, process custody, dependencies/lockfiles, application runtime, queue/blocker/release files, git, Jira, or pull requests.",
+    "Do not write absolute package, repository, user, temp, Cargo registry, or node_modules paths into target files or public evidence.",
+    "Do not copy vendor/target, hidden build outputs, arbitrary directory contents, symlinks, device files, or files outside the explicit provider source roots.",
+    "Do not recursively delete provider directories; delete only exact manifest-attributed regular files, then remove directories only when empty.",
+    "Do not silently accept a pre-existing external or differently patched provider dependency as equivalent to the bundled attributable source."
+  ],
+  "acceptance_criteria": [
+    {"id": "PROVIDER-AC-1", "description": "Build and pack include exactly the curated modified provider source, license, and patch attribution under dist, exclude vendor/target and machine paths, and preserve package import/bin behavior."},
+    {"id": "PROVIDER-AC-2", "description": "Fresh init and dry-run generate a portable relative Cargo dependency and deterministic per-file provider manifest entries; apply is atomic, link-safe, bounded, and rollback-tested."},
+    {"id": "PROVIDER-AC-3", "description": "Doctor, repeated init, attributed drift, upgrade handling, and remove validate the staged provider fail closed; exact unchanged files remove cleanly, while drift/link/foreign content prevents mutation and no recursive deletion is used."},
+    {"id": "PROVIDER-AC-4", "description": "A tarball-installed consumer initializes a fixture using only packaged provider source, and structural Cargo/provider proofs confirm the modified routes/permissions are the selected source with no absolute target paths."},
+    {"id": "PROVIDER-AC-5", "description": "Focused unit/integration/contract/release/platform checks, build, and pack dry-run pass and maintained architecture/contracts/security/compatibility docs describe ownership, portability, attribution, drift, and removal behavior."}
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": ["rg -n ", "Get-Content -LiteralPath ", "git diff ", "git status ", "git ls-files "],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/unit/provider-source.test.ts tests/unit/attributed-drift.test.ts tests/integration/init.test.ts tests/integration/remove.test.ts tests/integration/doctor.test.ts tests/contract/package.test.ts tests/release/release-safety.test.ts tests/platform/cargo-proof.test.ts tests/platform/provider-proof.test.ts",
+        "pnpm build",
+        "pnpm pack:check"
+      ],
+      "natural": [],
+      "max_retries_per_command": 1
+    }
+  },
+  "execution_budget": {"discovery_passes": 1, "implementation_rounds": 1, "fix_rounds": 1, "review_rounds": 1, "extra_verification": "forbidden"},
+  "supervision": {"mode": "discovery-checkpoint", "transition_after_ms": 15000},
+  "terminal_protocol": {"return_when": ["acceptance_criteria_resolved", "required_checks_attempted", "state_reconciled"], "grace_actions": 0},
+  "terminal_schema": "worker-terminal-v1",
+  "required_certifications": ["reviewer", "security-sentinel"],
+  "evidence_policy": {"minimum_command_trust": "self-reported", "changed_files_source": "root-diff"}
+}

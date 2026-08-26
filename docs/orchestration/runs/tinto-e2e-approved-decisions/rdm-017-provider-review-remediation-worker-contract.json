@@ -1,0 +1,93 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "Bundle construction fails closed for a symlinked source root or linked ancestor and copies only allowlisted canonical regular files.",
+      "id": "REVIEW-FIX-AC-1"
+    },
+    {
+      "description": "A tarball-installed consumer runs real init on a copied Tauri fixture and proves the staged 46-file attributable provider and project-relative Cargo selection include the modified dialog route/permission.",
+      "id": "REVIEW-FIX-AC-2"
+    },
+    {
+      "description": "Package, release-safety, build, pack, and full provider-focused checks pass.",
+      "id": "REVIEW-FIX-AC-3"
+    }
+  ],
+  "closed_decisions": [
+    "The build copier must reject a symlinked/non-canonical provider source root and any allowlisted source whose real path differs from its expected path because of a linked ancestor; final entries must remain regular non-link files within the canonical root.",
+    "The installed-tarball contract must copy a Tauri fixture, execute the installed pumarejo init command against it, and verify the relative Cargo dependency, canonical provider manifest entries, and representative modified provider route/permission files from the installed package.",
+    "The tarball proof may copy only the neutral Tauri fixture from the repository; provider content must come exclusively through the packed and installed package, never repository vendor or dist paths.",
+    "Keep shell=false, bounded temporary cleanup, and existing package import/bin assertions."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff ",
+      "git status "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/contract/package.test.ts tests/release/release-safety.test.ts",
+        "pnpm build",
+        "pnpm pack:check"
+      ],
+      "max_retries_per_command": 1,
+      "natural": []
+    }
+  },
+  "contract_hash": "sha256:bf8ab6c900d5d977dde287ca1b147637c475e12c91753a8db673b8962ad4d122",
+  "contract_id": "tinto-e2e-approved-decisions:rdm-017-provider-review-remediation",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 1,
+    "extra_verification": "forbidden",
+    "fix_rounds": 1,
+    "implementation_rounds": 1,
+    "review_rounds": 1
+  },
+  "forbidden_changes": [
+    "Do not edit provider source, installer production code, public MCP/dialog behavior, process custody, dependencies/lockfiles, docs, queue/blocker/release files, git, Jira, or pull requests.",
+    "Do not weaken the curated allowlist, rely on repository provider content after tarball installation, enable shell execution, or write absolute paths into target project files/evidence."
+  ],
+  "lane": "deep",
+  "objective": "Close the two provider reviewer findings by proving the packed consumer can run init from packaged source and by preventing symlinked source roots or ancestor traversal during bundle construction.",
+  "owned_files": [
+    "scripts/build-provider-bundle.mjs",
+    "tests/contract/package.test.ts",
+    "tests/release/release-safety.test.ts"
+  ],
+  "profile": "luna_xhigh",
+  "required_certifications": [
+    "reviewer",
+    "security-sentinel"
+  ],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-017-portable-provider-delivery-worker-contract.json",
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-017-provider-final-reviewer-certificate.json",
+    "scripts/build-provider-bundle.mjs",
+    "tests/contract/package.test.ts",
+    "tests/release/release-safety.test.ts",
+    "tests/fixtures/projects/pnpm-json/package.json",
+    "tests/fixtures/projects/pnpm-json/src-tauri/Cargo.toml"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "discovery-checkpoint",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-017-provider-review-remediation"
+}

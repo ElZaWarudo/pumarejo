@@ -1,0 +1,56 @@
+{
+  "role": "reviewer",
+  "actor_id": "rdm017-provider-release-reviewer",
+  "status": "failed",
+  "contract_hash": "sha256:e1cbe78821646547a1ad8a4bb4b75d1a3bc89db3a7c920df79cc8dce22ff991e",
+  "primary_contract_hash": "sha256:e1cbe78821646547a1ad8a4bb4b75d1a3bc89db3a7c920df79cc8dce22ff991e",
+  "migration_v2_contract_hash": "sha256:3fe1f8f7dcc9be9f27bbfdf2c9606f7684e14d8142cd41190fd55345c90fb222",
+  "doctor_alignment_contract_hash": "sha256:e4a2f3eee6e8244e825f036b78460ee9c8f43a014ff7c6a95b5316d90af23a99",
+  "eol_restoration_contract_hash": "sha256:7649c4aa274221594d622e7f33253350cc8e28546637cc4153fe60a8cd6ebfb9",
+  "final_provenance_remediation_contract_hash": "sha256:1887c36861b1de4642852cec9d331cc7f126a230abac697b6433db2036b64abb",
+  "diff_digest": "sha256:5f6d6d9c9138f72d2bf7953b857182938c7774233585c21e7bffa688f8514cf3",
+  "digest_file_count": 24,
+  "digest_files": [
+    "package.json",
+    "scripts/build-provider-bundle.mjs",
+    "src/version.ts",
+    "src/installer/provider-source.ts",
+    "src/installer/cargo.ts",
+    "src/installer/manifest.ts",
+    "src/installer/plan.ts",
+    "src/installer/remove.ts",
+    "src/installer/attributed-drift.ts",
+    "src/installer/doctor.ts",
+    "tests/unit/provider-source.test.ts",
+    "tests/unit/attributed-drift.test.ts",
+    "tests/integration/init.test.ts",
+    "tests/integration/remove.test.ts",
+    "tests/integration/doctor.test.ts",
+    "tests/contract/package.test.ts",
+    "tests/release/release-safety.test.ts",
+    "tests/platform/cargo-proof.test.ts",
+    "tests/platform/provider-proof.test.ts",
+    "tests/fixtures/tauri-app/src-tauri/Cargo.toml",
+    "docs/architecture.md",
+    "docs/contracts.md",
+    "docs/security.md",
+    "docs/compatibility.md"
+  ],
+  "digest_convention": "Sort the 24 repository-relative POSIX paths lexicographically; hash the UTF-8 concatenation of each path, one NUL byte, the exact file bytes, and one NUL byte.",
+  "verification": {
+    "contract_hash_valid": true,
+    "digest_matches_requested": true,
+    "focused_tests": "pnpm vitest run tests/unit/attributed-drift.test.ts tests/integration/init.test.ts tests/integration/remove.test.ts tests/integration/doctor.test.ts: passed (4 files, 95 tests)",
+    "build": "pnpm build: passed",
+    "pack_check": "pnpm pack:check: passed",
+    "forged_eol_reproduction": "A uniform LF Cargo projection with its attribution changed to eol:cargo:crlf was evaluated as {owned:'intact', hashMatched:true, reason:'intact'} by the current built code."
+  },
+  "findings": [
+    {
+      "severity": "p1",
+      "file": "src/installer/attributed-drift.ts",
+      "line": 318,
+      "reason": "cargoProjectionIntact requires exactly one EOL attribution for a uniform Cargo source but does not require that token to match the source's actual EOL style. Reproduced with a uniform LF projection and forged eol:cargo:crlf: evaluateAttributedEntry returned {owned:'intact', hashMatched:true, reason:'intact'}. The same mismatch is accepted by removal normalization, which can rewrite the projection to the forged style, so forged EOL attribution does not fail closed as required by FPR-AC-1."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "event":"discovery_complete",
+  "contract_hash":"sha256:588580e970ca6b67f1405e2ffedaa540225b923d404477616773d1ae77187fb6",
+  "edit_path_found":true,
+  "planned_files":[
+    "src/platform/tracked-process.ts",
+    "src/platform/windows/process.ts",
+    "src/session/manager.ts",
+    "tests/unit/tracked-process.test.ts",
+    "tests/unit/windows-process.test.ts",
+    "tests/unit/session-manager.test.ts"
+  ],
+  "evidence_digest":"After native termination, undefined custody inspection immediately returns retryable before the already-owned tracked child exit event can converge. The wait helper remains PID-map based and preserves event-specific ownership proof. Existing tests lack this race and its fail-closed counterexamples."
+}

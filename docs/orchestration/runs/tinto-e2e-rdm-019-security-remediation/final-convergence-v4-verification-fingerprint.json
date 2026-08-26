@@ -1,0 +1,64 @@
+{
+  "base_revision": "23fe76ecce1b3cbe8bd58e79ef31518e2d3b8f53",
+  "changed_paths": [
+    {
+      "digest": "sha256:15973e9c3a9e11a0cf3ee14b9300eac442ea9299563eadc232e9460f59f40018",
+      "path": "src/platform/launch-environment.ts"
+    },
+    {
+      "digest": "sha256:9a0b45f74b702406b65dbc7933ef17591a7466030ad60e70b7ad85c69f58cc61",
+      "path": "src/platform/tracked-process.ts"
+    },
+    {
+      "digest": "sha256:c9d32a9295f9efb8acc8c03001e1707c5950be51205acfad103f53c04ff460aa",
+      "path": "src/platform/windows/environment.ts"
+    },
+    {
+      "digest": "sha256:17d10d73287a6f5aef920aa9b8ed210eb5f751f54138f9b88423cdcfc12ae39e",
+      "path": "src/session/custody-lease.ts"
+    },
+    {
+      "digest": "sha256:ffb220e6ae94e2760b34f2ac26ac6689185e2e902930fd073647866a6e55a98f",
+      "path": "src/session/manager.ts"
+    },
+    {
+      "digest": "sha256:902a923d0880d8ae8e2075bcb1f0b8f907b6653dc39a142db5ab45a1e59c1923",
+      "path": "src/session/process-lease.ts"
+    },
+    {
+      "digest": "sha256:8ac950e5b91da7e482418bcbfc634ff08edb9ee53c3d1b4862a015fa7d89abab",
+      "path": "tests/unit/launch-environment.test.ts"
+    },
+    {
+      "digest": "sha256:37a898a368d7fb9a51daccbefb464e225f58d56c4b0358663ca59262a92df2fd",
+      "path": "tests/unit/mode-config.test.ts"
+    },
+    {
+      "digest": "sha256:e8afcea877265472a3efae9f660d4f4e47705bdce22e923cf7c350de1f3cbc5d",
+      "path": "tests/unit/process-lease.test.ts"
+    },
+    {
+      "digest": "sha256:d7f44e06f9755372972a47bdb47f5a78333cb982e00a8122f50dd8ae20904063",
+      "path": "tests/unit/session-manager.test.ts"
+    },
+    {
+      "digest": "sha256:649f0933bc6709c791198b83d87106677dd6396c6fd04b6cf575cfffb035b35b",
+      "path": "tests/unit/session-recovery.test.ts"
+    },
+    {
+      "digest": "sha256:ceb1b2c59c042ff1ffb6d20f45a16bac247a66c897582bb54842a29b5d074201",
+      "path": "tests/unit/tracked-process.test.ts"
+    },
+    {
+      "digest": "sha256:8f3f6c87517fb19fc4bf57258cab9df0a551fc58c2b4b4b3e37e9f1bb7483569",
+      "path": "tests/unit/windows-environment.test.ts"
+    }
+  ],
+  "commands": [
+    "pnpm vitest run tests/unit/mcp-runtime.test.ts tests/unit/session-manager.test.ts tests/unit/session-recovery.test.ts tests/unit/process-lease.test.ts tests/unit/tracked-process.test.ts tests/unit/windows-process.test.ts tests/unit/windows-environment.test.ts tests/unit/launch-environment.test.ts tests/unit/mode-config.test.ts tests/integration/artifact-store.test.ts",
+    "pnpm build",
+    "node C:\\Users\\User\\AppData\\Local\\Temp\\pumarejo-tinto-rdm019-probe.mjs"
+  ],
+  "fingerprint": "sha256:20fd65d5975dc3ec1b440d8d72bb9f02b633d049684db1ad6a98ec17d87a0df5",
+  "schema_version": 1
+}

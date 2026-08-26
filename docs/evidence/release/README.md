@@ -2,6 +2,10 @@
 
 Status: implementation-complete candidate; publication not authorized.
 
+Current Wave G disposition: **blocked**. See the sanitized
+[RDM-023 readiness packet](./2026-08-24-rdm-023-readiness.md). Historical rows
+below remain prior measured evidence and do not override the current reducer.
+
 ## Matrix
 
 | Gate                                                      | Windows                       | Ubuntu 24.04 WSL2/WSLg                                       | Result |

@@ -1,0 +1,71 @@
+{
+  "acceptance_criteria": [
+    {
+      "description": "Doctor warns on forged provider afterHash, remains ready on unchanged provider entries, and the focused doctor/provider tests pass.",
+      "id": "HASH-AC-1"
+    }
+  ],
+  "closed_decisions": [
+    "For each provider entry, providerStagingIntact requires the expected bundled hash, the manifest entry afterHash, and the actual staged content hash to be exactly equal.",
+    "Add a regression that initializes, forges one provider afterHash to a different valid 64-hex value while retaining canonical serialization, and expects integration.manifest warn without mutation."
+  ],
+  "commands": {
+    "exact": [],
+    "read_only_prefixes": [
+      "rg -n ",
+      "Get-Content -LiteralPath ",
+      "git diff "
+    ],
+    "verification": {
+      "focused": [
+        "pnpm vitest run tests/integration/doctor.test.ts tests/unit/provider-source.test.ts tests/unit/attributed-drift.test.ts"
+      ],
+      "max_retries_per_command": 1,
+      "natural": []
+    }
+  },
+  "contract_hash": "sha256:d64fb314a5fbc8ca30abbaa54b227c57483868433ebd569dde648936d5df1064",
+  "contract_id": "tinto-e2e-approved-decisions:rdm-017-provider-doctor-hash-binding",
+  "evidence_policy": {
+    "changed_files_source": "root-diff",
+    "minimum_command_trust": "self-reported"
+  },
+  "execution_budget": {
+    "discovery_passes": 0,
+    "extra_verification": "forbidden",
+    "fix_rounds": 1,
+    "implementation_rounds": 1,
+    "review_rounds": 0
+  },
+  "forbidden_changes": [
+    "Do not edit any other file or weaken provider bytes/path/attribution checks; no git, Jira, PR, or release mutations."
+  ],
+  "lane": "fast",
+  "objective": "Make doctor fail closed when a canonical provider manifest entry afterHash is forged even though staged bytes still match the bundled provider.",
+  "owned_files": [
+    "src/installer/doctor.ts",
+    "tests/integration/doctor.test.ts"
+  ],
+  "profile": "spark",
+  "required_certifications": [],
+  "required_context": [
+    "docs/orchestration/runs/tinto-e2e-approved-decisions/rdm-017-provider-remediated-reviewer-certificate.json",
+    "src/installer/doctor.ts",
+    "tests/integration/doctor.test.ts"
+  ],
+  "schema_version": 1,
+  "supervision": {
+    "mode": "terminal-only",
+    "transition_after_ms": 15000
+  },
+  "terminal_protocol": {
+    "grace_actions": 0,
+    "return_when": [
+      "acceptance_criteria_resolved",
+      "required_checks_attempted",
+      "state_reconciled"
+    ]
+  },
+  "terminal_schema": "worker-terminal-v1",
+  "unit_id": "rdm-017-provider-doctor-hash-binding"
+}
