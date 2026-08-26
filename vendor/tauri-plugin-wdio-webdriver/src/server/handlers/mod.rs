@@ -20,6 +20,7 @@ pub mod screenshot;
 pub mod script;
 pub mod session;
 pub mod shadow;
+pub mod tauri_dialog;
 pub mod timeouts;
 pub mod window;
 

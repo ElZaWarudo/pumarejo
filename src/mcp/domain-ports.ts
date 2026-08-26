@@ -1,16 +1,23 @@
 import { PumarejoError } from "../shared/errors.js";
 import type {
   ClickInput,
+  DialogInput,
+  DiagnosticsInput,
   LaunchInput,
   PointerInput,
   PressKeyInput,
   ScrollInput,
+  SequenceInput,
   ScreenshotInput,
+  SurfaceCoverageInput,
+  SurfaceDiscoverInput,
+  SurfaceSelectInput,
   SelectOptionInput,
   SnapshotInput,
   TypeInput,
   WindowInput,
 } from "./schemas.js";
+import type { SurfaceGraph } from "../observation/surfaces.js";
 
 export type DomainResult = Record<string, unknown>;
 
@@ -26,6 +33,11 @@ export interface ScreenshotDomainResult {
   };
 }
 
+export interface SurfaceDomainResult extends DomainResult {
+  readonly graph: SurfaceGraph;
+  readonly snapshot?: DomainResult;
+}
+
 export interface PumarejoDomainPorts {
   launch(input: LaunchInput, context: DomainCallContext): Promise<DomainResult>;
   status(context: DomainCallContext): Promise<DomainResult>;
@@ -37,7 +49,24 @@ export interface PumarejoDomainPorts {
     input: ScreenshotInput,
     context: DomainCallContext,
   ): Promise<ScreenshotDomainResult>;
+  surfaceDiscover(
+    input: SurfaceDiscoverInput,
+    context: DomainCallContext,
+  ): Promise<SurfaceDomainResult>;
+  surfaceSelect(
+    input: SurfaceSelectInput,
+    context: DomainCallContext,
+  ): Promise<SurfaceDomainResult>;
+  surfaceCoverage(
+    input: SurfaceCoverageInput,
+    context: DomainCallContext,
+  ): Promise<DomainResult>;
+  diagnostics?(
+    input: DiagnosticsInput,
+    context: DomainCallContext,
+  ): Promise<DomainResult>;
   click(input: ClickInput, context: DomainCallContext): Promise<DomainResult>;
+  dialog(input: DialogInput, context: DomainCallContext): Promise<DomainResult>;
   type(input: TypeInput, context: DomainCallContext): Promise<DomainResult>;
   pressKey(
     input: PressKeyInput,
@@ -53,6 +82,10 @@ export interface PumarejoDomainPorts {
     input: SelectOptionInput,
     context: DomainCallContext,
   ): Promise<DomainResult>;
+  sequence(
+    input: SequenceInput,
+    context: DomainCallContext,
+  ): Promise<DomainResult>;
   close(context: DomainCallContext): Promise<DomainResult>;
 }
 
@@ -66,13 +99,19 @@ export function createStubDomainPorts(): PumarejoDomainPorts {
     status: unavailable,
     snapshot: unavailable,
     screenshot: unavailable,
+    surfaceDiscover: unavailable,
+    surfaceSelect: unavailable,
+    surfaceCoverage: unavailable,
+    diagnostics: unavailable,
     click: unavailable,
+    dialog: unavailable,
     type: unavailable,
     pressKey: unavailable,
     window: unavailable,
     pointer: unavailable,
     scroll: unavailable,
     selectOption: unavailable,
+    sequence: unavailable,
     close: unavailable,
   };
 }

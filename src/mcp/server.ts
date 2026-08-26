@@ -12,14 +12,20 @@ import {
 import { createPumarejoRuntime } from "./runtime.js";
 import {
   clickInputSchema,
+  diagnosticsInputSchema,
+  dialogInputSchema,
   emptyInputSchema,
   launchInputSchema,
   pointerInputSchema,
   pressKeyInputSchema,
   scrollInputSchema,
+  sequenceInputSchema,
   selectOptionInputSchema,
   screenshotInputSchema,
   snapshotInputSchema,
+  surfaceCoverageInputSchema,
+  surfaceDiscoverInputSchema,
+  surfaceSelectInputSchema,
   typeInputSchema,
   windowInputSchema,
 } from "./schemas.js";
@@ -128,6 +134,59 @@ export function createMcpServer(ports: PumarejoDomainPorts): McpServer {
       invokeScreenshot(() => ports.screenshot(input, { signal: extra.signal })),
   );
   server.registerTool(
+    "tauri_surface_discover",
+    {
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_surface_discover,
+      inputSchema: surfaceDiscoverInputSchema,
+    },
+    (input, extra) =>
+      invoke(() => ports.surfaceDiscover(input, { signal: extra.signal })),
+  );
+  server.registerTool(
+    "tauri_surface_select",
+    {
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_surface_select,
+      inputSchema: surfaceSelectInputSchema,
+    },
+    (input, extra) =>
+      invoke(() => ports.surfaceSelect(input, { signal: extra.signal })),
+  );
+  server.registerTool(
+    "tauri_surface_coverage",
+    {
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_surface_coverage,
+      inputSchema: surfaceCoverageInputSchema,
+    },
+    (input, extra) =>
+      invoke(() => ports.surfaceCoverage(input, { signal: extra.signal })),
+  );
+  server.registerTool(
+    "tauri_diagnostics",
+    {
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_diagnostics,
+      inputSchema: diagnosticsInputSchema,
+    },
+    (input, extra) =>
+      invoke(() =>
+        ports.diagnostics === undefined
+          ? Promise.reject(new PumarejoError("INTEGRATION_INCOMPLETE"))
+          : ports.diagnostics(input, { signal: extra.signal }),
+      ),
+  );
+  server.registerTool(
+    "tauri_dialog",
+    {
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_dialog,
+      inputSchema: dialogInputSchema,
+    },
+    (input, extra) =>
+      invoke(() =>
+        ports.dialog === undefined
+          ? Promise.reject(new PumarejoError("INTEGRATION_INCOMPLETE"))
+          : ports.dialog(input, { signal: extra.signal }),
+      ),
+  );
+  server.registerTool(
     "tauri_click",
     {
       description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_click,
@@ -188,6 +247,15 @@ export function createMcpServer(ports: PumarejoDomainPorts): McpServer {
     },
     (input, extra) =>
       invoke(() => ports.selectOption(input, { signal: extra.signal })),
+  );
+  server.registerTool(
+    "tauri_sequence",
+    {
+      description: PUMAREJO_TOOL_DESCRIPTIONS.tauri_sequence,
+      inputSchema: sequenceInputSchema,
+    },
+    (input, extra) =>
+      invoke(() => ports.sequence(input, { signal: extra.signal })),
   );
   server.registerTool(
     "tauri_close",

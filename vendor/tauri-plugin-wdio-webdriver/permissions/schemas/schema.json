@@ -295,6 +295,18 @@
       "type": "string",
       "oneOf": [
         {
+          "description": "Enables the request_dialog command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-request-dialog",
+          "markdownDescription": "Enables the request_dialog command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the request_dialog command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-request-dialog",
+          "markdownDescription": "Denies the request_dialog command without any pre-configured scope."
+        },
+        {
           "description": "Default permissions for the plugin",
           "type": "string",
           "const": "default",

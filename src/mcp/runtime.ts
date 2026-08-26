@@ -1,27 +1,57 @@
 import { randomBytes } from "node:crypto";
+import { join } from "node:path";
 
-import { ArtifactStore } from "../artifacts/store.js";
+import {
+  ArtifactStore,
+  type ArtifactCleanupOutcome,
+  type ArtifactRecoveryResult,
+} from "../artifacts/store.js";
 import { loadProjectConfig, type LoadedProjectConfig } from "../config/load.js";
 import {
   InteractionEngine,
   type InteractionResult,
 } from "../interaction/engine.js";
 import {
+  SequenceExecutor,
+  type SequenceInteractionPort,
+} from "../interaction/sequence.js";
+import {
   ScreenshotService,
+  diagnoseCoverage,
   type ScreenshotResult,
 } from "../observation/screenshot.js";
 import { SnapshotEngine } from "../observation/snapshot.js";
+import {
+  SurfaceGraphManager,
+  type SurfaceGraph,
+} from "../observation/surfaces.js";
+import {
+  DiagnosticStore,
+  type DiagnosticQueryOptions,
+} from "../observability/diagnostics.js";
 import { prepareOwnedLinuxLaunch } from "../platform/linux/launch.js";
 import { createLinuxProcessAdapter } from "../platform/linux/process.js";
 import { prepareWindowsLaunch } from "../platform/windows/launch.js";
 import { createWindowsProcessAdapter } from "../platform/windows/process.js";
+import { readBuildDevUrl } from "../platform/mode-config.js";
+import type {
+  BuildDevUrlResult,
+  LoopbackDiagnosticOutcome,
+} from "../platform/loopback.js";
 import type { CleanupLabel } from "../session/cleanup.js";
+import type { SanitizedCustodyEvidence } from "../session/custody-lease.js";
 import { SessionManager } from "../session/manager.js";
 import type {
   LaunchPhase,
   ReadySession,
   SessionSnapshot,
 } from "../session/state.js";
+import { NativeDialogSession } from "../webdriver/native-control.js";
+import type {
+  DialogDecision,
+  DialogDetection,
+  DialogGrant,
+} from "../webdriver/native-control.js";
 import {
   PumarejoError,
   toErrorEnvelope,
@@ -30,11 +60,17 @@ import {
 import { recordLaunchVerification } from "../installer/launch-verification.js";
 import type {
   ClickInput,
+  DialogInput,
+  DiagnosticsInput,
   LaunchInput,
   PointerInput,
   PressKeyInput,
   ScrollInput,
+  SequenceInput,
   ScreenshotInput,
+  SurfaceCoverageInput,
+  SurfaceDiscoverInput,
+  SurfaceSelectInput,
   SelectOptionInput,
   SnapshotInput,
   TypeInput,
@@ -53,16 +89,23 @@ interface RuntimeSessionManager {
     readonly mode: "visible" | "background";
     readonly platform: "windows" | "linux";
     readonly window: string;
+    readonly initialWindow?: {
+      readonly width: number;
+      readonly height: number;
+    };
     readonly webdriverPort?: number;
+    readonly loopbackFamily?: "ipv4" | "ipv6";
+    readonly devUrl?: BuildDevUrlResult;
     readonly signal?: AbortSignal;
     readonly onPhase?: (phase: LaunchPhase) => void;
+    readonly onOutput?: (stream: "stdout" | "stderr", chunk: string) => void;
   }): Promise<ReadySession>;
   close(): Promise<SessionSnapshot>;
 }
 
 interface RuntimeArtifacts {
   open(): Promise<void>;
-  close(): Promise<void>;
+  close(): Promise<ArtifactCleanupOutcome | void>;
   writePng(contents: Buffer): Promise<{ readonly projectRelativePath: string }>;
 }
 
@@ -70,18 +113,48 @@ interface RuntimeSnapshot {
   readonly references: SnapshotEngine["references"];
   readonly currentSnapshot: SnapshotEngine["currentSnapshot"];
   readonly currentSnapshotComparable: SnapshotEngine["currentSnapshotComparable"];
+  readonly activeSurface: SnapshotEngine["activeSurface"];
+  setSurface: SnapshotEngine["setSurface"];
   snapshot(
     input?: SnapshotInput,
     signal?: AbortSignal,
   ): ReturnType<SnapshotEngine["snapshot"]>;
   interaction: SnapshotEngine["interaction"];
+  interactionComparison: SnapshotEngine["interactionComparison"];
+  publishComparison: SnapshotEngine["publishComparison"];
+  preserveComparison: SnapshotEngine["preserveComparison"];
 }
 
 interface RuntimeScreenshot {
   capture(save: boolean, signal?: AbortSignal): Promise<ScreenshotResult>;
 }
 
-interface RuntimeInteractions {
+interface RuntimeSurfaces {
+  readonly graph: SurfaceGraph | undefined;
+  readonly activeSurfaceRef: string | undefined;
+  discover(signal?: AbortSignal): Promise<SurfaceGraph>;
+  select(
+    surfaceRef: string,
+    graphGeneration: number,
+    signal?: AbortSignal,
+  ): ReturnType<SurfaceGraphManager["select"]>;
+}
+
+export interface RuntimeDiagnostics {
+  readonly sessionId: string;
+  append: DiagnosticStore["append"];
+  record: DiagnosticStore["record"];
+  recordPhase: DiagnosticStore["recordPhase"];
+  recordInvocation: DiagnosticStore["recordInvocation"];
+  recordLastError: DiagnosticStore["recordLastError"];
+  readonly recordArtifactCleanupUnavailable?: DiagnosticStore["recordArtifactCleanupUnavailable"];
+  recordProcess: DiagnosticStore["recordProcess"];
+  recordConsole: DiagnosticStore["recordConsole"];
+  query(options?: DiagnosticQueryOptions): ReturnType<DiagnosticStore["query"]>;
+  close(): void;
+}
+
+interface RuntimeInteractions extends SequenceInteractionPort {
   click(input: ClickInput, signal?: AbortSignal): Promise<InteractionResult>;
   type(input: TypeInput, signal?: AbortSignal): Promise<InteractionResult>;
   pressKey(
@@ -100,12 +173,32 @@ interface RuntimeInteractions {
   ): Promise<InteractionResult>;
 }
 
+interface RuntimeDialogs {
+  detect(signal?: AbortSignal): Promise<DialogDetection>;
+  authorize(
+    action: "accept" | "cancel",
+    context: {
+      readonly surfaceRef: string;
+      readonly generation: number;
+    },
+  ): DialogGrant | undefined;
+  decide(
+    action: "accept" | "cancel",
+    context: {
+      readonly surfaceRef: string;
+      readonly generation: number;
+    },
+    signal?: AbortSignal,
+  ): Promise<DialogDecision>;
+}
+
 export interface PumarejoRuntimeDependencies {
   readonly config: LoadedProjectConfig;
   readonly platform: "windows" | "linux";
   readonly platformName: NodeJS.Platform;
   readonly manager: RuntimeSessionManager;
   recoverArtifacts(): Promise<void>;
+  readonly resolveBuildDevUrl?: () => Promise<BuildDevUrlResult | undefined>;
   recordLaunchVerification(): Promise<void>;
   sessionId(): string;
   createArtifacts(sessionId: string): RuntimeArtifacts;
@@ -119,6 +212,13 @@ export interface PumarejoRuntimeDependencies {
     ready: ReadySession,
     snapshot: RuntimeSnapshot,
   ): RuntimeInteractions;
+  createSurfaces(ready: ReadySession, sessionId: string): RuntimeSurfaces;
+  createDialogs?(
+    ready: ReadySession,
+    sessionId: string,
+    snapshot: RuntimeSnapshot,
+  ): RuntimeDialogs;
+  createDiagnostics?(sessionId: string): RuntimeDiagnostics;
 }
 
 interface ActiveRuntime {
@@ -127,6 +227,9 @@ interface ActiveRuntime {
   readonly snapshot: RuntimeSnapshot;
   readonly screenshot: RuntimeScreenshot;
   readonly interactions: RuntimeInteractions;
+  readonly surfaces: RuntimeSurfaces;
+  readonly dialogs?: RuntimeDialogs;
+  readonly diagnostics: RuntimeDiagnostics;
 }
 
 type PublicRuntimeState =
@@ -144,6 +247,8 @@ interface RuntimeStatus {
   readonly webdriverReady?: boolean;
   readonly ownedPid?: number;
   readonly generation?: number;
+  readonly windowCapabilities?: ReadySession["windowCapabilities"];
+  readonly initialWindow?: ReadySession["initialWindow"];
   readonly lastFailure?: Pick<
     ErrorEnvelope,
     "code" | "phase" | "retryable" | "suggestion" | "diagnostic"
@@ -153,6 +258,11 @@ interface RuntimeStatus {
     | "launch"
     | "snapshot"
     | "screenshot"
+    | "surfaceDiscover"
+    | "surfaceSelect"
+    | "surfaceCoverage"
+    | "diagnostics"
+    | "dialog"
     | "click"
     | "type"
     | "pressKey"
@@ -160,6 +270,7 @@ interface RuntimeStatus {
     | "pointer"
     | "scroll"
     | "selectOption"
+    | "sequence"
     | "close";
 }
 
@@ -192,6 +303,27 @@ function publicCleanupLabels(
   return [...labels];
 }
 
+function isUnavailableArtifactCleanup(
+  outcome: ArtifactCleanupOutcome | void,
+): outcome is ArtifactCleanupOutcome {
+  return (
+    outcome?.status === "unavailable" &&
+    outcome.state === "quarantined" &&
+    outcome.retryable === true
+  );
+}
+
+function recordUnavailableArtifactCleanup(
+  diagnostics: RuntimeDiagnostics | undefined,
+  outcome: ArtifactCleanupOutcome,
+): void {
+  diagnostics?.recordArtifactCleanupUnavailable?.({
+    removed: outcome.removed,
+    retained: outcome.retained,
+    retryable: outcome.retryable,
+  });
+}
+
 const PENDING_LAUNCH_RESULT = {
   state: "launching",
   pollAfterMs: 500,
@@ -201,18 +333,37 @@ const PENDING_LAUNCH_RESULT = {
 function defaultManager(
   config: LoadedProjectConfig,
   platform: "windows" | "linux",
+  custodyEvidence?: (evidence: SanitizedCustodyEvidence) => void,
+  loopbackEvidence?: (evidence: LoopbackDiagnosticOutcome) => void,
 ): SessionManager {
   if (platform === "windows") {
     return new SessionManager({
       process: createWindowsProcessAdapter(),
+      leaseRoot: join(config.projectRoot, ".pumarejo", "sessions"),
+      custodyEvidence,
+      loopbackEvidence,
       prepareLaunch: (options) =>
-        prepareWindowsLaunch(config, options.mode, process.env),
+        prepareWindowsLaunch(
+          config,
+          options.mode,
+          process.env,
+          undefined,
+          options.loopbackFamily,
+        ),
     });
   }
   return new SessionManager({
     process: createLinuxProcessAdapter(),
+    leaseRoot: join(config.projectRoot, ".pumarejo", "sessions"),
+    custodyEvidence,
+    loopbackEvidence,
     prepareLaunch: (options) =>
-      prepareOwnedLinuxLaunch(config, options.mode, process.env),
+      prepareOwnedLinuxLaunch(
+        config,
+        options.mode,
+        process.env,
+        options.loopbackFamily,
+      ),
   });
 }
 
@@ -228,17 +379,50 @@ function defaultDependencies(
   if (platform === undefined) {
     throw new PumarejoError("PLATFORM_UNSUPPORTED");
   }
+  let activeDiagnostics: DiagnosticStore | undefined;
+  let pendingArtifactRecovery: ArtifactRecoveryResult | undefined;
+  const manager = defaultManager(
+    config,
+    platform,
+    (evidence) => {
+      activeDiagnostics?.record("last_error", {
+        owner: "process",
+        code: evidence.code,
+        retryable: evidence.retryable,
+        capability: {
+          state: evidence.state,
+          code: evidence.code,
+          evidence: evidence.mechanism,
+        },
+      });
+    },
+    (evidence) => {
+      activeDiagnostics?.record("last_error", {
+        owner: "process",
+        code: evidence.code,
+        family: evidence.family,
+        port: evidence.port,
+        retryable: evidence.retryable,
+        suggestion: evidence.suggestion,
+      });
+    },
+  );
   return {
     config,
     platform,
     platformName: process.platform,
-    manager: defaultManager(config, platform),
+    manager,
     recoverArtifacts: async () => {
-      await ArtifactStore.recover({
+      pendingArtifactRecovery = await ArtifactStore.recover({
         projectRoot: config.projectRoot,
         artifactsRoot: config.artifactsPath,
       });
     },
+    resolveBuildDevUrl: async () =>
+      await readBuildDevUrl({
+        projectRoot: config.projectRoot,
+        platform,
+      }),
     recordLaunchVerification: async () =>
       await recordLaunchVerification(
         config,
@@ -268,6 +452,48 @@ function defaultDependencies(
         webdriver: ready.webdriver,
         snapshot,
       }),
+    createSurfaces: (ready, sessionId) =>
+      new SurfaceGraphManager({
+        webdriver: ready.webdriver,
+        sessionId,
+        configuredWindow: ready.window,
+        platform,
+      }),
+    createDialogs: (ready, sessionId) =>
+      new NativeDialogSession({
+        webdriver: ready.webdriver,
+        sessionId,
+        processId: ready.ownedPid ?? 0,
+        nonce: ready.webdriver.nonce,
+      }),
+    createDiagnostics: (sessionId) => {
+      activeDiagnostics = new DiagnosticStore({ sessionId });
+      if (pendingArtifactRecovery !== undefined) {
+        if (
+          pendingArtifactRecovery.status === "unavailable" &&
+          pendingArtifactRecovery.retryable === true
+        ) {
+          activeDiagnostics.recordArtifactCleanupUnavailable({
+            removed: pendingArtifactRecovery.removed,
+            retained: pendingArtifactRecovery.retained,
+            retryable: true,
+          });
+        } else {
+          activeDiagnostics.record("last_error", {
+            owner: "session",
+            code: "artifact_recovery",
+            count: pendingArtifactRecovery.removed,
+            retryable: pendingArtifactRecovery.retained > 0,
+            suggestion:
+              pendingArtifactRecovery.retained > 0
+                ? "Unproven artifact entries were preserved."
+                : "Artifact recovery completed.",
+          });
+        }
+        pendingArtifactRecovery = undefined;
+      }
+      return activeDiagnostics;
+    },
   };
 }
 
@@ -280,6 +506,7 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
   #launchOperation: Promise<DomainResult> | undefined;
   #closeOperation: Promise<DomainResult> | undefined;
   #status: RuntimeStatus = { state: "idle", lastAction: "none" };
+  #diagnostics: RuntimeDiagnostics | undefined;
 
   constructor(dependencies: PumarejoRuntimeDependencies) {
     this.#dependencies = dependencies;
@@ -377,6 +604,101 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
     };
   }
 
+  dialog(
+    input: DialogInput,
+    context: DomainCallContext,
+  ): Promise<DomainResult> {
+    return this.run(async (signal) => {
+      const active = this.requireActive();
+      const dialogs = active.dialogs;
+      this.#status = { ...this.#status, lastAction: "dialog" };
+      if (dialogs === undefined) {
+        return {
+          state: "unsupported",
+          code: "provider_dialog_boundary_unsupported",
+        };
+      }
+      const current = active.snapshot.currentSnapshot;
+      const currentSurfaceRef =
+        current?.surface?.surfaceRef ??
+        active.snapshot.activeSurface?.surfaceRef ??
+        `window:${this.#status.window ?? "unknown"}`;
+      const currentGeneration = current?.generation ?? this.#status.generation;
+      if (
+        (input.surfaceRef !== undefined &&
+          input.surfaceRef !== currentSurfaceRef) ||
+        (input.generation !== undefined &&
+          input.generation !== currentGeneration)
+      ) {
+        return {
+          state: "denied",
+          code: "dialog_binding_mismatch",
+          action: input.action,
+        };
+      }
+      const surfaceRef = input.surfaceRef ?? currentSurfaceRef;
+      const generation = input.generation ?? currentGeneration;
+      if (
+        typeof generation !== "number" ||
+        !Number.isInteger(generation) ||
+        generation <= 0
+      ) {
+        return {
+          state: "denied",
+          code: "dialog_generation_required",
+          action: input.action,
+        };
+      }
+      const effectiveGeneration = generation as number;
+      const binding = { surfaceRef, generation: effectiveGeneration };
+      if (input.action === "detect") {
+        const detected = await dialogs.detect(signal);
+        return {
+          state: detected.state,
+          code: detected.code,
+          ...(detected.dialog === undefined ? {} : { dialog: detected.dialog }),
+          ...(detected.pending === undefined
+            ? {}
+            : { pending: detected.pending }),
+          ...(detected.evidence === undefined
+            ? {}
+            : { evidence: detected.evidence }),
+        };
+      }
+      if (input.authorize !== true) {
+        return {
+          state: "denied",
+          code: "dialog_authorization_required",
+          action: input.action,
+        };
+      }
+      const detected = await dialogs.detect(signal);
+      if (detected.state !== "supported" || detected.dialog === undefined) {
+        return {
+          state: "unavailable",
+          code: "provider_dialog_not_detected",
+          action: input.action,
+        };
+      }
+      const grant = dialogs.authorize(input.action, binding);
+      if (grant === undefined) {
+        return {
+          state: "unavailable",
+          code: "provider_dialog_not_detected",
+          action: input.action,
+        };
+      }
+      const result = await dialogs.decide(input.action, binding, signal);
+      return {
+        state: result.state,
+        code: result.code,
+        action: result.action,
+        ...(result.dialog === undefined ? {} : { dialog: result.dialog }),
+        ...(result.evidence === undefined ? {} : { evidence: result.evidence }),
+      };
+    }, context.signal);
+  }
+
   snapshot(
     input: SnapshotInput,
     context: DomainCallContext,
@@ -412,6 +734,128 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
         lastAction: "screenshot",
       };
       return { metadata: { ...result.metadata }, image: result.image };
+    }, context.signal);
+  }
+
+  surfaceDiscover(
+    input: SurfaceDiscoverInput,
+    context: DomainCallContext,
+  ): Promise<{ graph: SurfaceGraph }> {
+    return this.run(async (signal) => {
+      const active = this.requireActive();
+      this.#status = { ...this.#status, lastAction: "surfaceDiscover" };
+      const graph =
+        input.refresh || active.surfaces.graph === undefined
+          ? await active.surfaces.discover(signal)
+          : active.surfaces.graph;
+      return { graph };
+    }, context.signal);
+  }
+
+  surfaceSelect(
+    input: SurfaceSelectInput,
+    context: DomainCallContext,
+  ): Promise<{ graph: SurfaceGraph; snapshot: DomainResult }> {
+    return this.run(async (signal) => {
+      const active = this.requireActive();
+      this.#status = { ...this.#status, lastAction: "surfaceSelect" };
+      const selection = await active.surfaces.select(
+        input.surfaceRef,
+        input.graphGeneration,
+        signal,
+      );
+      active.snapshot.setSurface(selection.selected);
+      const snapshot = await active.snapshot.snapshot(undefined, signal);
+      this.#status = {
+        ...this.#status,
+        generation: snapshot.generation,
+        lastAction: "surfaceSelect",
+      };
+      return { graph: selection.graph, snapshot: { ...snapshot } };
+    }, context.signal);
+  }
+
+  surfaceCoverage(
+    _input: SurfaceCoverageInput,
+    context: DomainCallContext,
+  ): Promise<DomainResult> {
+    return this.run(async (signal) => {
+      const active = this.requireActive();
+      this.#status = { ...this.#status, lastAction: "surfaceCoverage" };
+      const graph =
+        active.surfaces.graph ?? (await active.surfaces.discover(signal));
+      const screenshot = await active.screenshot.capture(false, signal);
+      const regions = graph.surfaces.flatMap((surface) =>
+        surface.kind === "window" || surface.bounds === undefined
+          ? []
+          : [
+              {
+                surfaceRef: surface.surfaceRef,
+                bounds: surface.bounds,
+                supported:
+                  surface.capabilities.observation.state === "supported",
+                code: surface.capabilities.observation.code,
+              },
+            ],
+      );
+      return {
+        graphGeneration: graph.generation,
+        activeSurfaceRef: graph.activeSurfaceRef,
+        screenshotGeneration: screenshot.metadata.generation,
+        diagnostic: diagnoseCoverage({
+          screenshot: {
+            width: screenshot.metadata.width,
+            height: screenshot.metadata.height,
+          },
+          regions,
+          semanticBounds:
+            active.snapshot.currentSnapshot?.nodes.map((node) => ({
+              surfaceRef: graph.activeSurfaceRef,
+              bounds: node.bounds,
+            })) ?? [],
+        }),
+      };
+    }, context.signal);
+  }
+
+  diagnostics(
+    input: DiagnosticsInput,
+    context: DomainCallContext,
+  ): Promise<DomainResult> {
+    return this.run(async (signal) => {
+      signal.throwIfAborted();
+      const active = this.requireActive();
+      this.#status = { ...this.#status, lastAction: "diagnostics" };
+      const surfaceOwned =
+        input.surfaceRef === undefined ||
+        active.surfaces.graph?.surfaces.some(
+          (surface) => surface.surfaceRef === input.surfaceRef,
+        ) === true ||
+        active.snapshot.activeSurface?.surfaceRef === input.surfaceRef;
+      const projection = active.diagnostics.query({
+        sources: input.sources,
+        surfaceRef: input.surfaceRef,
+        maxRecords: input.maxRecords,
+        maxBytes: input.maxBytes,
+      });
+      if (surfaceOwned) return { ...projection } as DomainResult;
+      const deniedCapabilities = Object.fromEntries(
+        Object.entries(projection.capabilities).map(([source]) => [
+          source,
+          {
+            state: "denied",
+            code: "diagnostics_surface_denied",
+            evidence: "The requested surface is not owned by this session.",
+          },
+        ]),
+      );
+      return {
+        ...projection,
+        capabilities: deniedCapabilities,
+        records: [],
+        lastErrors: [],
+        truncation: { ...projection.truncation, truncated: false, returned: 0 },
+      } as DomainResult;
     }, context.signal);
   }
 
@@ -472,6 +916,26 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
       context,
       (interactions, signal) => interactions.selectOption(input, signal),
     );
+  }
+
+  sequence(
+    input: SequenceInput,
+    context: DomainCallContext,
+  ): Promise<DomainResult> {
+    return this.run(async (signal) => {
+      this.#status = { ...this.#status, lastAction: "sequence" };
+      const interactions = this.requireActive().interactions;
+      const result = await new SequenceExecutor({ interactions }).execute(
+        input,
+        signal,
+      );
+      this.#status = {
+        ...this.#status,
+        generation: result.endingGeneration,
+        lastAction: "sequence",
+      };
+      return { ...result };
+    }, context.signal);
   }
 
   close(_context: DomainCallContext): Promise<DomainResult> {
@@ -578,7 +1042,12 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
       this.#status = { state: "idle", lastAction: "launch" };
       throw new PumarejoError("INTERNAL_ERROR");
     }
+    const diagnostics =
+      this.#dependencies.createDiagnostics?.(sessionId) ??
+      new DiagnosticStore({ sessionId });
+    this.#diagnostics = diagnostics;
     const setPhase = (phase: LaunchPhase): void => {
+      diagnostics.recordPhase(phase);
       if (this.#status.state === "launching") {
         const proxyReady = [
           "creating_session",
@@ -602,7 +1071,13 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
       await artifacts.open();
     } catch (error) {
       const cleanupFailed = await artifacts.close().then(
-        () => false,
+        (outcome) => {
+          if (isUnavailableArtifactCleanup(outcome)) {
+            recordUnavailableArtifactCleanup(diagnostics, outcome);
+            return true;
+          }
+          return false;
+        },
         () => true,
       );
       if (cleanupFailed) {
@@ -622,21 +1097,42 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
 
     let ready: ReadySession;
     try {
+      const devUrl = await this.#dependencies.resolveBuildDevUrl?.();
       ready = await this.#dependencies.manager.launch({
         mode: input.mode,
         platform: this.#dependencies.platform,
         window: this.#dependencies.config.config.window,
+        ...(this.#dependencies.config.config.initialWindow === undefined
+          ? {}
+          : { initialWindow: this.#dependencies.config.config.initialWindow }),
         ...(this.#dependencies.config.config.webdriverPort === undefined
           ? {}
           : {
               webdriverPort: this.#dependencies.config.config.webdriverPort,
             }),
+        ...(devUrl === undefined ? {} : { devUrl }),
+        ...(devUrl?.ok !== true ? {} : { loopbackFamily: devUrl.value.family }),
         signal,
         onPhase: setPhase,
+        onOutput: (stream, chunk) => diagnostics.recordProcess(stream, chunk),
       });
     } catch (error) {
+      const failure = publicFailure(error);
+      diagnostics.recordLastError({
+        owner: "session",
+        code: failure?.code,
+        phase: failure?.phase,
+        retryable: failure?.retryable,
+        suggestion: failure?.suggestion,
+      });
       const artifactCleanupFailed = await artifacts.close().then(
-        () => false,
+        (outcome) => {
+          if (isUnavailableArtifactCleanup(outcome)) {
+            recordUnavailableArtifactCleanup(diagnostics, outcome);
+            return true;
+          }
+          return false;
+        },
         () => true,
       );
       if (this.#status.state !== "closing") {
@@ -652,7 +1148,10 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
       }
       if (artifactCleanupFailed) {
         this.#pendingArtifactClose = artifacts;
-        throw new PumarejoError("CLOSE_FAILED", { cause: error });
+        // Keep the managed launch failure as the observable error. Cleanup is
+        // reported through status/pending labels and must not hide the phase
+        // and code that explain why launch failed.
+        throw error;
       }
       throw error;
     }
@@ -668,6 +1167,17 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
           artifacts,
         ),
         interactions: this.#dependencies.createInteractions(ready, snapshot),
+        surfaces: this.#dependencies.createSurfaces(ready, sessionId),
+        diagnostics,
+        ...(this.#dependencies.createDialogs === undefined
+          ? {}
+          : {
+              dialogs: this.#dependencies.createDialogs(
+                ready,
+                sessionId,
+                snapshot,
+              ),
+            }),
       };
       this.#active = active;
       setPhase("capturing_first_snapshot");
@@ -680,8 +1190,21 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
         webdriverReady: true,
         ownedPid: ready.ownedPid,
         generation: initial.generation,
+        ...(ready.windowCapabilities === undefined
+          ? {}
+          : { windowCapabilities: ready.windowCapabilities }),
+        ...(ready.initialWindow === undefined
+          ? {}
+          : { initialWindow: ready.initialWindow }),
         lastAction: "launch",
       };
+      diagnostics.recordInvocation({
+        code: "tauri_launch",
+        phase: "capturing_first_snapshot",
+        durationMs: 0,
+        retryable: false,
+        suggestion: "The owned session is ready for a bounded observation.",
+      });
       return {
         sessionId,
         mode: ready.mode,
@@ -690,6 +1213,14 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
         snapshot: initial,
       };
     } catch (error) {
+      const failure = publicFailure(error);
+      diagnostics.recordLastError({
+        owner: "session",
+        code: failure?.code,
+        phase: failure?.phase,
+        retryable: failure?.retryable,
+        suggestion: failure?.suggestion,
+      });
       const cleanupFailures: unknown[] = [];
       if (this.#active !== undefined) {
         await this.closeNow().catch((cleanupError: unknown) => {
@@ -729,9 +1260,36 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
       const controller = new AbortController();
       this.#activeAbort = controller;
       const signal = AbortSignal.any([callerSignal, controller.signal]);
+      const startedAt = Date.now();
+      const action = this.#status.lastAction;
+      this.#diagnostics?.recordInvocation({
+        code: action,
+        owner: "session",
+      });
       try {
-        return await operation(signal);
+        const result = await operation(signal);
+        this.#diagnostics?.recordInvocation({
+          code: action,
+          owner: "session",
+          durationMs: Math.max(0, Date.now() - startedAt),
+          retryable: false,
+        });
+        return result;
       } catch (error) {
+        const failure = publicFailure(error);
+        this.#diagnostics?.recordLastError({
+          owner: "session",
+          code: failure?.code,
+          phase: failure?.phase,
+          retryable: failure?.retryable,
+          suggestion: failure?.suggestion,
+        });
+        this.#diagnostics?.recordInvocation({
+          code: action,
+          owner: "session",
+          durationMs: Math.max(0, Date.now() - startedAt),
+          retryable: failure?.retryable,
+        });
         if (signal.aborted && this.#active !== undefined) {
           const lastAction = this.#status.lastAction;
           try {
@@ -763,13 +1321,19 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
   private async closeNow(): Promise<void> {
     const active = this.#active;
     this.#active = undefined;
+    const diagnostics = active?.diagnostics ?? this.#diagnostics;
     const failures: unknown[] = [];
     const artifacts = active?.artifacts ?? this.#pendingArtifactClose;
     if (artifacts !== undefined) {
       this.#pendingArtifactClose = artifacts;
       try {
-        await artifacts.close();
-        this.#pendingArtifactClose = undefined;
+        const outcome = await artifacts.close();
+        if (isUnavailableArtifactCleanup(outcome)) {
+          recordUnavailableArtifactCleanup(diagnostics, outcome);
+          failures.push(new PumarejoError("CLOSE_FAILED"));
+        } else {
+          this.#pendingArtifactClose = undefined;
+        }
       } catch (error) {
         failures.push(error);
       }
@@ -779,6 +1343,8 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
     } catch (error) {
       failures.push(error);
     }
+    diagnostics?.close();
+    if (this.#diagnostics === diagnostics) this.#diagnostics = undefined;
     if (failures.length > 0) {
       throw new PumarejoError("CLOSE_FAILED", {
         cause: new AggregateError(failures),

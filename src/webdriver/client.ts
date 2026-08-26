@@ -17,6 +17,17 @@ import {
   type JsonObject,
   type WindowRect,
 } from "./protocol.js";
+import {
+  deniedCapability,
+  providerCapabilitiesFrom,
+  providerDialogFrom,
+  unsupportedCapability,
+  unavailableCapability,
+  type DialogDecision,
+  type DialogDetection,
+  type NativeDialogMetadata,
+  type WindowCapabilities,
+} from "./native-control.js";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "[::1]"]);
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
@@ -43,6 +54,12 @@ export interface WaitForReadyOptions {
 export interface EffectiveWindowResult {
   readonly state: "maximized" | "restored";
   readonly rect: WindowRect;
+}
+
+export interface NativeDialogDecisionInput {
+  readonly action: "accept" | "cancel";
+  /** Provider-private dialog instance id. Never serialize this at MCP. */
+  readonly instanceId: string;
 }
 
 function abortSignal(
@@ -115,6 +132,7 @@ export class WebDriverClient {
   #sessionCreationPending = false;
   #restoreRect: WindowRect | undefined;
   #windowState: "maximized" | "restored" = "restored";
+  #windowCapabilities: WindowCapabilities | undefined;
 
   constructor(options: WebDriverClientOptions) {
     const host = (options.host ?? "127.0.0.1").trim().toLowerCase();
@@ -144,6 +162,10 @@ export class WebDriverClient {
 
   get sessionId(): string | undefined {
     return this.#sessionId;
+  }
+
+  get windowCapabilities(): WindowCapabilities | undefined {
+    return this.#windowCapabilities;
   }
 
   private async request(
@@ -331,6 +353,30 @@ export class WebDriverClient {
     }
   }
 
+  async switchToFrame(elementId: string, signal?: AbortSignal): Promise<void> {
+    if (elementId.length === 0 || elementId.length > 4_096) {
+      throw new PumarejoError("SURFACE_NOT_FOUND");
+    }
+    try {
+      await this.sessionCommand(
+        "POST",
+        "/frame",
+        { id: { [W3C_ELEMENT_KEY]: elementId } },
+        signal,
+      );
+    } catch (error) {
+      throw normalizeWebDriverError(error, "SURFACE_SELECTION_FAILED");
+    }
+  }
+
+  async switchToParentFrame(signal?: AbortSignal): Promise<void> {
+    try {
+      await this.sessionCommand("POST", "/frame/parent", {}, signal);
+    } catch (error) {
+      throw normalizeWebDriverError(error, "SURFACE_SELECTION_FAILED");
+    }
+  }
+
   async title(signal?: AbortSignal): Promise<string> {
     try {
       const value = responseValue(
@@ -369,6 +415,193 @@ export class WebDriverClient {
     const rect = windowRectFrom(value);
     if (rect === undefined) throw new PumarejoError("INTERNAL_ERROR");
     return rect;
+  }
+
+  /**
+   * Probe the dedicated provider capability boundary without dispatching an
+   * action. A provider that does not expose the boundary is unavailable for
+   * capability projection; callers must not infer support from the static MCP
+   * tool list.
+   */
+  async probeWindowCapabilities(
+    signal?: AbortSignal,
+  ): Promise<WindowCapabilities> {
+    try {
+      const body = await this.sessionCommand(
+        "GET",
+        "/pumarejo/window-capabilities",
+        undefined,
+        signal,
+      );
+      this.#windowCapabilities = providerCapabilitiesFrom(responseValue(body));
+      return this.#windowCapabilities;
+    } catch (error) {
+      if (signal?.aborted) throw signal.reason;
+      const providerError = jsonObject(
+        jsonObject(
+          error instanceof WebDriverTransportError ? error.body : undefined,
+        )?.value,
+      )?.error;
+      const evidence =
+        providerError === "unknown command"
+          ? unsupportedCapability("provider_capability_unsupported")
+          : String(providerError).toLowerCase().includes("denied") ||
+              String(providerError).toLowerCase().includes("unauthorized")
+            ? deniedCapability("provider_capability_denied")
+            : unavailableCapability("provider_capability_probe_unavailable");
+      this.#windowCapabilities = {
+        resize: evidence,
+        maximize: evidence,
+        restore: evidence,
+        initialSize: evidence,
+      };
+      return this.#windowCapabilities;
+    }
+  }
+
+  /**
+   * Read only the purpose-built Tauri dialog boundary. WebDriver alert
+   * endpoints are intentionally not used here: they describe browser alerts,
+   * not a proved Tauri dialog integration.
+   */
+  async detectNativeDialog(signal?: AbortSignal): Promise<
+    DialogDetection & {
+      readonly providerDialog?: NativeDialogMetadata;
+      readonly pending?: boolean;
+    }
+  > {
+    try {
+      const body = await this.sessionCommand(
+        "GET",
+        "/pumarejo/tauri-dialog",
+        undefined,
+        signal,
+      );
+      const parsed = providerDialogFrom(responseValue(body));
+      if (parsed.contradictory) {
+        return {
+          state: "failed",
+          code: "provider_dialog_invalid_response",
+        };
+      }
+      if (!parsed.supported) {
+        return {
+          state: "unsupported",
+          code: parsed.code,
+          ...(parsed.evidence === undefined
+            ? {}
+            : { evidence: parsed.evidence }),
+        };
+      }
+      if (parsed.pending === false) {
+        return {
+          state: "unavailable",
+          code: "provider_dialog_absent",
+          pending: false,
+          ...(parsed.evidence === undefined
+            ? {}
+            : { evidence: parsed.evidence }),
+        };
+      }
+      if (parsed.dialog === undefined) {
+        return { state: "failed", code: "provider_dialog_invalid_metadata" };
+      }
+      return {
+        state: "supported",
+        code: parsed.code,
+        providerDialog: parsed.dialog,
+        pending: true,
+        dialog: {
+          title: parsed.dialog.title,
+          message: parsed.dialog.message,
+          buttons: parsed.dialog.buttons,
+        },
+      };
+    } catch (error) {
+      if (signal?.aborted) throw signal.reason;
+      const providerError = jsonObject(
+        jsonObject(
+          error instanceof WebDriverTransportError ? error.body : undefined,
+        )?.value,
+      )?.error;
+      const providerErrorText = String(providerError).toLowerCase();
+      const unsupported = providerError === "unknown command";
+      const denied =
+        providerErrorText.includes("denied") ||
+        providerErrorText.includes("unauthorized");
+      return {
+        state: unsupported ? "unsupported" : denied ? "denied" : "unavailable",
+        code: unsupported
+          ? "provider_dialog_boundary_unsupported"
+          : denied
+            ? "provider_dialog_denied"
+            : "provider_dialog_unavailable",
+      };
+    }
+  }
+
+  async decideNativeDialog(
+    input: NativeDialogDecisionInput,
+    signal?: AbortSignal,
+  ): Promise<DialogDecision> {
+    if (
+      input.instanceId.length === 0 ||
+      input.instanceId.length > 256 ||
+      !/^[\u0021-\u007E]+$/u.test(input.instanceId)
+    ) {
+      return {
+        state: "denied",
+        code: "provider_dialog_instance_invalid",
+        action: input.action,
+      };
+    }
+    try {
+      const body = await this.sessionCommand(
+        "POST",
+        "/pumarejo/tauri-dialog/decision",
+        { action: input.action, instanceId: input.instanceId },
+        signal,
+      );
+      const value = jsonObject(responseValue(body));
+      if (value?.resolved !== true) {
+        return {
+          state: "failed",
+          code: "provider_dialog_postcondition_failed",
+          action: input.action,
+        };
+      }
+      return {
+        state: "supported",
+        code: "provider_dialog_decided",
+        action: input.action,
+      };
+    } catch (error) {
+      if (signal?.aborted) throw signal.reason;
+      const providerError = String(
+        jsonObject(
+          jsonObject(
+            error instanceof WebDriverTransportError ? error.body : undefined,
+          )?.value,
+        )?.error ?? "",
+      ).toLowerCase();
+      return {
+        state:
+          providerError === "unknown command"
+            ? "unsupported"
+            : providerError.includes("denied") ||
+                providerError.includes("unauthorized")
+              ? "denied"
+              : "unavailable",
+        code:
+          providerError === "unknown command"
+            ? "provider_dialog_decision_unsupported"
+            : providerError.includes("denied") ||
+                providerError.includes("unauthorized")
+              ? "provider_dialog_decision_denied"
+              : "provider_dialog_decision_unavailable",
+        action: input.action,
+      };
+    }
   }
 
   async execute<T>(
@@ -826,12 +1059,11 @@ export class WebDriverClient {
           {},
           signal,
         );
+        const verified = await this.windowRect(signal);
         this.#windowState = "maximized";
         return {
           state: "maximized",
-          rect:
-            windowRectFrom(responseValue(response)) ??
-            (await this.windowRect(signal)),
+          rect: verified,
         };
       }
       if (input.action === "restore" && this.#windowState === "restored") {
@@ -870,9 +1102,13 @@ export class WebDriverClient {
         target,
         signal,
       );
-      const rect =
-        windowRectFrom(responseValue(response)) ??
-        (await this.windowRect(signal));
+      const rect = await this.windowRect(signal);
+      if (
+        input.action === "resize" &&
+        (rect.width !== input.width || rect.height !== input.height)
+      ) {
+        throw new PumarejoError("UNSUPPORTED_ACTION");
+      }
       if (input.action === "resize") this.#restoreRect = rect;
       this.#windowState = "restored";
       return { state: "restored", rect };

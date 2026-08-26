@@ -16,6 +16,7 @@ pub mod handlers;
 pub mod response;
 pub mod router;
 
+use crate::dialog::DialogBroker;
 use crate::platform::{create_executor, FrameId, PlatformExecutor};
 use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::{SessionManager, Timeouts};
@@ -27,13 +28,15 @@ const PROVIDER_NONCE_HEADER: &str = "x-pumarejo-provider-nonce";
 pub struct AppState<R: Runtime> {
     pub app: AppHandle<R>,
     pub sessions: RwLock<SessionManager>,
+    pub dialog_broker: DialogBroker,
 }
 
 impl<R: Runtime + 'static> AppState<R> {
-    pub fn new(app: AppHandle<R>) -> Self {
+    pub fn new(app: AppHandle<R>, dialog_broker: DialogBroker) -> Self {
         Self {
             app,
             sessions: RwLock::new(SessionManager::new()),
+            dialog_broker,
         }
     }
 
@@ -59,7 +62,7 @@ impl<R: Runtime + 'static> AppState<R> {
 }
 
 /// Start the `WebDriver` HTTP server on the specified port
-pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16) {
+pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16, dialog_broker: DialogBroker) {
     std::thread::spawn(move || {
         let rt = match TokioRuntime::new() {
             Ok(rt) => rt,
@@ -70,7 +73,7 @@ pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16) {
         };
 
         rt.block_on(async {
-            let state = Arc::new(AppState::new(app));
+            let state = Arc::new(AppState::new(app, dialog_broker));
             let provider_nonce = match std::env::var(PROVIDER_NONCE_ENV) {
                 Ok(value) if value.len() >= 32 => Arc::<str>::from(value),
                 _ => {

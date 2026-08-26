@@ -209,7 +209,9 @@ pub async fn delete<R: Runtime>(
 ) -> WebDriverResult {
     let mut sessions = state.sessions.write().await;
 
+    let window = sessions.get(&session_id)?.current_window.clone();
     if sessions.delete(&session_id) {
+        state.dialog_broker.clear_window(&window);
         Ok(WebDriverResponse::null())
     } else {
         Err(WebDriverErrorResponse::invalid_session_id(&session_id))

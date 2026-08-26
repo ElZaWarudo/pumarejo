@@ -234,6 +234,16 @@ pub fn create_router<R: Runtime + 'static>(state: Arc<AppState<R>>) -> Router {
             "/session/{session_id}/alert/text",
             get(handlers::alert::get_text::<R>).post(handlers::alert::send_text::<R>),
         )
+        // Purpose-built opt-in application dialog broker. These routes are
+        // intentionally separate from WebDriver alert endpoints.
+        .route(
+            "/session/{session_id}/pumarejo/tauri-dialog",
+            get(handlers::tauri_dialog::detect::<R>),
+        )
+        .route(
+            "/session/{session_id}/pumarejo/tauri-dialog/decision",
+            post(handlers::tauri_dialog::decide::<R>),
+        )
         // Print
         .route(
             "/session/{session_id}/print",
