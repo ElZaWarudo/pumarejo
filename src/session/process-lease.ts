@@ -1,8 +1,10 @@
 import type { ProcessAdapter, ProcessIdentity } from "../platform/types.js";
+import type { LoopbackFamily } from "../platform/loopback.js";
 
 export interface ProcessLease extends ProcessIdentity {
   readonly providerPid: number;
   readonly providerPort: number;
+  readonly providerFamily: LoopbackFamily;
   readonly proxyPort: number;
 }
 
@@ -15,7 +17,8 @@ export function processIdentityMatches(
     observed.pid === lease.pid &&
     observed.startedAt === lease.startedAt &&
     observed.commandHash === lease.commandHash &&
-    observed.sessionNonce === lease.sessionNonce
+    observed.sessionNonce === lease.sessionNonce &&
+    (lease.systemHash === undefined || observed.systemHash === lease.systemHash)
   );
 }
 

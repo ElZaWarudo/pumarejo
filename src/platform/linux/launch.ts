@@ -27,6 +27,7 @@ import {
 } from "../launch-environment.js";
 import { createRuntimeOverlay } from "../mode-config.js";
 import { resolveProjectTauriCommand } from "../tauri-command.js";
+import type { LoopbackFamily } from "../loopback.js";
 
 const DISPLAY_PATTERN = /^(?:(?:127\.0\.0\.1|localhost))?:\d+(?:\.\d+)?$/u;
 const XVFB_READY_TIMEOUT_MS = 10_000;
@@ -223,6 +224,7 @@ export async function prepareLinuxLaunch(
   loaded: LoadedProjectConfig,
   mode: RuntimeMode,
   environment: NodeJS.ProcessEnv = process.env,
+  requestedFamily?: LoopbackFamily,
 ): Promise<PreparedLaunch> {
   if (process.platform !== "linux") {
     throw new PumarejoError("PLATFORM_UNSUPPORTED");
@@ -275,6 +277,12 @@ export async function prepareLinuxLaunch(
         env: launchEnvironment,
       },
       window: overlay.windowLabel,
+      ...(overlay.devUrl === undefined ? {} : { devUrl: overlay.devUrl }),
+      ...(overlay.devUrl?.ok === true
+        ? { loopbackFamily: overlay.devUrl.value.family }
+        : requestedFamily === undefined
+          ? {}
+          : { loopbackFamily: requestedFamily }),
       cleanup: overlay.cleanup,
     };
   } catch (error) {
@@ -287,17 +295,23 @@ export async function prepareOwnedLinuxLaunch(
   loaded: LoadedProjectConfig,
   mode: RuntimeMode,
   environment: NodeJS.ProcessEnv = process.env,
+  requestedFamily?: LoopbackFamily,
 ): Promise<PreparedLaunch> {
   if (mode === "visible") {
-    return await prepareLinuxLaunch(loaded, mode, environment);
+    return await prepareLinuxLaunch(loaded, mode, environment, requestedFamily);
   }
   const display = await startOwnedLinuxDisplay();
   try {
-    const prepared = await prepareLinuxLaunch(loaded, mode, {
-      ...environment,
-      PUMAREJO_BACKGROUND_DISPLAY: display.display,
-      XAUTHORITY: display.xauthority,
-    });
+    const prepared = await prepareLinuxLaunch(
+      loaded,
+      mode,
+      {
+        ...environment,
+        PUMAREJO_BACKGROUND_DISPLAY: display.display,
+        XAUTHORITY: display.xauthority,
+      },
+      requestedFamily,
+    );
     let closed = false;
     return {
       ...prepared,

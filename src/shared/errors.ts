@@ -21,6 +21,12 @@ export const PUMAREJO_ERROR_CODES = [
   "SESSION_NOT_ACTIVE",
   "SESSION_ALREADY_ACTIVE",
   "WINDOW_NOT_FOUND",
+  "SURFACE_NOT_FOUND",
+  "STALE_SURFACE_REF",
+  "SURFACE_UNSUPPORTED",
+  "SURFACE_UNAVAILABLE",
+  "SURFACE_ACCESS_DENIED",
+  "SURFACE_SELECTION_FAILED",
   "STALE_ELEMENT_REF",
   "ELEMENT_NOT_FOUND",
   "ELEMENT_HIDDEN",
@@ -222,6 +228,46 @@ const ERROR_DEFINITIONS: Record<
     phase: "session",
     retryable: false,
     suggestion: "Check the configured Tauri window label.",
+  },
+  SURFACE_NOT_FOUND: {
+    message:
+      "The requested semantic surface was not found in the current graph.",
+    phase: "session",
+    retryable: true,
+    suggestion:
+      "Call tauri_surface_discover and select a current surface reference.",
+  },
+  STALE_SURFACE_REF: {
+    message: "The semantic surface reference is no longer valid.",
+    phase: "session",
+    retryable: true,
+    suggestion:
+      "Call tauri_surface_discover and use a current graph generation.",
+  },
+  SURFACE_UNSUPPORTED: {
+    message: "The provider does not support this semantic surface operation.",
+    phase: "session",
+    retryable: false,
+    suggestion: "Inspect the capability evidence or use a supported surface.",
+  },
+  SURFACE_UNAVAILABLE: {
+    message: "The semantic surface is currently unavailable from the provider.",
+    phase: "session",
+    retryable: true,
+    suggestion:
+      "Refresh surface discovery after the provider becomes reachable.",
+  },
+  SURFACE_ACCESS_DENIED: {
+    message: "The provider denied access to the semantic surface.",
+    phase: "session",
+    retryable: false,
+    suggestion: "Review the provider capability grant before retrying.",
+  },
+  SURFACE_SELECTION_FAILED: {
+    message: "The provider failed to select the semantic surface.",
+    phase: "session",
+    retryable: true,
+    suggestion: "Refresh surface discovery and retry the selection.",
   },
   STALE_ELEMENT_REF: {
     message: "The element reference is no longer valid.",

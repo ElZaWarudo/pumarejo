@@ -4,11 +4,20 @@ import { promisify } from "node:util";
 
 import {
   createTrackedProcessAdapter,
+  type NativeManagedLaunch,
+  type NativeProcessCustodyOperations,
   type NativeProcessOperations,
   type ProcessInspectionFailure,
   type ProviderOwnerResult,
   type SystemInspectionResult,
 } from "../tracked-process.js";
+import { createWindowsJobObjectOperations } from "./job-object.js";
+import type {
+  ProcessCustodyAttachment,
+  ProcessCustodyCapability,
+  SpawnRequest,
+} from "../types.js";
+import type { LoopbackFamily } from "../loopback.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -17,6 +26,58 @@ export interface WindowsProcessCommandRunner {
     command: string,
     args: readonly string[],
   ): Promise<{ readonly stdout: string; readonly stderr: string }>;
+}
+
+/** Injectable native seam. Node does not expose a durable Job Object handle;
+ * callers may provide a host bridge and the adapter will prefer it. */
+export interface WindowsJobObjectOperations {
+  probe(): Promise<boolean>;
+  managedLaunch?(request: SpawnRequest): Promise<NativeManagedLaunch>;
+  attach(pid: number): Promise<unknown>;
+  inspect?(
+    pid: number,
+    handle: unknown,
+  ): Promise<{ readonly descendantsComplete: boolean } | undefined>;
+  waitForTermination?(
+    pid: number,
+    handle: unknown,
+    timeoutMs: number,
+  ): Promise<boolean>;
+  terminate(
+    pid: number,
+    handle: unknown,
+    signal?: "term" | "kill",
+  ): Promise<void>;
+  release(handle: unknown): Promise<void>;
+}
+
+function nativeJobObjectSeam(
+  systemRoot: string | undefined,
+): WindowsJobObjectOperations {
+  const backend = createWindowsJobObjectOperations({ systemRoot });
+  const attachment = (opaqueHandle: unknown): ProcessCustodyAttachment => ({
+    mechanism: "windows_job_object",
+    opaqueHandle,
+  });
+  return {
+    probe: async () => (await backend.capability()).state === "supported",
+    managedLaunch: backend.managedLaunch,
+    attach: async (pid) => (await backend.attach(pid)).opaqueHandle,
+    inspect: async (pid, handle) =>
+      await backend.inspect(pid, attachment(handle)),
+    waitForTermination:
+      backend.waitForTermination === undefined
+        ? undefined
+        : async (pid, handle, timeoutMs) =>
+            await backend.waitForTermination!(
+              pid,
+              attachment(handle),
+              timeoutMs,
+            ),
+    terminate: async (pid, handle, signal = "term") =>
+      await backend.terminate(pid, attachment(handle), signal),
+    release: async (handle) => await backend.release(attachment(handle)),
+  };
 }
 
 function systemCommand(
@@ -157,6 +218,7 @@ export function createWindowsProcessOperations(
   options: {
     readonly runner?: WindowsProcessCommandRunner;
     readonly systemRoot?: string;
+    readonly jobObject?: WindowsJobObjectOperations;
   } = {},
 ): NativeProcessOperations {
   const systemRoot = options.systemRoot ?? process.env.SystemRoot;
@@ -208,6 +270,130 @@ export function createWindowsProcessOperations(
     }
   };
 
+  const jobObject: WindowsJobObjectOperations | undefined =
+    options.jobObject ??
+    (process.platform === "win32"
+      ? nativeJobObjectSeam(systemRoot)
+      : undefined);
+  let jobAvailable: Promise<boolean> | undefined;
+  const probeJob = async (): Promise<boolean> => {
+    if (jobObject === undefined) return false;
+    try {
+      return await jobObject.probe();
+    } catch {
+      return false;
+    }
+  };
+  const inspectTree = async (pid: number): Promise<boolean> => {
+    if (systemRoot === undefined) return false;
+    let stdout: string;
+    try {
+      ({ stdout } = await runner.run(
+        systemCommand(
+          systemRoot,
+          "WindowsPowerShell",
+          "v1.0",
+          "powershell.exe",
+        ),
+        [
+          "-NoLogo",
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          'try { Get-CimInstance Win32_Process -ErrorAction Stop | Select-Object ProcessId,ParentProcessId | ConvertTo-Json -Compress } catch { [pscustomobject]@{ Status = "unavailable" } | ConvertTo-Json -Compress }',
+        ],
+      ));
+    } catch {
+      return false;
+    }
+    const parents = parseParents(stdout);
+    return parents.status === "found" && parents.parents.has(pid);
+  };
+  const custody: NativeProcessCustodyOperations = {
+    async capability(): Promise<ProcessCustodyCapability> {
+      if (jobObject !== undefined) {
+        jobAvailable ??= probeJob();
+        if (await jobAvailable) {
+          return {
+            mechanism: "windows_job_object",
+            state: "supported",
+            code: "windows_job_object_available",
+            killOnClose: true,
+          };
+        }
+      }
+      return {
+        mechanism: "windows_validated_tree",
+        state: "unavailable",
+        code: "windows_job_object_unavailable",
+        killOnClose: false,
+      };
+    },
+    async attach(pid: number): Promise<ProcessCustodyAttachment> {
+      if (jobObject !== undefined) {
+        jobAvailable ??= probeJob();
+        if (await jobAvailable) {
+          return {
+            mechanism: "windows_job_object",
+            opaqueHandle: await jobObject.attach(pid),
+          };
+        }
+      }
+      throw new Error(
+        `Windows Job custody is unavailable; refusing raw-PID attachment for ${pid}.`,
+      );
+    },
+    async inspect(pid, attachment) {
+      if (attachment.mechanism === "windows_job_object") {
+        if (jobObject === undefined || attachment.opaqueHandle === undefined)
+          return undefined;
+        return (
+          (await jobObject.inspect?.(pid, attachment.opaqueHandle)) ?? {
+            descendantsComplete: true,
+          }
+        );
+      }
+      return undefined;
+    },
+    async terminate(pid, attachment) {
+      if (
+        attachment.mechanism === "windows_job_object" &&
+        jobObject !== undefined &&
+        attachment.opaqueHandle !== undefined
+      ) {
+        await jobObject.terminate(pid, attachment.opaqueHandle);
+        return;
+      }
+      throw new Error(
+        `Windows Job custody is unavailable; refusing raw-PID termination for ${pid}.`,
+      );
+    },
+    async waitForTermination(pid, attachment, timeoutMs) {
+      if (
+        attachment.mechanism === "windows_job_object" &&
+        jobObject !== undefined &&
+        attachment.opaqueHandle !== undefined &&
+        jobObject.waitForTermination !== undefined
+      ) {
+        return await jobObject.waitForTermination(
+          pid,
+          attachment.opaqueHandle,
+          timeoutMs,
+        );
+      }
+      return false;
+    },
+    async release(attachment) {
+      if (
+        attachment.mechanism === "windows_job_object" &&
+        jobObject !== undefined &&
+        attachment.opaqueHandle !== undefined
+      ) {
+        await jobObject.release(attachment.opaqueHandle);
+      }
+    },
+  };
+
   return {
     inspectSystem,
     async terminateTree(pid) {
@@ -225,8 +411,14 @@ export function createWindowsProcessOperations(
       }
     },
 
-    async providerOwner(rootPid, providerPort): Promise<ProviderOwnerResult> {
+    async providerOwner(
+      rootPid,
+      providerPort,
+      family: LoopbackFamily = "ipv4",
+      signal?: AbortSignal,
+    ): Promise<ProviderOwnerResult> {
       if (systemRoot === undefined) return unavailableRoot();
+      signal?.throwIfAborted();
       let listeners: string;
       try {
         ({ stdout: listeners } = await runner.run(
@@ -236,7 +428,10 @@ export function createWindowsProcessOperations(
       } catch (error) {
         return commandFailure(error);
       }
-      const expected = `127.0.0.1:${providerPort}`;
+      const expected =
+        family === "ipv6"
+          ? `[::1]:${providerPort}`
+          : `127.0.0.1:${providerPort}`;
       const owner = Number(
         listeners
           .split(/\r?\n/u)
@@ -252,6 +447,7 @@ export function createWindowsProcessOperations(
         return { status: "not-found" };
       }
 
+      signal?.throwIfAborted();
       let stdout: string;
       try {
         ({ stdout } = await runner.run(
@@ -283,6 +479,10 @@ export function createWindowsProcessOperations(
       }
       return { status: "not-found" };
     },
+    custody,
+    ...(jobObject?.managedLaunch === undefined
+      ? {}
+      : { managedLaunch: jobObject.managedLaunch }),
   };
 }
 

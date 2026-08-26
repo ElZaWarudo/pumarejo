@@ -1,4 +1,12 @@
 import type { WebDriverClient } from "../webdriver/client.js";
+import type {
+  InitialWindowEvidence,
+  WindowCapabilities,
+} from "../webdriver/native-control.js";
+export type {
+  InitialWindowEvidence,
+  WindowCapabilities,
+} from "../webdriver/native-control.js";
 import type { CleanupLabel } from "./cleanup.js";
 
 export type SessionState =
@@ -28,6 +36,8 @@ export interface SessionSnapshot {
   readonly window?: string;
   readonly webdriverPort?: number;
   readonly ownedPid?: number;
+  readonly windowCapabilities?: WindowCapabilities;
+  readonly initialWindow?: InitialWindowEvidence;
 }
 
 export interface ReadySession extends SessionSnapshot {
@@ -37,4 +47,6 @@ export interface ReadySession extends SessionSnapshot {
   readonly window: string;
   readonly webdriverPort: number;
   readonly webdriver: WebDriverClient;
+  readonly windowCapabilities?: WindowCapabilities;
+  readonly initialWindow?: InitialWindowEvidence;
 }

@@ -9,8 +9,12 @@ import type { PreparedLaunch } from "../../session/manager.js";
 import type { RuntimeMode } from "../../session/state.js";
 import { PumarejoError } from "../../shared/errors.js";
 import { createRuntimeOverlay } from "../mode-config.js";
-import { resolvedLaunchEnvironment } from "../launch-environment.js";
+import {
+  resolvedLaunchEnvironmentResult,
+  type OperatingSystemEnvironmentSource,
+} from "../launch-environment.js";
 import { resolveProjectTauriCommand } from "../tauri-command.js";
+import type { LoopbackFamily } from "../loopback.js";
 
 function isInside(root: string, candidate: string): boolean {
   const difference = relative(root, candidate);
@@ -221,6 +225,11 @@ export async function prepareWindowsLaunch(
   loaded: LoadedProjectConfig,
   mode: RuntimeMode,
   environment: NodeJS.ProcessEnv = process.env,
+  osSource: OperatingSystemEnvironmentSource = {
+    values: process.env,
+    available: true,
+  },
+  requestedFamily?: LoopbackFamily,
 ): Promise<PreparedLaunch> {
   if (process.platform !== "win32") {
     throw new PumarejoError("PLATFORM_UNSUPPORTED");
@@ -232,11 +241,17 @@ export async function prepareWindowsLaunch(
     windowLabel: loaded.config.window,
   });
   try {
-    const launchEnvironment = resolvedLaunchEnvironment(
+    const launchEnvironmentResult = resolvedLaunchEnvironmentResult(
       "windows",
       environment,
       loaded.config.launch,
+      {},
+      osSource,
     );
+    if (launchEnvironmentResult.status !== "complete") {
+      throw new PumarejoError("APP_START_FAILED");
+    }
+    const launchEnvironment = launchEnvironmentResult.environment;
     const profile = materializeLaunchProfile(
       loaded.config.launch,
       overlay.path,
@@ -274,6 +289,12 @@ export async function prepareWindowsLaunch(
         env: launchEnvironment,
       },
       window: overlay.windowLabel,
+      ...(overlay.devUrl === undefined ? {} : { devUrl: overlay.devUrl }),
+      ...(overlay.devUrl?.ok === true
+        ? { loopbackFamily: overlay.devUrl.value.family }
+        : requestedFamily === undefined
+          ? {}
+          : { loopbackFamily: requestedFamily }),
       cleanup: overlay.cleanup,
     };
   } catch (error) {

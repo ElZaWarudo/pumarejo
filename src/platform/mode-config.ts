@@ -14,6 +14,7 @@ import JSON5 from "json5";
 import { parse as parseToml } from "smol-toml";
 
 import { agentCapability } from "../installer/capabilities.js";
+import { parseBuildDevUrl, type BuildDevUrlResult } from "./loopback.js";
 import { PumarejoError } from "../shared/errors.js";
 import type { RuntimeMode } from "../session/state.js";
 
@@ -29,6 +30,8 @@ export interface RuntimeOverlay {
   readonly directory: string;
   readonly path: string;
   readonly windowLabel: string;
+  /** Sanitized build.devUrl facts; raw configuration never leaves this boundary. */
+  readonly devUrl?: BuildDevUrlResult;
   cleanup(): Promise<void>;
 }
 
@@ -122,6 +125,106 @@ function record(value: unknown): Record<string, unknown> | undefined {
     ? (value as Record<string, unknown>)
     : undefined;
 }
+
+async function configuredTauriConfig(
+  projectRoot: string,
+  platform: "windows" | "linux",
+): Promise<Record<string, unknown> | undefined> {
+  const tauriDirectory = join(projectRoot, "src-tauri");
+  const candidates: string[] = [];
+  for (const name of TAURI_CONFIG_FILES) {
+    const candidate = join(tauriDirectory, name);
+    const metadata = await lstat(candidate).catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return undefined;
+        throw error;
+      },
+    );
+    if (metadata === undefined) continue;
+    if (
+      metadata.isSymbolicLink() ||
+      !metadata.isFile() ||
+      metadata.size > MAX_TAURI_CONFIG_BYTES ||
+      (await realpath(candidate)) !== candidate
+    ) {
+      throw new PumarejoError("CONFIG_INVALID");
+    }
+    candidates.push(candidate);
+  }
+  if (candidates.length > 1) throw new PumarejoError("CONFIG_INVALID");
+  if (candidates.length === 0) return undefined;
+
+  const basePath = candidates[0]!;
+  const platformPath = join(
+    tauriDirectory,
+    basePath.endsWith("Tauri.toml")
+      ? `Tauri.${platform}.toml`
+      : `tauri.${platform}.conf.json`,
+  );
+  const parseConfig = async (
+    path: string,
+    required: boolean,
+  ): Promise<Record<string, unknown> | undefined> => {
+    const metadata = await lstat(path).catch((error: NodeJS.ErrnoException) => {
+      if (!required && error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    if (metadata === undefined) return undefined;
+    if (
+      metadata.isSymbolicLink() ||
+      !metadata.isFile() ||
+      metadata.size > MAX_TAURI_CONFIG_BYTES ||
+      (await realpath(path)) !== path
+    ) {
+      throw new PumarejoError("CONFIG_INVALID");
+    }
+    try {
+      const source = await readFile(path, "utf8");
+      return (
+        record(
+          path.toLowerCase().endsWith(".toml")
+            ? parseToml(source)
+            : JSON5.parse(source),
+        ) ?? {}
+      );
+    } catch (error) {
+      throw new PumarejoError("CONFIG_INVALID", { cause: error });
+    }
+  };
+  const mergePatch = (base: unknown, patch: unknown): unknown => {
+    const patchRecord = record(patch);
+    if (patchRecord === undefined) return patch;
+    const result: Record<string, unknown> = { ...(record(base) ?? {}) };
+    for (const [key, value] of Object.entries(patchRecord)) {
+      if (value === null) delete result[key];
+      else result[key] = mergePatch(result[key], value);
+    }
+    return result;
+  };
+  const base = await parseConfig(basePath, true);
+  const platformConfig = await parseConfig(platformPath, false);
+  const parsed =
+    platformConfig === undefined ? base : mergePatch(base, platformConfig);
+  return record(parsed);
+}
+
+/** Read only bounded, sanitized `build.devUrl` facts at the config boundary. */
+export async function readBuildDevUrl(options: {
+  readonly projectRoot: string;
+  readonly platform: "windows" | "linux";
+}): Promise<BuildDevUrlResult | undefined> {
+  const parsed = await configuredTauriConfig(
+    resolve(options.projectRoot),
+    options.platform,
+  );
+  const value = record(record(parsed)?.build)?.devUrl;
+  if (value === undefined) return undefined;
+  return typeof value === "string"
+    ? parseBuildDevUrl(value)
+    : { ok: false, reason: "malformed" };
+}
+
+export const readConfiguredBuildDevUrl = readBuildDevUrl;
 
 async function configuredCapabilityIdentifiers(
   projectRoot: string,
@@ -233,91 +336,9 @@ async function configuredWindows(
   projectRoot: string,
   platform: "windows" | "linux",
 ): Promise<readonly Record<string, unknown>[]> {
-  const tauriDirectory = join(projectRoot, "src-tauri");
-  const candidates: string[] = [];
-  for (const name of TAURI_CONFIG_FILES) {
-    const candidate = join(tauriDirectory, name);
-    const metadata = await lstat(candidate).catch(
-      (error: NodeJS.ErrnoException) => {
-        if (error.code === "ENOENT") return undefined;
-        throw error;
-      },
-    );
-    if (metadata === undefined) continue;
-    if (
-      metadata.isSymbolicLink() ||
-      !metadata.isFile() ||
-      metadata.size > MAX_TAURI_CONFIG_BYTES ||
-      (await realpath(candidate)) !== candidate
-    ) {
-      throw new PumarejoError("CONFIG_INVALID");
-    }
-    candidates.push(candidate);
-  }
-  if (candidates.length > 1) {
-    throw new PumarejoError("CONFIG_INVALID");
-  }
-  if (candidates.length === 0) return [];
-
-  const basePath = candidates[0]!;
-  const platformPath = join(
-    tauriDirectory,
-    basePath.endsWith("Tauri.toml")
-      ? `Tauri.${platform}.toml`
-      : `tauri.${platform}.conf.json`,
-  );
-
-  const parseConfig = async (
-    path: string,
-    required: boolean,
-  ): Promise<Record<string, unknown> | undefined> => {
-    const metadata = await lstat(path).catch((error: NodeJS.ErrnoException) => {
-      if (!required && error.code === "ENOENT") return undefined;
-      throw error;
-    });
-    if (metadata === undefined) return undefined;
-    if (
-      metadata.isSymbolicLink() ||
-      !metadata.isFile() ||
-      metadata.size > MAX_TAURI_CONFIG_BYTES ||
-      (await realpath(path)) !== path
-    ) {
-      throw new PumarejoError("CONFIG_INVALID");
-    }
-    try {
-      const source = await readFile(path, "utf8");
-      return (
-        record(
-          path.toLowerCase().endsWith(".toml")
-            ? parseToml(source)
-            : JSON5.parse(source),
-        ) ?? {}
-      );
-    } catch (error) {
-      throw new PumarejoError("CONFIG_INVALID", { cause: error });
-    }
-  };
-
-  const mergePatch = (base: unknown, patch: unknown): unknown => {
-    const patchRecord = record(patch);
-    if (patchRecord === undefined) return patch;
-    const result: Record<string, unknown> = { ...(record(base) ?? {}) };
-    for (const [key, value] of Object.entries(patchRecord)) {
-      if (value === null) {
-        delete result[key];
-      } else {
-        result[key] = mergePatch(result[key], value);
-      }
-    }
-    return result;
-  };
-
-  const base = await parseConfig(basePath, true);
-  const platformConfig = await parseConfig(platformPath, false);
-  const parsed =
-    platformConfig === undefined ? base : mergePatch(base, platformConfig);
+  const parsed = await configuredTauriConfig(projectRoot, platform);
   if (parsed === undefined) {
-    throw new PumarejoError("CONFIG_INVALID");
+    return [];
   }
   const windows = record(record(parsed)?.app)?.windows;
   if (windows === undefined) return [];
@@ -386,6 +407,10 @@ export async function createRuntimeOverlay(options: {
   }
 
   const windows = await configuredWindows(projectRoot, options.platform);
+  const devUrl = await readBuildDevUrl({
+    projectRoot,
+    platform: options.platform,
+  });
   const windowLabel = effectiveWindowLabel(windows, options.windowLabel);
   const agentCapability = await readAgentCapability(
     projectRoot,
@@ -430,6 +455,7 @@ export async function createRuntimeOverlay(options: {
     directory,
     path,
     windowLabel,
+    ...(devUrl === undefined ? {} : { devUrl }),
     async cleanup() {
       if (cleaned) return;
       await assertOwnedRuntimeDirectory(projectRoot, agentDirectory, directory);
