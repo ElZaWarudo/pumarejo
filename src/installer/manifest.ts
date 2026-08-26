@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 
 import { TAURI_WEBDRIVER_PLUGIN_VERSION, VERSION } from "../version.js";
+import {
+  PROVIDER_ATTRIBUTION_PREFIX,
+  PROVIDER_KIND,
+  PROVIDER_SOURCE_ALLOWLIST,
+  PROVIDER_STAGED_ROOT,
+} from "./provider-source.js";
 
 export const INTEGRATION_MANIFEST_RELATIVE_PATH =
   ".pumarejo/integration-manifest.json";
@@ -10,7 +16,8 @@ export type IntegrationChangeKind =
   | "rust"
   | "capability"
   | "ignore"
-  | "config";
+  | "config"
+  | typeof PROVIDER_KIND;
 
 export interface IntegrationManifestChange {
   readonly relativePath: string;
@@ -89,9 +96,14 @@ export function parseIntegrationManifest(source: string): IntegrationManifest {
       typeof change !== "object" ||
       change === null ||
       typeof (change as { relativePath?: unknown }).relativePath !== "string" ||
-      !["cargo", "rust", "capability", "ignore", "config"].includes(
-        String((change as { kind?: unknown }).kind),
-      ) ||
+      ![
+        "cargo",
+        "rust",
+        "capability",
+        "ignore",
+        "config",
+        PROVIDER_KIND,
+      ].includes(String((change as { kind?: unknown }).kind)) ||
       !(
         (change as { beforeHash?: unknown }).beforeHash === null ||
         isHash((change as { beforeHash?: unknown }).beforeHash)
@@ -135,4 +147,37 @@ export function parseCanonicalIntegrationManifest(
     throw new Error("Integration manifest is not canonical.");
   }
   return manifest;
+}
+
+export function providerManifestEntries(
+  changes: readonly IntegrationManifestChange[],
+): readonly IntegrationManifestChange[] {
+  return changes.filter((entry) => entry.kind === PROVIDER_KIND);
+}
+
+export function validateProviderManifestEntries(
+  changes: readonly IntegrationManifestChange[],
+): void {
+  const entries = providerManifestEntries(changes);
+  if (entries.length === 0) return;
+  if (entries.length !== PROVIDER_SOURCE_ALLOWLIST.length) {
+    throw new Error("Provider manifest is incomplete.");
+  }
+  const expected = PROVIDER_SOURCE_ALLOWLIST.map(
+    (sourceRelativePath: string) =>
+      `${PROVIDER_STAGED_ROOT}/${sourceRelativePath}`,
+  );
+  const actual = entries.map((entry) => entry.relativePath);
+  if (
+    actual.some((path, index) => path !== expected[index]) ||
+    entries.some(
+      (entry, index) =>
+        entry.beforeHash !== null ||
+        entry.attribution.length !== 1 ||
+        entry.attribution[0] !==
+          `${PROVIDER_ATTRIBUTION_PREFIX}${PROVIDER_SOURCE_ALLOWLIST[index]}`,
+    )
+  ) {
+    throw new Error("Provider manifest is not canonical.");
+  }
 }

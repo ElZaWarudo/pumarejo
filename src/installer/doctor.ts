@@ -12,18 +12,23 @@ import {
 import { resolvedLaunchEnvironment } from "../platform/launch-environment.js";
 import { executableBasename } from "../shared/executable.js";
 import { TAURI_WEBDRIVER_PLUGIN_VERSION, VERSION } from "../version.js";
-import { AGENT_PERMISSIONS } from "./capabilities.js";
-import { cargoPluginIntegration, planCargoRemoval } from "./cargo.js";
+import { evaluateAttributedEntry } from "./attributed-drift.js";
+import { cargoPluginIntegration, isSupportedProviderVersion } from "./cargo.js";
 import {
-  contentHash,
   INTEGRATION_MANIFEST_RELATIVE_PATH,
+  contentHash,
   parseCanonicalIntegrationManifest,
   type IntegrationManifest,
 } from "./manifest.js";
 import { readSafeFile, validateAppliedManifest } from "./plan.js";
 import { detectTauriProject, type DetectedTauriProject } from "./project.js";
-import { planRustRemoval } from "./rust.js";
 import { readLaunchVerification } from "./launch-verification.js";
+import {
+  PROVIDER_CARGO_PATH,
+  PROVIDER_KIND,
+  readProviderBundle,
+  validateProviderStaging,
+} from "./provider-source.js";
 
 export type DiagnosticStatus = "ready" | "warn" | "error";
 
@@ -229,6 +234,7 @@ function overallStatus(
 
 async function integrationDiagnostics(
   projectRoot: string | undefined,
+  expectedWindow: string | undefined,
 ): Promise<DoctorDiagnostic[]> {
   const unavailable = (id: DoctorDiagnostic["id"], subject: string) =>
     diagnostic(
@@ -253,7 +259,7 @@ async function integrationDiagnostics(
   }
 
   let manifest: IntegrationManifest;
-  let manifestDrift = false;
+  const entrySources = new Map<string, string | null>();
   try {
     const source = await readSafeFile(
       projectRoot,
@@ -269,14 +275,14 @@ async function integrationDiagnostics(
       throw new Error(`manifest is ${manifest.state}`);
     }
     for (const entry of manifest.changes) {
-      const content = await readSafeFile(
-        projectRoot,
-        resolve(projectRoot, entry.relativePath),
-        true,
+      entrySources.set(
+        entry.relativePath,
+        await readSafeFile(
+          projectRoot,
+          resolve(projectRoot, entry.relativePath),
+          false,
+        ),
       );
-      if (content === null || contentHash(content) !== entry.afterHash) {
-        manifestDrift = true;
-      }
     }
   } catch {
     return [
@@ -298,38 +304,88 @@ async function integrationDiagnostics(
     ];
   }
 
+  const projections = manifest.changes.map((entry) =>
+    evaluateAttributedEntry(
+      entry,
+      entrySources.get(entry.relativePath) ?? null,
+      {
+        expectedWindow,
+      },
+    ),
+  );
+  const providerEntries = manifest.changes.filter(
+    (entry) => entry.kind === PROVIDER_KIND,
+  );
+  let providerStagingIntact = true;
+  if (providerEntries.length > 0) {
+    try {
+      await validateProviderStaging(projectRoot, providerEntries);
+      const bundle = await readProviderBundle();
+      const expectedHashes = new Map(
+        bundle.map((entry) => [entry.sourceRelativePath, entry.afterHash]),
+      );
+      providerStagingIntact = providerEntries.every((entry) => {
+        const sourceRelativePath = entry.relativePath.slice(
+          ".pumarejo/provider/tauri-plugin-wdio-webdriver/".length,
+        );
+        const source = entrySources.get(entry.relativePath);
+        const expectedBundleHash = expectedHashes.get(sourceRelativePath);
+        const sourceHash =
+          source === undefined || source === null ? null : contentHash(source);
+        return (
+          source !== undefined &&
+          source !== null &&
+          expectedBundleHash === entry.afterHash &&
+          expectedBundleHash === sourceHash
+        );
+      });
+    } catch {
+      providerStagingIntact = false;
+    }
+  }
+  const manifestDrift =
+    !providerStagingIntact ||
+    projections.some((projection) => projection.owned === "drifted");
+  const secondaryHashMismatch = projections.some(
+    (projection) => projection.owned === "intact" && !projection.hashMatched,
+  );
+
   const manifestDiagnostic = diagnostic(
     "integration.manifest",
     manifestDrift ? "warn" : "ready",
     manifestDrift
       ? "The manifest is canonical, but one or more recorded files have drifted."
-      : "The applied integration manifest has the canonical entry set and hashes.",
+      : secondaryHashMismatch
+        ? "The owned integration projections are intact; full-file hashes differ only outside attributed content."
+        : "The applied integration manifest has canonical entries and intact owned projections.",
     manifestDrift
       ? "Review the changed files before running remove."
       : undefined,
   );
   const cargo = manifest.changes.find((entry) => entry.kind === "cargo");
   const rust = manifest.changes.find((entry) => entry.kind === "rust");
-  let registrationReady = rust !== undefined;
+  let registrationReady = rust !== undefined && providerEntries.length === 46;
   let installedPluginVersion: string | undefined;
   try {
-    if (rust !== undefined) {
-      const source = await readSafeFile(
-        projectRoot,
-        resolve(projectRoot, rust.relativePath),
-        true,
-      );
-      if (source === null) throw new Error("Rust source missing");
-      planRustRemoval(source);
-    }
-    const cargoPath = resolve(projectRoot, "src-tauri", "Cargo.toml");
-    const source = await readSafeFile(projectRoot, cargoPath, true);
-    if (source === null) throw new Error("Cargo manifest missing");
-    const plugin = cargoPluginIntegration(source);
+    const rustProjection = projections[manifest.changes.indexOf(rust!)];
+    registrationReady &&= rustProjection?.owned === "intact";
+    registrationReady &&= providerStagingIntact;
+    const cargoSource =
+      cargo === undefined
+        ? await readSafeFile(
+            projectRoot,
+            resolve(projectRoot, "src-tauri", "Cargo.toml"),
+            true,
+          )
+        : (entrySources.get(cargo.relativePath) ?? null);
+    if (cargoSource === null) throw new Error("Cargo manifest missing");
+    const plugin = cargoPluginIntegration(cargoSource);
     registrationReady &&= plugin.registered;
     installedPluginVersion = plugin.version;
+    registrationReady &&= plugin.path === PROVIDER_CARGO_PATH;
     if (cargo !== undefined) {
-      planCargoRemoval(source, cargo.attribution);
+      const cargoProjection = projections[manifest.changes.indexOf(cargo)];
+      registrationReady &&= cargoProjection?.owned === "intact";
     }
   } catch {
     registrationReady = false;
@@ -341,20 +397,11 @@ async function integrationDiagnostics(
   let capabilityReady = capability !== undefined;
   try {
     if (capability === undefined) throw new Error("capability missing");
-    const source = await readSafeFile(
-      projectRoot,
-      resolve(projectRoot, capability.relativePath),
-      true,
-    );
-    if (
-      source === null ||
-      contentHash(source) !== capability.afterHash ||
-      !AGENT_PERMISSIONS.every((permission) =>
-        source.includes(JSON.stringify(permission)),
-      )
-    ) {
-      throw new Error("capability drift");
-    }
+    const source = entrySources.get(capability.relativePath) ?? null;
+    const capabilityProjection =
+      projections[manifest.changes.indexOf(capability)];
+    capabilityReady =
+      source !== null && capabilityProjection?.owned === "intact";
   } catch {
     capabilityReady = false;
   }
@@ -363,7 +410,8 @@ async function integrationDiagnostics(
     manifest.version === 2 &&
     manifest.pumarejoVersion === VERSION &&
     manifest.pluginVersion === TAURI_WEBDRIVER_PLUGIN_VERSION &&
-    installedPluginVersion === TAURI_WEBDRIVER_PLUGIN_VERSION;
+    isSupportedProviderVersion(installedPluginVersion) &&
+    providerEntries.length === 46;
 
   return [
     manifestDiagnostic,
@@ -546,7 +594,9 @@ export async function doctorProject(
       ? undefined
       : await readLaunchVerification(loadedConfig);
 
-  diagnostics.push(...(await integrationDiagnostics(projectRoot)));
+  diagnostics.push(
+    ...(await integrationDiagnostics(projectRoot, project?.primaryWindowLabel)),
+  );
   diagnostics.push(
     diagnostic(
       "toolchain.node",

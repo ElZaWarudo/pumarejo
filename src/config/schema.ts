@@ -113,6 +113,12 @@ export const projectConfigSchema = z.strictObject({
   launch: launchProfileSchema,
   webdriverPort: z.number().int().min(1024).max(65535).optional(),
   window: z.string().trim().min(1).max(128),
+  initialWindow: z
+    .strictObject({
+      width: z.number().int().min(200).max(8_192),
+      height: z.number().int().min(200).max(8_192),
+    })
+    .optional(),
   artifactsDirectory: z.string().trim().min(1).max(MAX_PATH_LENGTH),
   retainArtifacts: z.boolean().default(false),
 });

@@ -36,7 +36,7 @@
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
-    "build": "pnpm clean && tsc -p tsconfig.build.json && node scripts/build-browser-bundle.mjs",
+    "build": "pnpm clean && tsc -p tsconfig.build.json && node scripts/build-browser-bundle.mjs && node scripts/build-provider-bundle.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "format:check": "prettier --check package.json tsconfig.json tsconfig.build.json eslint.config.js vitest.config.ts src tests/platform tests/unit tests/integration tests/contract tests/agent tests/release tests/fixtures/tauri-app/.pumarejo.json tests/fixtures/tauri-app/package.json tests/fixtures/tauri-app/src tests/fixtures/tauri-app/src-tauri/tauri.conf.json tests/fixtures/tauri-app/src-tauri/capabilities/default.json \"tests/fixtures/projects/**/*.{json,json5}\"",

@@ -59,14 +59,18 @@ function helperInsertionPoint(source: string): number {
 }
 
 export function rustBuilderOccurrences(source: string): number {
-  return executableBuilderOffsets(source).length;
+  return executableOffsets(source, BUILDER).length;
+}
+
+export function rustWrappedBuilderOccurrences(source: string): number {
+  return executableOffsets(source, WRAPPED_BUILDER).length;
 }
 
 export function planRustEdit(source: string): string {
   if (source.includes(MARKER_BEGIN) || source.includes(MARKER_END)) {
     throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
   }
-  const builderOffsets = executableBuilderOffsets(source);
+  const builderOffsets = executableOffsets(source, BUILDER);
   if (builderOffsets.length !== 1) {
     throw new IntegrationPlanError("RUST_LAYOUT_AMBIGUOUS");
   }
@@ -83,15 +87,23 @@ export function planRustEdit(source: string): string {
 }
 
 export function planRustRemoval(source: string): string {
-  const helperOccurrences = source.split(HELPER).length - 1;
-  const wrapperOccurrences = source.split(WRAPPED_BUILDER).length - 1;
-  if (helperOccurrences !== 1 || wrapperOccurrences !== 1) {
+  const helperVariants = [HELPER, HELPER.replaceAll("\n", "\r\n")];
+  const matchingHelpers = helperVariants.filter(
+    (helper) => source.split(helper).length - 1 === 1,
+  );
+  const wrapperOffsets = executableOffsets(source, WRAPPED_BUILDER);
+  if (matchingHelpers.length !== 1 || wrapperOffsets.length !== 1) {
     throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
   }
-  return source.replace(HELPER, "").replace(WRAPPED_BUILDER, BUILDER);
+  const wrapperOffset = wrapperOffsets[0]!;
+  const unwrapped =
+    source.slice(0, wrapperOffset) +
+    BUILDER +
+    source.slice(wrapperOffset + WRAPPED_BUILDER.length);
+  return unwrapped.replace(matchingHelpers[0]!, "");
 }
 
-function executableBuilderOffsets(source: string): number[] {
+function executableOffsets(source: string, needle: string): number[] {
   const code = source.split("");
   let index = 0;
 
@@ -170,10 +182,10 @@ function executableBuilderOffsets(source: string): number[] {
 
   const executable = code.join("");
   const offsets: number[] = [];
-  let offset = executable.indexOf(BUILDER);
+  let offset = executable.indexOf(needle);
   while (offset !== -1) {
     offsets.push(offset);
-    offset = executable.indexOf(BUILDER, offset + BUILDER.length);
+    offset = executable.indexOf(needle, offset + needle.length);
   }
   return offsets;
 }

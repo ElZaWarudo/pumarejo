@@ -19,6 +19,7 @@ export const HELP_TEXT = `pumarejo
 Usage:
   pumarejo init [--project <path>] [--dry-run]
   pumarejo doctor [--project <path>] [--json]
+  pumarejo doctor --self [--json]
   pumarejo remove [--project <path>] [--dry-run]
   pumarejo mcp --project <path>
   pumarejo mcp print-config --host <codex|claude-code|cursor> --project <path>

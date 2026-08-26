@@ -10,6 +10,7 @@ export type CliInvocation =
       readonly project: string;
       readonly dryRun: boolean;
       readonly json: boolean;
+      readonly self?: boolean;
       readonly subcommand?: "print-config";
       readonly host?: McpHost;
     };
@@ -51,6 +52,7 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
   let projectProvided = false;
   let dryRun = false;
   let json = false;
+  let self = false;
   let subcommand: "print-config" | undefined;
   let host: McpHost | undefined;
 
@@ -88,6 +90,12 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
         }
         json = true;
         break;
+      case "--self":
+        if (command !== "doctor") {
+          throw new CliUsageError(`Unknown option ${option} for ${command}.`);
+        }
+        self = true;
+        break;
       case "--host": {
         if (command !== "mcp" || subcommand !== "print-config") {
           throw new CliUsageError(`Unknown option ${option} for ${command}.`);
@@ -117,6 +125,9 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
   if (subcommand === "print-config" && host === undefined) {
     throw new CliUsageError("mcp print-config requires --host.");
   }
+  if (self && projectProvided) {
+    throw new CliUsageError("--self cannot be combined with --project.");
+  }
 
   return {
     kind: "command",
@@ -124,6 +135,7 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
     project,
     dryRun,
     json,
+    ...(self ? { self: true } : {}),
     ...(subcommand === undefined ? {} : { subcommand }),
     ...(host === undefined ? {} : { host }),
   };

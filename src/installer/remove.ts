@@ -1,5 +1,5 @@
 import { readdir, rmdir } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 
 import { planCargoRemoval } from "./cargo.js";
 import {
@@ -12,6 +12,11 @@ import {
 } from "./manifest.js";
 import { IntegrationPlanError } from "./plan-error.js";
 import { IGNORE_BLOCK, readSafeFile, validateAppliedManifest } from "./plan.js";
+import {
+  PROVIDER_KIND,
+  PROVIDER_STAGED_ROOT,
+  validateProviderStaging,
+} from "./provider-source.js";
 import { detectTauriProject } from "./project.js";
 import { planRustRemoval } from "./rust.js";
 import {
@@ -96,6 +101,45 @@ async function planConsumerRemoval(
         throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
       }
       return removalChange(projectRoot, entry, current, null);
+    case PROVIDER_KIND:
+      if (contentHash(current) !== entry.afterHash) {
+        throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
+      }
+      return removalChange(projectRoot, entry, current, null);
+  }
+}
+
+async function removeEmptyProviderDirectories(
+  projectRoot: string,
+  providerEntries: readonly IntegrationManifestChange[],
+): Promise<void> {
+  const providerRoot = resolve(projectRoot, PROVIDER_STAGED_ROOT);
+  const directories = new Set<string>([providerRoot]);
+  for (const entry of providerEntries) {
+    let directory = dirname(resolve(projectRoot, entry.relativePath));
+    while (directory.startsWith(`${providerRoot}${sep}`)) {
+      directories.add(directory);
+      if (directory === providerRoot) break;
+      directory = dirname(directory);
+    }
+  }
+  directories.add(dirname(providerRoot));
+  directories.add(dirname(dirname(providerRoot)));
+  const ordered = [...directories].sort(
+    (left, right) => right.length - left.length,
+  );
+  for (const directory of ordered) {
+    try {
+      await rmdir(directory);
+    } catch (error) {
+      if (
+        !["ENOENT", "ENOTEMPTY", "EEXIST"].includes(
+          String((error as NodeJS.ErrnoException).code),
+        )
+      ) {
+        throw error;
+      }
+    }
   }
 }
 
@@ -131,6 +175,12 @@ export async function removeIntegration(
       throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
     }
     validateAppliedManifest(manifest);
+    const providerEntries = manifest.changes.filter(
+      (entry) => entry.kind === PROVIDER_KIND,
+    );
+    if (providerEntries.length > 0) {
+      await validateProviderStaging(detected.projectRoot, providerEntries);
+    }
   } catch (error) {
     if (error instanceof IntegrationPlanError) {
       throw error;
@@ -177,6 +227,11 @@ export async function removeIntegration(
     detected.projectRoot,
     [manifestToRemoving, ...consumerChanges, removeManifest],
     options.writeOptions,
+  );
+
+  await removeEmptyProviderDirectories(
+    detected.projectRoot,
+    manifest.changes.filter((entry) => entry.kind === PROVIDER_KIND),
   );
 
   const agentDirectory = resolve(detected.projectRoot, ".pumarejo");

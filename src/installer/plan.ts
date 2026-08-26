@@ -10,6 +10,14 @@ import {
 import {
   cargoIntegrationAttribution,
   cargoPluginIntegration,
+  CARGO_DEPENDENCY_ATTRIBUTION,
+  CARGO_DEPENDENCY_PATH_ATTRIBUTION,
+  CARGO_EOL_CRLF_ATTRIBUTION,
+  CARGO_EOL_LF_ATTRIBUTION,
+  CARGO_FEATURE_CREATED_ATTRIBUTION,
+  CARGO_FEATURE_VALUE_ATTRIBUTION,
+  isSupportedProviderVersion,
+  normalizeCargoEol,
   planCargoEdit,
 } from "./cargo.js";
 import {
@@ -18,10 +26,19 @@ import {
   INTEGRATION_MANIFEST_RELATIVE_PATH,
   parseCanonicalIntegrationManifest,
   serializeIntegrationManifest,
+  validateProviderManifestEntries,
   type IntegrationChangeKind,
   type IntegrationManifest,
   type IntegrationManifestChange,
 } from "./manifest.js";
+import {
+  PROVIDER_CARGO_PATH,
+  PROVIDER_KIND,
+  PROVIDER_STAGED_ROOT,
+  providerAttribution,
+  readProviderBundle,
+  validateProviderStaging,
+} from "./provider-source.js";
 import { IntegrationPlanError } from "./plan-error.js";
 import { TAURI_WEBDRIVER_PLUGIN_VERSION, VERSION } from "../version.js";
 import { detectTauriProject } from "./project.js";
@@ -159,26 +176,85 @@ async function existingIntegration(
         throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
       }
       const current = await readSafeFile(projectRoot, path, true);
-      if (current === null || contentHash(current) !== entry.afterHash) {
+      const hashSource =
+        current !== null && entry.kind === "cargo"
+          ? normalizeCargoEol(current, entry.attribution)
+          : current;
+      if (
+        current === null ||
+        hashSource === null ||
+        contentHash(hashSource) !== entry.afterHash
+      ) {
         throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
       }
       currentByPath.set(entry.relativePath, current);
     }
+    const providerEntries = manifest.changes.filter(
+      (entry) => entry.kind === PROVIDER_KIND,
+    );
+    if (providerEntries.length > 0) {
+      await validateProviderStaging(projectRoot, providerEntries);
+    } else {
+      const providerRoot = resolve(projectRoot, PROVIDER_STAGED_ROOT);
+      try {
+        const metadata = await lstat(providerRoot);
+        if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
+          throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
+        }
+        throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
+      } catch (error) {
+        if (
+          error instanceof IntegrationPlanError ||
+          (error as NodeJS.ErrnoException).code !== "ENOENT"
+        ) {
+          throw error;
+        }
+      }
+    }
     const currentVersion =
       manifest.version === 2 &&
       manifest.pumarejoVersion === VERSION &&
-      manifest.pluginVersion === TAURI_WEBDRIVER_PLUGIN_VERSION;
+      manifest.pluginVersion === TAURI_WEBDRIVER_PLUGIN_VERSION &&
+      providerEntries.length === 46;
     if (!currentVersion) {
       const cargoEntry = manifest.changes.find(
         (entry) => entry.kind === "cargo",
       );
-      if (cargoEntry !== undefined) {
-        const installed = cargoPluginIntegration(
-          currentByPath.get(cargoEntry.relativePath) ?? "",
-        );
+      const cargoSource =
+        cargoEntry === undefined
+          ? null
+          : (currentByPath.get(cargoEntry.relativePath) ?? null);
+      const nextCargo =
+        cargoSource === null
+          ? null
+          : planCargoEdit(cargoSource, {
+              allowLegacyExternalDependency: true,
+              allowExistingProviderPath: true,
+            });
+      const cargoChange =
+        cargoEntry !== undefined &&
+        cargoSource !== null &&
+        nextCargo !== cargoSource
+          ? change(
+              projectRoot,
+              cargoEntry.relativePath,
+              "cargo",
+              cargoSource,
+              nextCargo!,
+              [
+                ...new Set([
+                  ...cargoEntry.attribution,
+                  "dependency:tauri-plugin-wdio-webdriver:optional",
+                ]),
+              ],
+            )
+          : undefined;
+      if (nextCargo !== null) {
+        const installed = cargoPluginIntegration(nextCargo);
         if (
           !installed.registered ||
-          installed.version !== TAURI_WEBDRIVER_PLUGIN_VERSION
+          !isSupportedProviderVersion(installed.version) ||
+          installed.path !== PROVIDER_CARGO_PATH
         ) {
           throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
         }
@@ -212,21 +288,50 @@ async function existingIntegration(
                 ),
               ],
             );
+      const providerBundle =
+        providerEntries.length === 0 ? await readProviderBundle() : [];
+      const providerChanges = providerBundle.map((entry) =>
+        change(
+          projectRoot,
+          `${PROVIDER_STAGED_ROOT}/${entry.sourceRelativePath}`,
+          PROVIDER_KIND,
+          null,
+          entry.content,
+          [providerAttribution(entry.sourceRelativePath)],
+        ),
+      );
       const manifestChanges: IntegrationManifestChange[] = manifest.changes.map(
         (entry) =>
-          entry === capabilityEntry
+          entry === cargoEntry && cargoChange !== undefined
             ? {
                 ...entry,
-                afterHash:
-                  capabilityChange?.afterHash ?? capabilityEntry.afterHash,
-                attribution: [
-                  capabilityEntry.attribution[0]!,
-                  ...AGENT_PERMISSIONS.map(
-                    (permission) => `permission:${permission}`,
-                  ),
-                ],
+                afterHash: cargoChange.afterHash,
+                attribution: cargoChange.attribution,
               }
-            : entry,
+            : entry === capabilityEntry
+              ? {
+                  ...entry,
+                  afterHash:
+                    capabilityChange?.afterHash ?? capabilityEntry.afterHash,
+                  attribution: [
+                    capabilityEntry.attribution[0]!,
+                    ...AGENT_PERMISSIONS.map(
+                      (permission) => `permission:${permission}`,
+                    ),
+                  ],
+                }
+              : entry,
+      );
+      manifestChanges.push(
+        ...providerChanges.map(
+          ({ relativePath, kind, beforeHash, afterHash, attribution }) => ({
+            relativePath,
+            kind,
+            beforeHash,
+            afterHash,
+            attribution,
+          }),
+        ),
       );
       const applyingSource = serializeIntegrationManifest(
         createIntegrationManifest(manifestChanges, "applying"),
@@ -237,7 +342,11 @@ async function existingIntegration(
       return {
         projectRoot,
         status: "planned",
-        changes: capabilityChange === undefined ? [] : [capabilityChange],
+        changes: [
+          ...(cargoChange === undefined ? [] : [cargoChange]),
+          ...(capabilityChange === undefined ? [] : [capabilityChange]),
+          ...providerChanges,
+        ],
         manifestChange: change(
           projectRoot,
           INTEGRATION_MANIFEST_RELATIVE_PATH,
@@ -334,12 +443,29 @@ export function validateAppliedManifest(manifest: IntegrationManifest): void {
     (entry) =>
       entry.kind === "cargo" && entry.relativePath === "src-tauri/Cargo.toml",
   );
+  const providerEntries = manifest.changes.filter(
+    (entry) => entry.kind === PROVIDER_KIND,
+  );
+  const providerPaths = new Set(
+    providerEntries.map((entry) => entry.relativePath),
+  );
   if (
     rustEntries.length !== 1 ||
     cargoEntries.length > 1 ||
-    manifest.changes.length !== 4 + cargoEntries.length
+    providerEntries.some(
+      (entry) => !entry.relativePath.startsWith(`${PROVIDER_STAGED_ROOT}/`),
+    ) ||
+    providerPaths.size !== providerEntries.length ||
+    manifest.changes.length !== 4 + cargoEntries.length + providerEntries.length
   ) {
     throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
+  }
+  try {
+    validateProviderManifestEntries(manifest.changes);
+  } catch (error) {
+    throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED", {
+      cause: error,
+    });
   }
   if (
     !exactAttribution(rustEntries[0], [
@@ -352,19 +478,32 @@ export function validateAppliedManifest(manifest: IntegrationManifest): void {
   if (cargoEntries.length === 1) {
     const cargoAttribution = cargoEntries[0].attribution;
     const allowed = new Set([
-      "dependency:tauri-plugin-wdio-webdriver:optional",
-      "feature:pumarejo:created:dep:tauri-plugin-wdio-webdriver",
-      "feature:pumarejo:value:dep:tauri-plugin-wdio-webdriver",
+      CARGO_DEPENDENCY_ATTRIBUTION,
+      CARGO_DEPENDENCY_PATH_ATTRIBUTION,
+      CARGO_FEATURE_CREATED_ATTRIBUTION,
+      CARGO_FEATURE_VALUE_ATTRIBUTION,
+      CARGO_EOL_LF_ATTRIBUTION,
+      CARGO_EOL_CRLF_ATTRIBUTION,
     ]);
+    const dependencyEntries = cargoAttribution.filter(
+      (value) =>
+        value === CARGO_DEPENDENCY_ATTRIBUTION ||
+        value === CARGO_DEPENDENCY_PATH_ATTRIBUTION,
+    );
     const featureEntries = cargoAttribution.filter((value) =>
       value.startsWith("feature:pumarejo:"),
     );
+    const eolEntries = cargoAttribution.filter((value) =>
+      value.startsWith("eol:cargo:"),
+    );
     if (
       cargoAttribution.length < 1 ||
-      cargoAttribution.length > 2 ||
+      cargoAttribution.length > 3 ||
       new Set(cargoAttribution).size !== cargoAttribution.length ||
       cargoAttribution.some((value) => !allowed.has(value)) ||
-      featureEntries.length > 1
+      dependencyEntries.length !== 1 ||
+      featureEntries.length > 1 ||
+      eolEntries.length > 1
     ) {
       throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
     }
@@ -517,6 +656,17 @@ export async function planIntegration(
   }
   const configSource = `${JSON.stringify(generateProjectConfig(detected), null, 2)}\n`;
   const cargoAttribution = cargoIntegrationAttribution(cargoSource);
+  const providerBundle = await readProviderBundle();
+  const providerChanges = providerBundle.map((entry) =>
+    change(
+      detected.projectRoot,
+      `${PROVIDER_STAGED_ROOT}/${entry.sourceRelativePath}`,
+      PROVIDER_KIND,
+      null,
+      entry.content,
+      [providerAttribution(entry.sourceRelativePath)],
+    ),
+  );
   const changes = [
     change(
       detected.projectRoot,
@@ -565,6 +715,7 @@ export async function planIntegration(
       configSource,
       ["created:.pumarejo.json"],
     ),
+    ...providerChanges,
   ].filter(
     (plannedChange) => plannedChange.beforeHash !== plannedChange.afterHash,
   ) satisfies PlannedIntegrationChange[];

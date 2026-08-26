@@ -11,6 +11,7 @@ coverage/
 
 # Runtime state and generated integration artifacts
 **/.pumarejo/
+.worktrees/
 
 # Local environment
 .env

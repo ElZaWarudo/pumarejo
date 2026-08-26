@@ -4,6 +4,7 @@ import { IntegrationPlanError } from "./plan-error.js";
 
 export const AGENT_PERMISSIONS = [
   "wdio-webdriver:default",
+  "wdio-webdriver:allow-request-dialog",
   "core:window:allow-set-size",
   "core:window:allow-maximize",
   "core:window:allow-is-maximized",
