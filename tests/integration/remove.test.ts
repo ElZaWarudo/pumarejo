@@ -96,9 +96,11 @@ describe("Tauri project integration removal", () => {
     const rustPath = join(project, "src-tauri", "src", "lib.rs");
     const ignorePath = join(project, ".gitignore");
     await initializeProject(project);
+    const cargoSource = await readFile(cargoPath, "utf8");
+    const cargoEol = cargoSource.includes("\r\n") ? "\r\n" : "\n";
     await writeFile(
       cargoPath,
-      `${await readFile(cargoPath, "utf8")}\n# developer cargo note\n`,
+      `${cargoSource}${cargoEol}# developer cargo note${cargoEol}`,
       "utf8",
     );
     await writeFile(
@@ -130,7 +132,96 @@ describe("Tauri project integration removal", () => {
     expect(await exists(join(project, ".pumarejo"))).toBe(false);
   });
 
-  it("preserves pre-existing Cargo dependency and feature values exactly", async () => {
+  it("restores pre-existing Tinto dependency bytes after init then remove", async () => {
+    const project = await projectCopy();
+    const cargoPath = join(project, "src-tauri", "Cargo.toml");
+    const original = `${await readFile(cargoPath, "utf8")}\ntauri-plugin-wdio-webdriver = { version = "1.2.0", optional = true }\n\n[features]\ne2e-wdio = ["dep:tauri-plugin-wdio-webdriver"]\n`;
+    await writeFile(cargoPath, original, "utf8");
+
+    await expect(initializeProject(project)).resolves.toMatchObject({
+      status: "applied",
+    });
+    await expect(removeIntegration(project)).resolves.toMatchObject({
+      status: "removed",
+    });
+
+    const restored = await readFile(cargoPath, "utf8");
+    expect(restored).toBe(original);
+    expect(restored).toContain(
+      'tauri-plugin-wdio-webdriver = { version = "1.2.0", optional = true }',
+    );
+    expect(restored).toContain(
+      'e2e-wdio = ["dep:tauri-plugin-wdio-webdriver"]',
+    );
+  });
+
+  it("restores an original CRLF Cargo file after external LF normalization", async () => {
+    const project = await projectCopy();
+    const cargoPath = join(project, "src-tauri", "Cargo.toml");
+    const original = (await readFile(cargoPath, "utf8"))
+      .replaceAll("\r\n", "\n")
+      .replaceAll("\n", "\r\n");
+    await writeFile(cargoPath, original, "utf8");
+
+    await expect(initializeProject(project)).resolves.toMatchObject({
+      status: "applied",
+    });
+    const normalized = (await readFile(cargoPath, "utf8")).replaceAll(
+      "\r\n",
+      "\n",
+    );
+    await writeFile(cargoPath, normalized, "utf8");
+
+    await expect(removeIntegration(project)).resolves.toMatchObject({
+      status: "removed",
+    });
+    expect(await readFile(cargoPath, "utf8")).toBe(original);
+  });
+
+  it("refuses removal when uniform Cargo EOL provenance is removed", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const manifestPath = join(
+      project,
+      ".pumarejo",
+      "integration-manifest.json",
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      changes: Array<{ kind: string; attribution: string[] }>;
+    };
+    const cargoEntry = manifest.changes.find(
+      (change) => change.kind === "cargo",
+    );
+    expect(cargoEntry).toBeDefined();
+    cargoEntry!.attribution = cargoEntry!.attribution.filter(
+      (value) => !value.startsWith("eol:cargo:"),
+    );
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    await expect(removeIntegration(project)).rejects.toMatchObject({
+      reason: "ALREADY_INTEGRATED_MODIFIED",
+    });
+  });
+
+  it("refuses removal when the owned Cargo EOL marker is changed", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const cargoPath = join(project, "src-tauri", "Cargo.toml");
+    const cargo = await readFile(cargoPath, "utf8");
+    const marker = cargo.match(/^# <pumarejo:cargo-eol:(lf|crlf)>\r?\n/mu);
+    expect(marker).not.toBeNull();
+    const changed = marker![0].replace(
+      marker![1] === "lf" ? ":lf>" : ":crlf>",
+      marker![1] === "lf" ? ":crlf>" : ":lf>",
+    );
+    await writeFile(cargoPath, cargo.replace(marker![0], changed), "utf8");
+
+    await expect(removeIntegration(project)).rejects.toMatchObject({
+      reason: "ALREADY_INTEGRATED_MODIFIED",
+    });
+  });
+
+  it("rejects a pre-existing external Cargo provider dependency", async () => {
     const project = await projectCopy();
     const cargoPath = join(project, "src-tauri", "Cargo.toml");
     const original = (await readFile(cargoPath, "utf8")).replace(
@@ -145,8 +236,9 @@ describe("Tauri project integration removal", () => {
     );
     await writeFile(cargoPath, original, "utf8");
 
-    await initializeProject(project);
-    await removeIntegration(project);
+    await expect(initializeProject(project)).rejects.toMatchObject({
+      reason: "CARGO_DEPENDENCY_AMBIGUOUS",
+    });
     expect(await readFile(cargoPath, "utf8")).toBe(original);
   });
 
@@ -207,8 +299,8 @@ describe("Tauri project integration removal", () => {
     const cargoPath = join(project, "src-tauri", "Cargo.toml");
     await initializeProject(project);
     const changed = (await readFile(cargoPath, "utf8")).replace(
-      'tauri-plugin-wdio-webdriver = { version = "1", optional = true }',
-      'tauri-plugin-wdio-webdriver = { version = "1", optional = true, features = ["custom"] }',
+      'tauri-plugin-wdio-webdriver = { path = "../.pumarejo/provider/tauri-plugin-wdio-webdriver", version = "1", optional = true }',
+      'tauri-plugin-wdio-webdriver = { path = "../.pumarejo/provider/tauri-plugin-wdio-webdriver", version = "1", optional = true, features = ["custom"] }',
     );
     await writeFile(cargoPath, changed, "utf8");
     const before = await integrationState(project);
@@ -230,28 +322,10 @@ describe("Tauri project integration removal", () => {
       ].join("\n"),
     );
     await writeFile(cargoPath, original, "utf8");
-    await initializeProject(project);
-    const manifestPath = join(
-      project,
-      ".pumarejo",
-      "integration-manifest.json",
-    );
-    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
-      changes: Array<{ kind: string; attribution: string[] }>;
-    };
-    const cargo = manifest.changes.find((entry) => entry.kind === "cargo");
-    if (cargo === undefined) throw new Error("expected Cargo entry");
-    cargo.attribution.unshift(
-      "dependency:tauri-plugin-wdio-webdriver:optional",
-    );
-    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-
-    await expect(removeIntegration(project)).rejects.toMatchObject({
-      reason: "ALREADY_INTEGRATED_MODIFIED",
+    await expect(initializeProject(project)).rejects.toMatchObject({
+      reason: "CARGO_DEPENDENCY_AMBIGUOUS",
     });
-    expect(await readFile(cargoPath, "utf8")).toContain(
-      'tauri-plugin-wdio-webdriver = { version = "1", optional = true }',
-    );
+    expect(await readFile(cargoPath, "utf8")).toBe(original);
   });
 
   it("rejects a forged manifest entry before deleting any file", async () => {
@@ -274,6 +348,25 @@ describe("Tauri project integration removal", () => {
     });
     expect(await readFile(join(project, "package.json"), "utf8")).toBe(
       packageBefore,
+    );
+  });
+
+  it("removes the executable Rust wrapper without altering a matching user comment", async () => {
+    const project = await projectCopy();
+    const rustPath = join(project, "src-tauri", "src", "lib.rs");
+    const original = await readFile(rustPath, "utf8");
+    await initializeProject(project);
+    const wrapper = "pumarejo_builder(tauri::Builder::default())";
+    await writeFile(
+      rustPath,
+      `// user note: ${wrapper}\n${await readFile(rustPath, "utf8")}`,
+    );
+
+    await expect(removeIntegration(project)).resolves.toMatchObject({
+      status: "removed",
+    });
+    expect(await readFile(rustPath, "utf8")).toBe(
+      `// user note: ${wrapper}\n${original}`,
     );
   });
 

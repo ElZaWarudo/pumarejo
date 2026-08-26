@@ -14,6 +14,18 @@ export function createModeOverlay(mode: LaunchMode): Record<string, unknown> {
     app: {
       windows: [{ label: "main", visible: mode === "visible" }],
     },
+    // The fixture opts into the provider broker only for the debug provider
+    // launch overlay. Its normal application capability remains unchanged.
+    security: {
+      capabilities: [
+        "default",
+        {
+          identifier: "pumarejo-dialog-fixture",
+          windows: ["main"],
+          permissions: ["wdio-webdriver:allow-request-dialog"],
+        },
+      ],
+    },
   };
 }
 

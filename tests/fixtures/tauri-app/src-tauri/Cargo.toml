@@ -19,4 +19,4 @@ pumarejo = ["dep:tauri-plugin-wdio-webdriver"]
 
 [dependencies]
 tauri = { version = "2", features = [] }
-tauri-plugin-wdio-webdriver = { path = "../../../../vendor/tauri-plugin-wdio-webdriver", optional = true }
+tauri-plugin-wdio-webdriver = { path = "../.pumarejo/provider/tauri-plugin-wdio-webdriver", version = "1", optional = true }

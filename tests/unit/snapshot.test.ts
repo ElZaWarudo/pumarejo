@@ -503,6 +503,31 @@ describe("semantic snapshots", () => {
     ).toThrow();
   });
 
+  it("fails closed when private identity exceeds browser-side bounds", async () => {
+    const oversized = rawSnapshot([
+      rawNode(0, {
+        identity: {
+          name: "n".repeat(513),
+          ownershipContext: "o".repeat(65),
+        },
+      }),
+    ]);
+    const fake = webdriver([oversized, oversized]);
+    const engine = new SnapshotEngine({
+      webdriver: fake.client,
+      windowLabel: "main",
+      script: async () => "return fixtureSnapshot()",
+    });
+
+    await expect(engine.snapshot()).resolves.toMatchObject({
+      partial: true,
+      generation: 1,
+      nodes: [],
+      issues: [expect.objectContaining({ code: "SEMANTIC_EXTRACTION_FAILED" })],
+    });
+    expect(fake.execute).toHaveBeenCalledTimes(2);
+  });
+
   it("fingerprints semantic identity while retaining only opaque handles", () => {
     const table = new ReferenceTable();
     const parsed = rawSnapshotSchema.parse(

@@ -52,6 +52,13 @@
       <dialog open aria-label="Fixture dialog">
         <p>Dialog content</p>
       </dialog>
+      <button id="request-dialog" type="button">Request broker dialog</button>
+      <dialog id="broker-dialog" aria-labelledby="broker-dialog-title">
+        <h2 id="broker-dialog-title">Fixture broker dialog</h2>
+        <p id="broker-dialog-message">Continue with the fixture action?</p>
+        <button id="broker-dialog-accept" type="button">Accept</button>
+        <button id="broker-dialog-cancel" type="button">Cancel</button>
+      </dialog>
       <div id="custom-control" role="button" tabindex="0" aria-pressed="false">
         Custom action
       </div>
@@ -138,6 +145,31 @@
           event.currentTarget.form.requestSubmit();
         }
       });
+      const brokerDialog = document.querySelector("#broker-dialog");
+      const brokerRequest = () => {
+        if (!(brokerDialog instanceof HTMLDialogElement)) return;
+        brokerDialog.showModal();
+        const invoke = globalThis.__TAURI__?.core?.invoke;
+        if (typeof invoke !== "function") {
+          brokerDialog.close();
+          return Promise.reject(new Error("fixture broker is not enabled"));
+        }
+        return invoke("plugin:wdio-webdriver|request_dialog", {
+          request: {
+            title: "Fixture broker dialog",
+            message: "Continue with the fixture action?",
+            buttons: ["accept", "cancel"],
+          },
+        }).finally(() => brokerDialog.close());
+      };
+      globalThis.__fixtureRequestDialog = brokerRequest;
+      document
+        .querySelector("#request-dialog")
+        .addEventListener("click", () => {
+          brokerRequest().catch((error) => {
+            result.textContent = String(error);
+          });
+        });
       const shadow = document
         .querySelector("#shadow-fixture")
         .attachShadow({ mode: "open" });

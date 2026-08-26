@@ -12,6 +12,7 @@ import {
   createStubDomainPorts,
   SUPPORTED_KEYS,
   type PumarejoDomainPorts,
+  type SequenceInput,
 } from "../../src/mcp/index.js";
 
 const EXPECTED_TOOLS = [
@@ -19,6 +20,11 @@ const EXPECTED_TOOLS = [
   "tauri_status",
   "tauri_snapshot",
   "tauri_screenshot",
+  "tauri_surface_discover",
+  "tauri_surface_select",
+  "tauri_surface_coverage",
+  "tauri_diagnostics",
+  "tauri_dialog",
   "tauri_click",
   "tauri_type",
   "tauri_press_key",
@@ -26,6 +32,7 @@ const EXPECTED_TOOLS = [
   "tauri_pointer",
   "tauri_scroll",
   "tauri_select_option",
+  "tauri_sequence",
   "tauri_close",
 ] as const;
 
@@ -40,6 +47,58 @@ function createPorts(): PumarejoDomainPorts {
       metadata: { generation: 1, ...input },
       image: { data: "iVBORw0KGgo=", mimeType: "image/png" as const },
     })),
+    surfaceDiscover: vi.fn(async () => ({
+      graph: {
+        sessionId: "s1",
+        generation: 1,
+        activeSurfaceRef: "surface-1",
+        surfaces: [],
+        provider: {
+          runtime: "webdriver" as const,
+          platform: "unknown" as const,
+        },
+      },
+    })),
+    surfaceSelect: vi.fn(async (input) => ({
+      graph: {
+        sessionId: "s1",
+        generation: input.graphGeneration,
+        activeSurfaceRef: input.surfaceRef,
+        surfaces: [],
+        provider: {
+          runtime: "webdriver" as const,
+          platform: "unknown" as const,
+        },
+      },
+      snapshot: { generation: 2 },
+    })),
+    surfaceCoverage: vi.fn(async () => ({
+      graphGeneration: 1,
+      diagnostic: { status: "coverage_unknown", gaps: [] },
+    })),
+    diagnostics: vi.fn(async (input) => ({
+      sessionId: "s1",
+      capabilities: {},
+      records: [],
+      lastErrors: [],
+      truncation: {
+        truncated: false,
+        evicted: 0,
+        returned: 0,
+        maxRecords: input.maxRecords,
+        maxBytes: input.maxBytes,
+      },
+    })),
+    dialog: vi.fn(async (input) => ({
+      state: "supported",
+      code: "dialog_detected",
+      action: input.action,
+      dialog: {
+        title: "Fixture",
+        message: "Continue?",
+        buttons: ["OK", "Cancel"],
+      },
+    })),
     click: vi.fn(async (input) => ({ generation: 2, ...input })),
     type: vi.fn(async (input) => ({ generation: 2, ...input })),
     pressKey: vi.fn(async (input) => ({ dispatched: true, ...input })),
@@ -47,6 +106,20 @@ function createPorts(): PumarejoDomainPorts {
     pointer: vi.fn(async (input) => ({ generation: 2, ...input })),
     scroll: vi.fn(async (input) => ({ generation: 2, ...input })),
     selectOption: vi.fn(async (input) => ({ generation: 2, ...input })),
+    sequence: vi.fn(async (input: SequenceInput) => ({
+      startedGeneration: input.generation,
+      endingGeneration: input.generation,
+      steps: input.steps.map((_step, index) => ({
+        index,
+        status: "completed",
+        effect: "no_change",
+        reason: "no_observable_change",
+        elapsedMs: 0,
+        dispatched: false,
+      })),
+      stoppedEarly: false,
+      stopReason: "completed",
+    })),
     close: vi.fn(async () => ({ alreadyClosed: false })),
   };
 }
@@ -70,7 +143,7 @@ afterEach(async () => {
 });
 
 describe("MCP server contract", () => {
-  it("enumerates exactly twelve strict public tools", async () => {
+  it("enumerates the strict public tools including additive surface operations", async () => {
     const { client, server } = await connectInMemory(createPorts());
     try {
       const { tools } = await client.listTools();
@@ -117,6 +190,48 @@ describe("MCP server contract", () => {
       expect(byName.tauri_screenshot).toMatchObject({
         properties: { save: { type: "boolean", default: true } },
       });
+      expect(byName.tauri_surface_discover).toMatchObject({
+        properties: { refresh: { type: "boolean", default: true } },
+      });
+      expect(byName.tauri_surface_select).toMatchObject({
+        required: ["surfaceRef", "graphGeneration"],
+        properties: {
+          surfaceRef: { type: "string" },
+          graphGeneration: { type: "integer", minimum: 1 },
+        },
+      });
+      expect(byName.tauri_surface_coverage).toMatchObject({
+        properties: {},
+      });
+      expect(byName.tauri_diagnostics).toMatchObject({
+        properties: {
+          sources: { type: "array", maxItems: 6 },
+          surfaceRef: { type: "string" },
+          maxRecords: {
+            type: "integer",
+            minimum: 1,
+            maximum: 128,
+            default: 128,
+          },
+          maxBytes: {
+            type: "integer",
+            minimum: 1024,
+            maximum: 49152,
+            default: 49152,
+          },
+        },
+      });
+      expect(byName.tauri_dialog).toMatchObject({
+        properties: {
+          action: { enum: ["detect", "accept", "cancel"], default: "detect" },
+          surfaceRef: { type: "string" },
+          generation: { type: "integer", minimum: 1 },
+          authorize: { type: "boolean", default: false },
+        },
+      });
+      expect(
+        tools.find((tool) => tool.name === "tauri_dialog")?.description,
+      ).toContain("authorize=true");
       expect(byName.tauri_click).toMatchObject({
         required: ["ref"],
         properties: {
@@ -160,6 +275,20 @@ describe("MCP server contract", () => {
       expect(byName.tauri_select_option).toMatchObject({
         required: ["ref"],
       });
+      expect(byName.tauri_sequence).toMatchObject({
+        required: ["generation", "steps"],
+        properties: {
+          generation: { type: "integer", minimum: 1 },
+          steps: { type: "array", minItems: 1, maxItems: 32 },
+          maxSteps: { type: "integer", minimum: 1, maximum: 32, default: 8 },
+          timeoutMs: {
+            type: "integer",
+            minimum: 1,
+            maximum: 30000,
+            default: 10000,
+          },
+        },
+      });
       expect(
         tools.find((tool) => tool.name === "tauri_select_option")?.description,
       ).toContain("visibleOnly:false");
@@ -192,6 +321,14 @@ describe("MCP server contract", () => {
           },
         ],
         ["tauri_screenshot", {}],
+        ["tauri_surface_discover", {}],
+        [
+          "tauri_surface_select",
+          { surfaceRef: "surface-1", graphGeneration: 1 },
+        ],
+        ["tauri_surface_coverage", {}],
+        ["tauri_diagnostics", {}],
+        ["tauri_dialog", {}],
         ["tauri_click", { ref: "e1-1" }],
         ["tauri_type", { ref: "e1-2", text: "Product Pass" }],
         ["tauri_press_key", { key: "ENTER" }],
@@ -199,6 +336,17 @@ describe("MCP server contract", () => {
         ["tauri_pointer", { action: "hover", ref: "e1-1" }],
         ["tauri_scroll", { ref: "e1-1", deltaX: 0, deltaY: 480 }],
         ["tauri_select_option", { ref: "e1-2" }],
+        [
+          "tauri_sequence",
+          {
+            generation: 1,
+            steps: [
+              { kind: "click", ref: "e1-1" },
+              { kind: "pressKey", ref: "e1-1", key: "ENTER" },
+              { kind: "wait", waitMs: 1 },
+            ],
+          },
+        ],
         ["tauri_close", {}],
       ] as const) {
         const result = await client.callTool({ name, arguments: args });
@@ -239,6 +387,32 @@ describe("MCP server contract", () => {
         },
         expect.objectContaining({ signal: expect.anything() }),
       );
+      expect(ports.dialog).toHaveBeenCalledWith(
+        {
+          action: "detect",
+          authorize: false,
+        },
+        expect.objectContaining({ signal: expect.anything() }),
+      );
+      expect(ports.sequence).toHaveBeenCalledWith(
+        {
+          generation: 1,
+          maxSteps: 8,
+          timeoutMs: 10000,
+          steps: [
+            { kind: "click", ref: "e1-1", settleMs: 250 },
+            {
+              kind: "pressKey",
+              ref: "e1-1",
+              key: "ENTER",
+              modifiers: [],
+              settleMs: 250,
+            },
+            { kind: "wait", waitMs: 1 },
+          ],
+        },
+        expect.objectContaining({ signal: expect.anything() }),
+      );
     } finally {
       await client.close();
       await server.close();
@@ -256,9 +430,17 @@ describe("MCP server contract", () => {
     ["tauri_snapshot", { maxTextLength: 65_537 }],
     ["tauri_snapshot", { roles: [] }],
     ["tauri_screenshot", { save: "yes" }],
+    ["tauri_surface_discover", { unexpected: true }],
+    ["tauri_surface_select", { surfaceRef: "", graphGeneration: 1 }],
+    ["tauri_surface_select", { surfaceRef: "surface-1", graphGeneration: 0 }],
+    ["tauri_surface_coverage", { unexpected: true }],
+    ["tauri_dialog", { action: "dismiss" }],
+    ["tauri_dialog", { generation: 0 }],
+    ["tauri_dialog", { unexpected: true }],
     ["tauri_click", { ref: "" }],
     ["tauri_type", { ref: "e1-1", text: "x".repeat(65_537) }],
     ["tauri_press_key", { key: "ALT_F4" }],
+    ["tauri_press_key", { key: "CONTROL", modifiers: ["CONTROL"] }],
     ["tauri_press_key", { key: "D", modifiers: ["CONTROL", "CONTROL"] }],
     ["tauri_window", { action: "resize", width: 800 }],
     ["tauri_window", { action: "maximize", width: 800, height: 600 }],
@@ -266,6 +448,48 @@ describe("MCP server contract", () => {
     ["tauri_scroll", { ref: "e1-1", deltaX: 0, deltaY: 0 }],
     ["tauri_scroll", { ref: "e1-1", deltaX: 0, deltaY: 10_001 }],
     ["tauri_select_option", { ref: "" }],
+    ["tauri_sequence", { generation: 1, steps: [] }],
+    ["tauri_sequence", { generation: 1, steps: [{ kind: "click", ref: "" }] }],
+    [
+      "tauri_sequence",
+      {
+        generation: 1,
+        steps: [
+          {
+            kind: "pressKey",
+            ref: "e1-1",
+            key: "CONTROL",
+            modifiers: ["CONTROL"],
+          },
+        ],
+      },
+    ],
+    [
+      "tauri_sequence",
+      { generation: 1, steps: [{ kind: "window", action: "maximize" }] },
+    ],
+    [
+      "tauri_sequence",
+      {
+        generation: 1,
+        steps: [{ kind: "click", ref: "e1-1", selector: "#x" }],
+      },
+    ],
+    [
+      "tauri_sequence",
+      {
+        generation: 1,
+        maxSteps: 1,
+        steps: [
+          { kind: "wait", waitMs: 1 },
+          { kind: "wait", waitMs: 1 },
+        ],
+      },
+    ],
+    [
+      "tauri_sequence",
+      { generation: 1, timeoutMs: 30001, steps: [{ kind: "wait", waitMs: 1 }] },
+    ],
     ["tauri_close", { unexpected: true }],
   ])("rejects invalid input for %s", async (name, args) => {
     const ports = createPorts();
@@ -358,6 +582,17 @@ describe("MCP server contract", () => {
         arguments: {},
       });
       expect(result).toMatchObject({
+        isError: true,
+        structuredContent: {
+          code: "INTEGRATION_INCOMPLETE",
+          phase: "integration",
+        },
+      });
+      const dialog = await client.callTool({
+        name: "tauri_dialog",
+        arguments: {},
+      });
+      expect(dialog).toMatchObject({
         isError: true,
         structuredContent: {
           code: "INTEGRATION_INCOMPLETE",

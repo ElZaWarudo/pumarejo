@@ -117,6 +117,43 @@ function snapshotPort(
       );
       return queued;
     },
+    publishComparison(
+      comparison: SemanticSnapshot,
+      reservation: ReturnType<ReferenceTable["reserve"]>,
+    ): SemanticSnapshot {
+      references.abandon(reservation);
+      currentSnapshot = {
+        ...comparison,
+        generation: reservation.generation,
+        ...(comparison.partial === true ? { nodes: [], partial: true } : {}),
+      };
+      currentSnapshotComparable = comparison.partial !== true;
+      return currentSnapshot;
+    },
+    preserveComparison(comparison: SemanticSnapshot): SemanticSnapshot {
+      if (currentSnapshot === undefined) throw new Error("missing snapshot");
+      currentSnapshot = {
+        ...comparison,
+        generation: references.generation,
+        nodes: currentSnapshot.nodes,
+      };
+      currentSnapshotComparable = true;
+      return currentSnapshot;
+    },
+    interactionComparison<T>(
+      operation: (refresh: () => Promise<SemanticSnapshot>) => Promise<T>,
+      signal?: AbortSignal,
+    ): Promise<T> {
+      const queued = tail.then(async () => {
+        signal?.throwIfAborted();
+        return await operation(async () => await snapshot(signal));
+      });
+      tail = queued.then(
+        () => undefined,
+        () => undefined,
+      );
+      return queued;
+    },
   };
 }
 
@@ -235,6 +272,25 @@ describe("semantic interactions", () => {
       observedSnapshot({ generation: 2, width: 1024 }),
     ],
     [
+      "surface_change",
+      {
+        ...observedSnapshot({ generation: 1 }),
+        surface: {
+          surfaceRef: "surface-1",
+          identity: "surface-a",
+          kind: "webview",
+        },
+      },
+      {
+        ...observedSnapshot({ generation: 2 }),
+        surface: {
+          surfaceRef: "surface-2",
+          identity: "surface-b",
+          kind: "webview",
+        },
+      },
+    ],
+    [
       "no_observable_change",
       observedSnapshot({ generation: 1 }),
       observedSnapshot({ generation: 2 }),
@@ -271,7 +327,7 @@ describe("semantic interactions", () => {
           settleMs: 0,
         } as never),
       ).resolves.toMatchObject({
-        generation: 2,
+        generation: kind === "no_observable_change" ? 1 : 2,
         action: "click",
         target: { ref: "e1-1", generation: 1 },
         dispatch: { method: "webdriver", dispatched: true },
@@ -280,10 +336,23 @@ describe("semantic interactions", () => {
           after:
             kind === "focus_only"
               ? { generation: 2, ref: "e2-1", actionable: true }
-              : { generation: 2, ref: null, actionable: false },
+              : {
+                  generation: kind === "no_observable_change" ? 1 : 2,
+                  ref: null,
+                  actionable: false,
+                },
         },
         effect: { kind, settleMs: 0 },
-        snapshotAfter: after,
+        snapshotAfter:
+          kind === "no_observable_change"
+            ? expect.objectContaining({ generation: 1 })
+            : kind === "unknown"
+              ? expect.objectContaining({
+                  generation: 2,
+                  nodes: [],
+                  partial: true,
+                })
+              : after,
       });
     },
   );
@@ -317,9 +386,199 @@ describe("semantic interactions", () => {
 
     expect(result).not.toHaveProperty("snapshotAfter");
     expect(result).toMatchObject({
-      generation: 2,
+      generation: 1,
       effect: { kind: "no_observable_change", settleMs: 0 },
     });
+  });
+
+  it("performs one comparison-only final stabilization without advancing on no-change", async () => {
+    const before = observedSnapshot({ generation: 1 });
+    const comparison = observedSnapshot({ generation: 2 });
+    const references = referenceTable();
+    const settle = vi.fn(async () => undefined);
+    const engine = new InteractionEngine({
+      webdriver: {
+        execute: vi.fn(),
+        click: vi.fn(),
+        clear: vi.fn(),
+        type: vi.fn(),
+        pressKey: vi.fn(),
+      },
+      snapshot: snapshotPort(
+        vi.fn(async () => comparison),
+        references,
+        before,
+      ),
+      settle,
+    });
+
+    await expect(engine.stabilize()).resolves.toMatchObject({
+      generation: 1,
+      effect: "no_observable_change",
+      snapshot: { generation: 1 },
+    });
+    expect(references.generation).toBe(1);
+    expect(settle).toHaveBeenCalledTimes(1);
+    expect(settle).toHaveBeenCalledWith(250, undefined);
+  });
+
+  it("advances once without publishing a stale snapshot when settle fails", async () => {
+    const before = observedSnapshot({ generation: 1 });
+    const references = referenceTable();
+    const settle = vi.fn(async () => {
+      throw new PumarejoError("WEBDRIVER_NOT_READY");
+    });
+    const engine = new InteractionEngine({
+      webdriver: {
+        execute: vi.fn(),
+        click: vi.fn(),
+        clear: vi.fn(),
+        type: vi.fn(),
+        pressKey: vi.fn(),
+      },
+      snapshot: snapshotPort(
+        vi.fn(async () => observedSnapshot({ generation: 2 })),
+        references,
+        before,
+      ),
+      settle,
+    });
+
+    await expect(engine.stabilize()).resolves.toEqual({
+      generation: 2,
+      effect: "uncertain",
+    });
+    await expect(engine.stabilize()).resolves.toEqual({
+      generation: 2,
+      effect: "uncertain",
+    });
+    expect(settle).toHaveBeenCalledTimes(2);
+    expect(settle).toHaveBeenNthCalledWith(1, 250, undefined);
+    expect(settle).toHaveBeenNthCalledWith(2, 250, undefined);
+    expect(references.generation).toBe(2);
+    expect(() => references.resolve("e1-1")).toThrowError(PumarejoError);
+  });
+
+  it("advances once without publishing a stale snapshot when refresh fails", async () => {
+    const before = observedSnapshot({ generation: 1 });
+    const references = referenceTable();
+    const settle = vi.fn(async () => undefined);
+    const refresh = vi.fn(async () => {
+      throw new PumarejoError("WEBDRIVER_NOT_READY");
+    });
+    const engine = new InteractionEngine({
+      webdriver: {
+        execute: vi.fn(),
+        click: vi.fn(),
+        clear: vi.fn(),
+        type: vi.fn(),
+        pressKey: vi.fn(),
+      },
+      snapshot: snapshotPort(refresh, references, before),
+      settle,
+    });
+
+    await expect(engine.stabilize()).resolves.toEqual({
+      generation: 2,
+      effect: "uncertain",
+    });
+    await expect(engine.stabilize()).resolves.toEqual({
+      generation: 2,
+      effect: "uncertain",
+    });
+    expect(settle).toHaveBeenCalledTimes(2);
+    expect(settle).toHaveBeenNthCalledWith(1, 250, undefined);
+    expect(settle).toHaveBeenNthCalledWith(2, 250, undefined);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(references.generation).toBe(2);
+    expect(() => references.resolve("e1-1")).toThrowError(PumarejoError);
+  });
+
+  it("publishes a final stabilization change at exactly the reserved next generation", async () => {
+    const before = observedSnapshot({ generation: 1 });
+    const comparison = observedSnapshot({ generation: 2, width: 900 });
+    const references = referenceTable();
+    const engine = new InteractionEngine({
+      webdriver: {
+        execute: vi.fn(),
+        click: vi.fn(),
+        clear: vi.fn(),
+        type: vi.fn(),
+        pressKey: vi.fn(),
+      },
+      snapshot: snapshotPort(
+        vi.fn(async () => comparison),
+        references,
+        before,
+      ),
+    });
+
+    await expect(engine.stabilize()).resolves.toMatchObject({
+      generation: 2,
+      effect: "state_changed",
+      snapshot: { generation: 2 },
+    });
+    expect(references.generation).toBe(2);
+  });
+
+  it("preserves the complete current ref table when a comparable dispatch proves no change", async () => {
+    const before = observedSnapshot({ generation: 1 });
+    const comparison = observedSnapshot({ generation: 2 });
+    const references = referenceTable();
+    const engine = new InteractionEngine({
+      webdriver: {
+        execute: vi.fn(async () => currentIdentity()),
+        click: vi.fn(async () => undefined),
+        clear: vi.fn(),
+        type: vi.fn(),
+        pressKey: vi.fn(),
+      },
+      snapshot: snapshotPort(
+        vi.fn(async () => comparison),
+        references,
+        before,
+      ),
+      identityScript: async () => "identity",
+      settle: async () => undefined,
+    });
+
+    await expect(
+      engine.click({ ref: "e1-1", snapshotAfter: true, settleMs: 0 } as never),
+    ).resolves.toMatchObject({
+      generation: 1,
+      focus: { before: { generation: 1 } },
+      effect: { kind: "no_observable_change" },
+      snapshotAfter: {
+        generation: 1,
+        observedAt: "2026-07-27T12:00:02.000Z",
+        nodes: [expect.objectContaining({ ref: "e1-1" })],
+      },
+    });
+    expect(references.generation).toBe(1);
+    expect(references.resolve("e1-1").elementId).toBe("exact-element-id");
+  });
+
+  it("advances exactly once and invalidates refs when provider dispatch is uncertain", async () => {
+    const test = harness();
+    test.click.mockRejectedValueOnce(new PumarejoError("WEBDRIVER_NOT_READY"));
+
+    await expect(test.engine.click({ ref: "e1-1" })).rejects.toMatchObject({
+      code: "WEBDRIVER_NOT_READY",
+    });
+    expect(test.references.generation).toBe(2);
+    expect(() => test.references.resolve("e1-1")).toThrow();
+  });
+
+  it("preserves refs for invalid pre-dispatch settle configuration", async () => {
+    const test = harness();
+
+    await expect(
+      test.engine.click({ ref: "e1-1", settleMs: 2_001 } as never),
+    ).rejects.toMatchObject({ code: "CONFIG_INVALID" });
+    expect(test.execute).not.toHaveBeenCalled();
+    expect(test.click).not.toHaveBeenCalled();
+    expect(test.references.generation).toBe(1);
+    expect(test.references.resolve("e1-1").elementId).toBe("exact-element-id");
   });
 
   it.each(["filters", "rootRef"] as const)(
@@ -546,6 +805,7 @@ describe("semantic interactions", () => {
     });
     expect(test.click).not.toHaveBeenCalled();
     expect(test.snapshot).not.toHaveBeenCalled();
+    expect(test.references.generation).toBe(2);
     expect(() => test.references.resolve("e1-1")).toThrowError(PumarejoError);
   });
 
@@ -623,6 +883,8 @@ describe("semantic interactions", () => {
     ).rejects.toMatchObject({ code: "ELEMENT_NOT_INTERACTABLE" });
     expect(test.clear).not.toHaveBeenCalled();
     expect(test.type).not.toHaveBeenCalled();
+    expect(test.references.generation).toBe(1);
+    expect(test.references.resolve("e1-1").elementId).toBe("exact-element-id");
   });
 
   it("rejects an exact non-control reference as incompatible", async () => {
@@ -769,7 +1031,51 @@ describe("semantic interactions", () => {
       code: "WEBDRIVER_NOT_READY",
     });
     expect(test.click).toHaveBeenCalledOnce();
+    expect(test.references.generation).toBe(2);
     expect(() => test.references.resolve("e1-1")).toThrowError(PumarejoError);
+  });
+
+  it("preserves refs when cancelled before dispatch and advances once after dispatch", async () => {
+    const before = harness();
+    const beforeController = new AbortController();
+    beforeController.abort(new DOMException("cancelled", "AbortError"));
+
+    await expect(
+      before.engine.click({ ref: "e1-1" }, beforeController.signal),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(before.references.generation).toBe(1);
+    expect(before.references.resolve("e1-1").elementId).toBe(
+      "exact-element-id",
+    );
+
+    const between = harness();
+    const betweenController = new AbortController();
+    between.execute.mockImplementationOnce(async () => {
+      betweenController.abort(new DOMException("cancelled", "AbortError"));
+      return currentIdentity();
+    });
+    await expect(
+      between.engine.click({ ref: "e1-1" }, betweenController.signal),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(between.click).not.toHaveBeenCalled();
+    expect(between.references.generation).toBe(1);
+    expect(between.references.resolve("e1-1").elementId).toBe(
+      "exact-element-id",
+    );
+
+    const after = harness();
+    const afterController = new AbortController();
+    after.click.mockImplementationOnce(async () => {
+      afterController.abort(new DOMException("cancelled", "AbortError"));
+      afterController.signal.throwIfAborted();
+    });
+
+    await expect(
+      after.engine.click({ ref: "e1-1" }, afterController.signal),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(after.click).toHaveBeenCalledOnce();
+    expect(after.references.generation).toBe(2);
+    expect(() => after.references.resolve("e1-1")).toThrow();
   });
 
   it.each(SUPPORTED_KEYS)(
@@ -818,7 +1124,20 @@ describe("semantic interactions", () => {
       code: "STALE_ELEMENT_REF",
     });
     expect(test.click).not.toHaveBeenCalled();
-    expect(() => test.references.resolve("e1-1")).toThrowError(PumarejoError);
+    expect(test.references.generation).toBe(1);
+    expect(test.references.resolve("e1-1").elementId).toBe("exact-element-id");
+  });
+
+  it("maps a generic identity-query failure to stale while preserving current refs", async () => {
+    const test = harness();
+    test.execute.mockRejectedValueOnce(new Error("private provider detail"));
+
+    await expect(test.engine.click({ ref: "e1-1" })).rejects.toMatchObject({
+      code: "STALE_ELEMENT_REF",
+    });
+    expect(test.click).not.toHaveBeenCalled();
+    expect(test.references.generation).toBe(1);
+    expect(test.references.resolve("e1-1").elementId).toBe("exact-element-id");
   });
 
   it("preserves a provider stale-element error from identity capture", async () => {

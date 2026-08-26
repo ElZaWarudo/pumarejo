@@ -80,6 +80,35 @@ function certificationPorts(): PumarejoDomainPorts {
       },
       image: { data: "iVBORw0KGgo=", mimeType: "image/png" as const },
     })),
+    surfaceDiscover: vi.fn(async () => ({
+      graph: {
+        sessionId: "session-1",
+        generation,
+        activeSurfaceRef: "surface-1",
+        surfaces: [],
+        provider: {
+          runtime: "webdriver" as const,
+          platform: "unknown" as const,
+        },
+      },
+    })),
+    surfaceSelect: vi.fn(async (input) => ({
+      graph: {
+        sessionId: "session-1",
+        generation: input.graphGeneration,
+        activeSurfaceRef: input.surfaceRef,
+        surfaces: [],
+        provider: {
+          runtime: "webdriver" as const,
+          platform: "unknown" as const,
+        },
+      },
+      snapshot: { generation: ++generation },
+    })),
+    surfaceCoverage: vi.fn(async () => ({
+      graphGeneration: generation,
+      diagnostic: { status: "coverage_unknown" as const, gaps: [] },
+    })),
     click: vi.fn(async (input) => {
       const before = generation;
       generation += 1;
@@ -132,6 +161,29 @@ function certificationPorts(): PumarejoDomainPorts {
       generation: ++generation,
       selected: true,
       ...input,
+    })),
+    sequence: vi.fn(async (input) => ({
+      startedGeneration: input.generation,
+      endingGeneration: input.generation,
+      steps: [],
+      stoppedEarly: false,
+      stopReason: "completed",
+    })),
+    dialog: vi.fn(async (input) => ({
+      state: "supported",
+      action: input.action,
+      code:
+        input.action === "detect"
+          ? "dialog_detected"
+          : "dialog_authorization_required",
+      dialog:
+        input.action === "detect"
+          ? {
+              title: "Fixture",
+              message: "Continue?",
+              buttons: ["OK", "Cancel"],
+            }
+          : undefined,
     })),
     close: vi.fn(async () => {
       const alreadyClosed = closed;

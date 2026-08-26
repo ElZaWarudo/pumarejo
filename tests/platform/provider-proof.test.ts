@@ -7,10 +7,35 @@ import {
   hostFacts,
   providerRunEnabled,
 } from "./host.js";
+import {
+  PROVIDER_SOURCE_ALLOWLIST,
+  PROVIDER_STAGED_ROOT,
+} from "../../src/installer/provider-source.js";
 
 const fixture = resolve("tests/fixtures/tauri-app");
 const cargo = readFileSync(resolve(fixture, "src-tauri/Cargo.toml"), "utf8");
 const lib = readFileSync(resolve(fixture, "src-tauri/src/lib.rs"), "utf8");
+const fixtureHtml = readFileSync(resolve(fixture, "src/index.html"), "utf8");
+const fixtureCapability = readFileSync(
+  resolve(fixture, "src-tauri/capabilities/default.json"),
+  "utf8",
+);
+const modeOverlay = readFileSync(
+  resolve("tests/platform/mode-overlay.ts"),
+  "utf8",
+);
+const providerBuild = readFileSync(
+  resolve("vendor/tauri-plugin-wdio-webdriver/build.rs"),
+  "utf8",
+);
+const providerRouter = readFileSync(
+  resolve("vendor/tauri-plugin-wdio-webdriver/src/server/router.rs"),
+  "utf8",
+);
+const providerDefaultPermission = readFileSync(
+  resolve("vendor/tauri-plugin-wdio-webdriver/permissions/default.toml"),
+  "utf8",
+);
 
 describe("embedded provider proof", () => {
   it("has a complete accessible fixture and debug/feature-gated provider", () => {
@@ -18,6 +43,25 @@ describe("embedded provider proof", () => {
     expect(cargo).toContain('pumarejo = ["dep:tauri-plugin-wdio-webdriver"]');
     expect(cargo).toContain("optional = true");
     expect(lib).toContain('cfg(all(debug_assertions, feature = "pumarejo"))');
+    expect(PROVIDER_SOURCE_ALLOWLIST).toHaveLength(46);
+    expect(PROVIDER_STAGED_ROOT).toBe(
+      ".pumarejo/provider/tauri-plugin-wdio-webdriver",
+    );
+  });
+
+  it("opts only the fixture into the bounded request_dialog command", () => {
+    expect(providerBuild).toContain('"request_dialog"');
+    expect(providerBuild).toContain("wdio-webdriver:allow-request-dialog");
+    expect(providerDefaultPermission).toContain("permissions = []");
+    expect(fixtureCapability).not.toContain(
+      "wdio-webdriver:allow-request-dialog",
+    );
+    expect(modeOverlay).toContain("wdio-webdriver:allow-request-dialog");
+    expect(providerRouter).toContain("/pumarejo/tauri-dialog");
+    expect(providerRouter).toContain("/pumarejo/tauri-dialog/decision");
+    expect(fixtureHtml).toContain("request: {");
+    expect(providerRouter).not.toContain("/pumarejo/command");
+    expect(providerRouter).not.toContain("/pumarejo/script");
   });
 
   it("records host facts without treating them as authoritative provider evidence", () => {

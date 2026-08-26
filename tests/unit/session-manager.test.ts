@@ -1,13 +1,23 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
   launchCommandHash,
+  type ProcessAdapter,
+  type ProcessCustodyAttachment,
+  type ProcessCustodyInspection,
+  type SpawnRequest,
   type ProcessIdentity,
 } from "../../src/platform/types.js";
 import {
   SessionManager,
+  providerReadinessTimeout,
   type SessionManagerDependencies,
 } from "../../src/session/manager.js";
+import { CustodyLeaseStore } from "../../src/session/custody-lease.js";
 import { PumarejoError } from "../../src/shared/errors.js";
 import type { WebDriverClient } from "../../src/webdriver/client.js";
 
@@ -223,6 +233,152 @@ const launchOptions = {
   platform: "windows" as const,
   window: "main",
 };
+
+async function durableLeaseHarness(
+  outcome: "success" | "retryable" | "postcondition",
+) {
+  const root = await mkdtemp(join(tmpdir(), "pumarejo-session-lease-"));
+  const controllerId = "c".repeat(64);
+  const store = new CustodyLeaseStore({
+    root,
+    controllerId,
+    controllerPid: process.pid,
+    now: () => 1_000,
+  });
+  const transition = vi.spyOn(store, "transition");
+  const mechanism = "windows_validated_tree" as const;
+  let identity: ProcessIdentity | undefined;
+  let nonceIndex = 0;
+  let providerOwnerChecks = 0;
+  const providerOwnerCalls: Array<{
+    readonly port: number;
+    readonly family: string | undefined;
+  }> = [];
+  let custodyInspections = 0;
+  const webdriver = {
+    async waitUntilReady() {},
+    async createSession() {},
+    async selectWindow() {},
+    async deleteSession() {},
+  } as unknown as WebDriverClient;
+  const custody = {
+    async capability() {
+      return {
+        mechanism,
+        state: "supported" as const,
+        code: "windows_validated_tree",
+        killOnClose: false,
+      };
+    },
+    async attach(_owned: ProcessIdentity): Promise<ProcessCustodyAttachment> {
+      return { mechanism };
+    },
+    async inspect(
+      owned: ProcessIdentity,
+      _attachment: ProcessCustodyAttachment,
+    ): Promise<ProcessCustodyInspection | undefined> {
+      custodyInspections += 1;
+      if (outcome === "success" && custodyInspections > 1) return undefined;
+      return {
+        identity: owned,
+        mechanism,
+        descendantsComplete: true,
+      };
+    },
+    async terminate() {
+      return {
+        state:
+          outcome === "retryable"
+            ? ("retryable" as const)
+            : ("terminated" as const),
+        escalated: false,
+      };
+    },
+    async release(_attachment: ProcessCustodyAttachment) {},
+  };
+  const processAdapter: ProcessAdapter = {
+    async spawn(request) {
+      identity = {
+        pid: 71,
+        startedAt: 1_000,
+        commandHash: launchCommandHash(request.command, request.args),
+        sessionNonce: String(request.env.PUMAREJO_SESSION_NONCE),
+      };
+      return {
+        ...identity,
+        async waitUntilProviderReady() {},
+      };
+    },
+    async inspect() {
+      return identity;
+    },
+    async terminateTree() {
+      identity = undefined;
+    },
+    async providerOwner(_pid, port, family) {
+      providerOwnerChecks += 1;
+      providerOwnerCalls.push({ port, family });
+      return providerOwnerChecks <= 2 ? 79 : undefined;
+    },
+    custody,
+  };
+  const dependencies: SessionManagerDependencies = {
+    process: processAdapter,
+    leaseStore: store,
+    nonce: () => {
+      nonceIndex += 1;
+      return nonceIndex % 2 === 1 ? SESSION_NONCE : PROVIDER_NONCE;
+    },
+    async reservePort() {
+      return { port: 50_001, async release() {} };
+    },
+    async prepareLaunch() {
+      return {
+        request: {
+          command: "pnpm",
+          args: ["tauri", "dev", "--config", "overlay.json"],
+          cwd: "C:\\fixture",
+          env: {},
+        },
+        async cleanup() {},
+      };
+    },
+    async startProxy() {
+      return { port: 50_002, async close() {} };
+    },
+    createWebDriver: () => webdriver,
+  };
+  return {
+    root,
+    manager: new SessionManager(dependencies),
+    store,
+    transition,
+    providerOwnerCalls,
+  };
+}
+
+describe("provider readiness timeout", () => {
+  const request = (configured?: string): SpawnRequest => ({
+    command: "tinto",
+    args: [],
+    cwd: "C:\\fixture",
+    env:
+      configured === undefined
+        ? {}
+        : { PUMAREJO_PROVIDER_READY_TIMEOUT_MS: configured },
+    shell: false,
+  });
+
+  it.each([
+    ["uses the documented default", undefined, 300_000],
+    ["accepts the bounded maximum", "600000", 600_000],
+    ["clamps values above the maximum", "900000", 600_000],
+    ["uses the fail-closed fallback for invalid values", "invalid", 5_000],
+    ["uses the fail-closed fallback below the minimum", "999", 5_000],
+  ])("%s", (_label, configured, expected) => {
+    expect(providerReadinessTimeout(request(configured))).toBe(expected);
+  });
+});
 
 describe("SessionManager", () => {
   it("preserves a process-inspection cause and reports successful cleanup", async () => {
@@ -538,4 +694,60 @@ describe("SessionManager", () => {
     ).rejects.toMatchObject({ code: "PORT_UNAVAILABLE" });
     expect(runtime.events).toEqual(["reserve:49200"]);
   });
+
+  it("converges the same durable lease from active through closing to closed", async () => {
+    const runtime = await durableLeaseHarness("success");
+    try {
+      await runtime.manager.launch(launchOptions);
+      await expect(runtime.manager.close()).resolves.toEqual({ state: "idle" });
+
+      expect(
+        runtime.transition.mock.calls.map(([record, state]) => ({
+          from: record.state,
+          to: state,
+        })),
+      ).toEqual([
+        { from: "active", to: "closing" },
+        { from: "closing", to: "closed" },
+      ]);
+      await expect(runtime.store.scan()).resolves.toMatchObject({ leases: [] });
+      expect(runtime.providerOwnerCalls.length).toBeGreaterThan(0);
+      expect(
+        runtime.providerOwnerCalls.every(({ family }) => family === "ipv4"),
+      ).toBe(true);
+    } finally {
+      await rm(runtime.root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ["a retryable termination", "retryable"],
+    ["a pending postcondition", "postcondition"],
+  ] as const)(
+    "retains the current durable lease after %s",
+    async (_label, outcome) => {
+      const runtime = await durableLeaseHarness(outcome);
+      try {
+        await runtime.manager.launch(launchOptions);
+        await expect(runtime.manager.close()).rejects.toMatchObject({
+          code: "CLOSE_FAILED",
+        });
+
+        expect(
+          runtime.transition.mock.calls.map(([record, state]) => ({
+            from: record.state,
+            to: state,
+          })),
+        ).toEqual([
+          { from: "active", to: "closing" },
+          { from: "closing", to: "retryable" },
+        ]);
+        await expect(runtime.store.scan()).resolves.toMatchObject({
+          leases: [expect.objectContaining({ state: "retryable" })],
+        });
+      } finally {
+        await rm(runtime.root, { recursive: true, force: true });
+      }
+    },
+  );
 });

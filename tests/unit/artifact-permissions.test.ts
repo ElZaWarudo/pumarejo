@@ -49,7 +49,13 @@ describe("artifact permission enforcement", () => {
     expect(options?.env).toMatchObject({
       PUMAREJO_ARTIFACT_PATH: "C:\\safe artifact",
       PUMAREJO_ARTIFACT_KIND: "directory",
+      PSModulePath: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules",
     });
+    for (const call of run.mock.calls) {
+      expect(call[2]?.env?.PSModulePath).toBe(
+        "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules",
+      );
+    }
     expect(run.mock.calls[1]?.[0]).toMatch(/System32[\\/]icacls\.exe$/u);
     expect(run.mock.calls[1]?.[1]).toContain("*S-1-5-21-1234:(OI)(CI)F");
     expect(run.mock.calls[2]?.[0]).toBe(command);

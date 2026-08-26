@@ -38,7 +38,14 @@ describe("Cargo provider feature proof", () => {
       { encoding: "utf8" },
     );
     expect(JSON.parse(metadata).packages).toHaveLength(1);
+    expect(cargo).toMatch(
+      /(?:# <pumarejo:cargo-dependency-path>\r?\n)?tauri-plugin-wdio-webdriver = \{ path = "\.\.\/\.pumarejo\/provider\/tauri-plugin-wdio-webdriver", version = "1", optional = true \}/u,
+    );
     expect(cargo).toContain('pumarejo = ["dep:tauri-plugin-wdio-webdriver"]');
+    expect(cargo).toContain(
+      'path = "../.pumarejo/provider/tauri-plugin-wdio-webdriver"',
+    );
+    expect(cargo).not.toMatch(/(?:[A-Za-z]:[\\/]|\/home\/|\/Users\/)/u);
   });
 
   it.runIf(runCargo)(

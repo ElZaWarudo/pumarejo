@@ -1,5 +1,6 @@
 import {
   lstat,
+  mkdir,
   mkdtemp,
   readFile,
   readdir,
@@ -14,7 +15,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ArtifactPermissionEnforcer } from "../../src/artifacts/permissions.js";
-import { ArtifactStore } from "../../src/artifacts/store.js";
+import {
+  ArtifactStore,
+  type ArtifactQuarantineDeletionRequest,
+} from "../../src/artifacts/store.js";
 
 const SESSION_ID = "a".repeat(32);
 const PNG = Buffer.from(
@@ -31,6 +35,17 @@ async function project(): Promise<string> {
 
 function noOpPermissions(): ArtifactPermissionEnforcer {
   return { ensureOwnerOnly: vi.fn(async () => undefined) };
+}
+
+async function identityBoundDeleter(
+  request: ArtifactQuarantineDeletionRequest,
+) {
+  await rm(request.quarantineRoot, { recursive: true, force: true });
+  return {
+    attested: true as const,
+    root: request.root,
+    entries: request.entries,
+  };
 }
 
 afterEach(async () => {
@@ -74,10 +89,17 @@ describe("ArtifactStore", () => {
       retainArtifacts: false,
       sessionId: SESSION_ID,
       permissions: noOpPermissions(),
+      quarantineDeleter: identityBoundDeleter,
     });
     await disposable.open();
     await disposable.writePng(PNG);
-    await disposable.close();
+    await expect(disposable.close()).resolves.toMatchObject({
+      state: "removed",
+      status: "complete",
+      removed: 1,
+      retained: 0,
+      retryable: false,
+    });
     expect(await readdir(artifactsRoot)).toEqual([]);
 
     const retainedId = "b".repeat(32);
@@ -102,7 +124,83 @@ describe("ArtifactStore", () => {
     ).toMatchObject({ retainArtifacts: true, closed: true });
   });
 
-  it("recovers interrupted non-retained sessions from durable manifests", async () => {
+  it("converges empty non-retained sessions without a native deleter", async () => {
+    const root = await project();
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
+    const store = new ArtifactStore({
+      projectRoot: root,
+      artifactsRoot,
+      retainArtifacts: false,
+      sessionId: SESSION_ID,
+      permissions: noOpPermissions(),
+    });
+
+    await store.open();
+    await expect(store.close()).resolves.toMatchObject({
+      state: "removed",
+      status: "complete",
+      removed: 1,
+      retained: 0,
+      retryable: false,
+    });
+    expect(await readdir(artifactsRoot)).toEqual([]);
+    await expect(store.close()).resolves.toMatchObject({
+      state: "removed",
+      status: "complete",
+      removed: 0,
+      retained: 0,
+      retryable: false,
+    });
+    expect(await readdir(artifactsRoot)).toEqual([]);
+  });
+
+  it("quarantines bytes and retains a bounded retry when native deletion is unavailable", async () => {
+    const root = await project();
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
+    const store = new ArtifactStore({
+      projectRoot: root,
+      artifactsRoot,
+      retainArtifacts: false,
+      sessionId: SESSION_ID,
+      permissions: noOpPermissions(),
+    });
+
+    await store.open();
+    await store.writePng(PNG);
+
+    const outcome = await store.close();
+    expect(outcome).toEqual({
+      state: "quarantined",
+      status: "unavailable",
+      removed: 0,
+      retained: 1,
+      retryable: true,
+      reason: "identity_bound_quarantine_deletion_unavailable",
+    });
+    const quarantine = (await readdir(artifactsRoot)).find((entry) =>
+      entry.startsWith(".quarantine-"),
+    );
+    expect(quarantine).toBeDefined();
+    expect(
+      await readFile(
+        join(
+          artifactsRoot,
+          quarantine!,
+          `session-${SESSION_ID}`,
+          "screenshot-0001.png",
+        ),
+      ),
+    ).toEqual(PNG);
+
+    await expect(store.close()).resolves.toEqual(outcome);
+    expect(
+      (await readdir(artifactsRoot)).filter((entry) =>
+        entry.startsWith(".quarantine-"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("preserves interrupted non-retained sessions without orphan proof", async () => {
     const root = await project();
     const artifactsRoot = join(root, ".pumarejo", "artifacts");
     const interrupted = new ArtifactStore({
@@ -120,6 +218,19 @@ describe("ArtifactStore", () => {
         projectRoot: root,
         artifactsRoot,
         permissions: noOpPermissions(),
+      }),
+    ).resolves.toEqual({ removed: 0, retained: 1 });
+    expect(await readdir(artifactsRoot)).toContain(
+      `session-${SESSION_ID}.manifest.json`,
+    );
+
+    await expect(
+      ArtifactStore.recover({
+        projectRoot: root,
+        artifactsRoot,
+        permissions: noOpPermissions(),
+        orphanProof: () => true,
+        quarantineDeleter: identityBoundDeleter,
       }),
     ).resolves.toEqual({ removed: 1, retained: 0 });
     expect(await readdir(artifactsRoot)).toEqual([]);
@@ -145,9 +256,151 @@ describe("ArtifactStore", () => {
         projectRoot: root,
         artifactsRoot,
         permissions: noOpPermissions(),
+        orphanProof: () => true,
+        quarantineDeleter: identityBoundDeleter,
       }),
     ).resolves.toEqual({ removed: 1, retained: 0 });
     expect(await readdir(artifactsRoot)).toEqual([]);
+  });
+
+  it("requires affirmative RDM-016 retention proof before policy cleanup", async () => {
+    const outcomes = [
+      undefined,
+      () => ({ sessionId: SESSION_ID, owned: true, active: true }),
+      () => ({ sessionId: SESSION_ID, owned: true, active: false }),
+    ] as const;
+
+    for (const [index, retentionProof] of outcomes.entries()) {
+      const root = await project();
+      const artifactsRoot = join(root, ".pumarejo", "artifacts");
+      const retained = new ArtifactStore({
+        projectRoot: root,
+        artifactsRoot,
+        retainArtifacts: true,
+        sessionId: SESSION_ID,
+        permissions: noOpPermissions(),
+      });
+      await retained.open();
+      await retained.writePng(PNG);
+      await retained.close();
+
+      const result = await ArtifactStore.recover({
+        projectRoot: root,
+        artifactsRoot,
+        permissions: noOpPermissions(),
+        retentionPolicy: { maxAgeMs: 0 },
+        now: () => new Date("2100-01-01T00:00:00.000Z"),
+        ...(retentionProof === undefined ? {} : { retentionProof }),
+        ...(index === 2 ? { quarantineDeleter: identityBoundDeleter } : {}),
+      });
+
+      if (index < 2) {
+        expect(result).toEqual({ removed: 0, retained: 1 });
+        expect(await readdir(artifactsRoot)).toContain(
+          `session-${SESSION_ID}.manifest.json`,
+        );
+      } else {
+        expect(result).toEqual({ removed: 1, retained: 0 });
+        expect(await readdir(artifactsRoot)).toEqual([]);
+      }
+    }
+  });
+
+  it.each([
+    ["malformed", () => ({ sessionId: SESSION_ID, owned: true })],
+    [
+      "conflicting session",
+      () => ({ sessionId: "b".repeat(32), owned: true, active: false }),
+    ],
+    [
+      "throws",
+      () => {
+        throw new Error("raw cause /tmp/private");
+      },
+    ],
+  ] as const)(
+    "preserves retained bytes for %s proof",
+    async (_label, retentionProof) => {
+      const root = await project();
+      const artifactsRoot = join(root, ".pumarejo", "artifacts");
+      const retained = new ArtifactStore({
+        projectRoot: root,
+        artifactsRoot,
+        retainArtifacts: true,
+        sessionId: SESSION_ID,
+        permissions: noOpPermissions(),
+      });
+      await retained.open();
+      await retained.writePng(PNG);
+      await retained.close();
+
+      await expect(
+        ArtifactStore.recover({
+          projectRoot: root,
+          artifactsRoot,
+          permissions: noOpPermissions(),
+          retentionPolicy: { maxAgeMs: 0 },
+          now: () => new Date("2100-01-01T00:00:00.000Z"),
+          retentionProof,
+          quarantineDeleter: identityBoundDeleter,
+        }),
+      ).resolves.toEqual({ removed: 0, retained: 1 });
+      expect(await readdir(artifactsRoot)).toContain(
+        `session-${SESSION_ID}.manifest.json`,
+      );
+    },
+  );
+
+  it("preserves a quarantine replacement when the identity-bound deleter races", async () => {
+    const root = await project();
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
+    const interrupted = new ArtifactStore({
+      projectRoot: root,
+      artifactsRoot,
+      retainArtifacts: false,
+      sessionId: SESSION_ID,
+      permissions: noOpPermissions(),
+    });
+    await interrupted.open();
+    await interrupted.writePng(PNG);
+
+    const quarantineDeleter = async (
+      request: ArtifactQuarantineDeletionRequest,
+    ) => {
+      await rm(request.quarantineRoot, { recursive: true, force: true });
+      await mkdir(request.quarantineRoot);
+      await writeFile(join(request.quarantineRoot, "replacement.txt"), "keep");
+      return {
+        attested: true as const,
+        root: request.root,
+        entries: request.entries,
+      };
+    };
+
+    const result = await ArtifactStore.recover({
+      projectRoot: root,
+      artifactsRoot,
+      permissions: noOpPermissions(),
+      orphanProof: () => true,
+      quarantineDeleter,
+    });
+
+    expect(result).toMatchObject({
+      removed: 0,
+      retained: 1,
+      status: "unavailable",
+      retryable: true,
+    });
+    const quarantine = (await readdir(artifactsRoot)).find((entry) =>
+      entry.startsWith(".quarantine-"),
+    );
+    expect(quarantine).toBeDefined();
+    expect(
+      await readFile(
+        join(artifactsRoot, quarantine!, "replacement.txt"),
+        "utf8",
+      ),
+    ).toBe("keep");
   });
 
   it("fails closed on a linked artifact root without touching its target", async () => {
@@ -285,7 +538,7 @@ describe("ArtifactStore", () => {
         artifactsRoot,
         permissions: noOpPermissions(),
       }),
-    ).rejects.toMatchObject({ code: "ARTIFACT_RECOVERY_FAILED" });
+    ).resolves.toEqual({ removed: 0, retained: 1 });
     expect((await lstat(artifact)).isSymbolicLink()).toBe(true);
   });
 });

@@ -4,7 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createMcpServer } from "../../src/mcp/server.js";
 import { PumarejoRuntime } from "../../src/mcp/runtime.js";
+import { DiagnosticStore } from "../../src/observability/diagnostics.js";
 import { ReferenceTable } from "../../src/observation/refs.js";
+import type { ArtifactCleanupOutcome } from "../../src/artifacts/store.js";
 import type { SemanticSnapshot } from "../../src/observation/schema.js";
 import type {
   LaunchPhase,
@@ -12,6 +14,7 @@ import type {
   SessionSnapshot,
 } from "../../src/session/state.js";
 import { PumarejoError } from "../../src/shared/errors.js";
+import type { DialogDetection } from "../../src/webdriver/native-control.js";
 import type { WebDriverClient } from "../../src/webdriver/client.js";
 import type { SnapshotInput } from "../../src/mcp/schemas.js";
 
@@ -87,7 +90,10 @@ function harness() {
   const recoverArtifacts = vi.fn(async () => undefined);
   const recordVerification = vi.fn(async () => undefined);
   const artifactOpen = vi.fn(async () => undefined);
-  const artifactClose = vi.fn(async () => undefined);
+  const artifactClose = vi.fn(
+    async (): Promise<ArtifactCleanupOutcome | void> => undefined,
+  );
+  const diagnostics = new DiagnosticStore({ sessionId: SESSION_ID });
   const writePng = vi.fn(async () => ({
     projectRelativePath: ".pumarejo/artifacts/screenshot.png",
   }));
@@ -108,7 +114,50 @@ function harness() {
     },
     image: { data: "png", mimeType: "image/png" as const },
   }));
-  const click = vi.fn(async () => ({
+  const dialogDetect = vi.fn(
+    async (): Promise<DialogDetection> => ({
+      state: "supported",
+      code: "dialog_detected",
+      dialog: {
+        title: "Fixture",
+        message: "Continue?",
+        buttons: ["OK", "Cancel"],
+      },
+    }),
+  );
+  let authorizedAction: "accept" | "cancel" | undefined;
+  const dialogAuthorize = vi.fn(
+    (
+      action: "accept" | "cancel",
+      _context: { readonly surfaceRef: string; readonly generation: number },
+    ) => {
+      authorizedAction = action;
+      return {
+        allowedActions: [action] as readonly ("accept" | "cancel")[],
+        grantId: "private-grant",
+      };
+    },
+  );
+  const dialogDecide = vi.fn(
+    async (
+      action: "accept" | "cancel",
+      _context: { readonly surfaceRef: string; readonly generation: number },
+    ) => {
+      const authorized = authorizedAction === action;
+      authorizedAction = undefined;
+      return {
+        state: authorized ? ("supported" as const) : ("denied" as const),
+        code: authorized ? "dialog_decision_verified" : "dialog_grant_denied",
+        action,
+        dialog: {
+          title: "Fixture",
+          message: "Continue?",
+          buttons: ["OK", "Cancel"],
+        },
+      };
+    },
+  );
+  const click = vi.fn(async (_input?: { readonly ref: string }) => ({
     generation: 2,
     action: "click" as const,
     ref: "e1-1",
@@ -186,6 +235,12 @@ function harness() {
     },
     effect: { kind: "semantic_change" as const, settleMs: 250 },
   }));
+  const stabilize = vi.fn(async () => ({
+    generation: 1,
+    effect: "no_observable_change" as const,
+    snapshot: semanticSnapshot(1),
+  }));
+  const invalidateUncertain = vi.fn(() => 2);
   const runtime = new PumarejoRuntime({
     config: {
       projectRoot: "C:\\fixture",
@@ -218,11 +273,24 @@ function harness() {
       references,
       currentSnapshot: semanticSnapshot(),
       currentSnapshotComparable: true,
+      activeSurface: undefined,
+      setSurface: vi.fn(() => 1),
       snapshot,
       interaction,
+      interactionComparison: interaction,
+      publishComparison: (comparison, reservation) => {
+        references.abandon(reservation);
+        return { ...comparison, generation: reservation.generation };
+      },
+      preserveComparison: (comparison) => ({
+        ...comparison,
+        generation: references.generation,
+      }),
     }),
     createScreenshot: () => ({ capture: screenshot }),
     createInteractions: () => ({
+      generation: 1,
+      focusedRef: vi.fn(() => null),
       click,
       type,
       pressKey,
@@ -230,7 +298,25 @@ function harness() {
       pointer,
       scroll,
       selectOption,
+      stabilize,
+      invalidateUncertain,
     }),
+    createDialogs: () => ({
+      detect: dialogDetect,
+      authorize: dialogAuthorize,
+      decide: dialogDecide,
+    }),
+    createSurfaces: () => ({
+      graph: undefined,
+      activeSurfaceRef: undefined,
+      discover: vi.fn(async () => {
+        throw new PumarejoError("SURFACE_UNAVAILABLE");
+      }),
+      select: vi.fn(async () => {
+        throw new PumarejoError("SURFACE_NOT_FOUND");
+      }),
+    }),
+    createDiagnostics: () => diagnostics,
   });
   return {
     runtime,
@@ -244,11 +330,17 @@ function harness() {
     recordVerification,
     artifactOpen,
     artifactClose,
+    diagnostics,
     snapshot,
     screenshot,
     click,
     type,
     pressKey,
+    stabilize,
+    invalidateUncertain,
+    dialogDetect,
+    dialogAuthorize,
+    dialogDecide,
   };
 }
 
@@ -277,6 +369,16 @@ describe("application-scoped MCP runtime", () => {
       test.runtime.pointer({ action: "hover", ref: "e1-1" }, context()),
       test.runtime.scroll({ ref: "e1-1", deltaX: 0, deltaY: 1 }, context()),
       test.runtime.selectOption({ ref: "e1-1" }, context()),
+      test.runtime.sequence(
+        {
+          generation: 1,
+          steps: [{ kind: "wait", waitMs: 0 }],
+          maxSteps: 8,
+          timeoutMs: 10_000,
+        },
+        context(),
+      ),
+      test.runtime.dialog({ action: "detect", authorize: false }, context()),
     ];
 
     for (const call of calls) {
@@ -291,6 +393,48 @@ describe("application-scoped MCP runtime", () => {
       state: "idle",
       lastAction: "none",
     });
+  });
+
+  it("retains the runtime FIFO for the full sequence and stabilizes once", async () => {
+    const test = harness();
+    const order: string[] = [];
+    test.click.mockImplementation(async (input?: { readonly ref: string }) => {
+      if (input === undefined) throw new Error("missing click input");
+      order.push(input.ref);
+      return {
+        generation: 1,
+        action: "click" as const,
+        ref: input.ref,
+        dispatch: { method: "webdriver" as const, dispatched: true as const },
+        focus: {
+          before: { generation: 1, ref: null, actionable: false },
+          after: { generation: 1, ref: null, actionable: false },
+        },
+        effect: { kind: "no_observable_change" as const, settleMs: 0 },
+      };
+    });
+    await test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context());
+
+    const sequence = test.runtime.sequence(
+      {
+        generation: 1,
+        steps: [
+          { kind: "wait", waitMs: 20 },
+          { kind: "click", ref: "sequence-ref", settleMs: 0 },
+        ],
+        maxSteps: 8,
+        timeoutMs: 10_000,
+      },
+      context(),
+    );
+    const standalone = test.runtime.click(
+      { ref: "standalone-ref", settleMs: 0, snapshotAfter: false },
+      context(),
+    );
+
+    await Promise.all([sequence, standalone]);
+    expect(order).toEqual(["sequence-ref", "standalone-ref"]);
+    expect(test.stabilize).toHaveBeenCalledTimes(1);
   });
 
   it("returns launching after waitMs and becomes ready through status", async () => {
@@ -387,6 +531,72 @@ describe("application-scoped MCP runtime", () => {
     );
   });
 
+  it("exposes bounded diagnostics only for the active owned session and clears them on close", async () => {
+    const test = harness();
+
+    await test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context());
+    const result = await test.runtime.diagnostics(
+      { maxRecords: 16, maxBytes: 8_192 },
+      context(),
+    );
+    expect(result).toMatchObject({
+      sessionId: SESSION_ID,
+      records: expect.arrayContaining([
+        expect.objectContaining({ source: "phase" }),
+        expect.objectContaining({ source: "invocation" }),
+      ]),
+      capabilities: {
+        console: {
+          state: "unsupported",
+          code: "provider_console_unsupported",
+        },
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("C:\\fixture");
+
+    await expect(test.runtime.close(context())).resolves.toMatchObject({
+      state: "idle",
+    });
+    await expect(
+      test.runtime.diagnostics({ maxRecords: 16, maxBytes: 8_192 }, context()),
+    ).rejects.toMatchObject({ code: "SESSION_NOT_ACTIVE" });
+  });
+
+  it("records retryable artifact cleanup before diagnostics teardown without a deletion claim", async () => {
+    const test = harness();
+    const recordCleanup = vi.spyOn(
+      test.diagnostics,
+      "recordArtifactCleanupUnavailable",
+    );
+    const diagnosticsClose = vi.spyOn(test.diagnostics, "close");
+    await test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context());
+    test.artifactClose.mockResolvedValueOnce({
+      state: "quarantined",
+      status: "unavailable",
+      removed: 0,
+      retained: 1,
+      retryable: true,
+      reason: "identity_bound_quarantine_deletion_unavailable",
+    });
+
+    await expect(test.runtime.close(context())).rejects.toMatchObject({
+      code: "CLOSE_FAILED",
+    });
+    expect(recordCleanup).toHaveBeenCalledWith({
+      removed: 0,
+      retained: 1,
+      retryable: true,
+    });
+    expect(recordCleanup.mock.invocationCallOrder[0]).toBeLessThan(
+      diagnosticsClose.mock.invocationCallOrder[0]!,
+    );
+    await expect(test.runtime.status(context())).resolves.toEqual({
+      state: "cleanup_failed",
+      cleanupPending: ["artifacts"],
+      lastAction: "close",
+    });
+  });
+
   it("lets close cancel a pending launch", async () => {
     const test = harness();
     test.launch.mockImplementationOnce(
@@ -480,6 +690,7 @@ describe("application-scoped MCP runtime", () => {
       webdriverPort: 4567,
       signal: expect.any(AbortSignal),
       onPhase: expect.any(Function),
+      onOutput: expect.any(Function),
     });
     await expect(test.runtime.status(context())).resolves.toMatchObject({
       state: "ready",
@@ -521,10 +732,16 @@ describe("application-scoped MCP runtime", () => {
     await expect(
       test.runtime.selectOption({ ref: "e1-1" }, context()),
     ).resolves.toMatchObject({ action: "selectOption" });
+    await expect(
+      test.runtime.dialog({ action: "detect", authorize: false }, context()),
+    ).resolves.toMatchObject({
+      state: "supported",
+      code: "dialog_detected",
+    });
     await expect(test.runtime.status(context())).resolves.toMatchObject({
       state: "ready",
       generation: 2,
-      lastAction: "selectOption",
+      lastAction: "dialog",
       ownedPid: 71,
     });
 
@@ -541,6 +758,91 @@ describe("application-scoped MCP runtime", () => {
       alreadyClosed: true,
       state: "idle",
     });
+  });
+
+  it("requires explicit dialog authorization and rejects stale or foreign bindings", async () => {
+    const test = harness();
+    await expect(
+      test.runtime.launch({ mode: "visible", waitMs: 0 }, context()),
+    ).resolves.toMatchObject({ snapshot: { generation: 1 } });
+
+    await expect(
+      test.runtime.dialog({ action: "accept", authorize: false }, context()),
+    ).resolves.toEqual({
+      state: "denied",
+      code: "dialog_authorization_required",
+      action: "accept",
+    });
+    expect(test.dialogAuthorize).not.toHaveBeenCalled();
+    expect(test.dialogDetect).not.toHaveBeenCalled();
+    expect(test.dialogDecide).not.toHaveBeenCalled();
+
+    await expect(
+      test.runtime.dialog(
+        { action: "accept", authorize: true, generation: 2 },
+        context(),
+      ),
+    ).resolves.toEqual({
+      state: "denied",
+      code: "dialog_binding_mismatch",
+      action: "accept",
+    });
+    expect(test.dialogDecide).not.toHaveBeenCalled();
+
+    await expect(
+      test.runtime.dialog(
+        { action: "cancel", authorize: true, surfaceRef: "foreign" },
+        context(),
+      ),
+    ).resolves.toEqual({
+      state: "denied",
+      code: "dialog_binding_mismatch",
+      action: "cancel",
+    });
+    expect(test.dialogDecide).not.toHaveBeenCalled();
+
+    await expect(
+      test.runtime.dialog(
+        {
+          action: "cancel",
+          authorize: true,
+          surfaceRef: "window:main",
+          generation: 1,
+        },
+        context(),
+      ),
+    ).resolves.toMatchObject({ state: "supported", action: "cancel" });
+    expect(test.dialogAuthorize).toHaveBeenCalledWith("cancel", {
+      surfaceRef: "window:main",
+      generation: 1,
+    });
+    expect(
+      JSON.stringify(
+        await test.runtime.dialog(
+          { action: "detect", authorize: false },
+          context(),
+        ),
+      ),
+    ).not.toMatch(/private-grant|nonce|provider|path|cause/i);
+  });
+
+  it("fails closed before authorization when detection has no concrete dialog", async () => {
+    const test = harness();
+    await test.runtime.launch({ mode: "visible", waitMs: 0 }, context());
+    test.dialogDetect.mockResolvedValueOnce({
+      state: "unavailable" as const,
+      code: "provider_dialog_absent",
+    });
+
+    await expect(
+      test.runtime.dialog({ action: "accept", authorize: true }, context()),
+    ).resolves.toEqual({
+      state: "unavailable",
+      code: "provider_dialog_not_detected",
+      action: "accept",
+    });
+    expect(test.dialogAuthorize).not.toHaveBeenCalled();
+    expect(test.dialogDecide).not.toHaveBeenCalled();
   });
 
   it("completes the twelve-tool workflow through an independent MCP client", async () => {
@@ -607,6 +909,35 @@ describe("application-scoped MCP runtime", () => {
     expect(test.artifactClose).toHaveBeenCalledOnce();
     expect(test.launch).not.toHaveBeenCalled();
     expect(test.managerClose).not.toHaveBeenCalled();
+  });
+
+  it("preserves a managed launch failure when artifact cleanup is pending", async () => {
+    const test = harness();
+    test.launch.mockRejectedValueOnce(new PumarejoError("APP_START_FAILED"));
+    test.artifactClose.mockResolvedValueOnce({
+      state: "quarantined",
+      status: "unavailable",
+      removed: 0,
+      retained: 1,
+      retryable: true,
+      reason: "identity_bound_quarantine_deletion_unavailable",
+    });
+
+    await expect(
+      test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context()),
+    ).rejects.toMatchObject({
+      code: "APP_START_FAILED",
+      phase: "launch",
+    });
+    await expect(test.runtime.status(context())).resolves.toMatchObject({
+      state: "cleanup_failed",
+      cleanupPending: ["artifacts"],
+      lastAction: "launch",
+      lastFailure: {
+        code: "APP_START_FAILED",
+        phase: "launch",
+      },
+    });
   });
 
   it("retains artifact cleanup after launch setup and cleanup both fail", async () => {

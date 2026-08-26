@@ -3,6 +3,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rename,
   rm,
   symlink,
@@ -23,6 +24,7 @@ import {
 import { sanitizedLaunchEnvironment } from "../../src/platform/launch-environment.js";
 import {
   createRuntimeOverlay,
+  readBuildDevUrl,
   readRuntimeOverlay,
 } from "../../src/platform/mode-config.js";
 import { tauriCliArgs } from "../../src/platform/tauri-command.js";
@@ -88,6 +90,64 @@ async function fixture(command = "pnpm"): Promise<LoadedProjectConfig> {
 }
 
 describe("mode-specific platform launch", () => {
+  it.each([
+    ["tauri.conf.json", '{"build":{"devUrl":"http://127.0.0.1:49152"}}'],
+    ["tauri.conf.json5", "// fixture\n{build: {devUrl: 'http://[::1]:49153'}}"],
+    ["Tauri.toml", '[build]\ndevUrl = "http://127.0.0.1:49154"\n'],
+  ] as const)(
+    "propagates sanitized build.devUrl from %s",
+    async (name, source) => {
+      const loaded = await fixture();
+      await mkdir(join(loaded.projectRoot, "src-tauri"));
+      await writeFile(join(loaded.projectRoot, "src-tauri", name), source);
+
+      await expect(
+        readBuildDevUrl({
+          projectRoot: loaded.projectRoot,
+          platform: "linux",
+        }),
+      ).resolves.toEqual({
+        ok: true,
+        value: {
+          scheme: "http",
+          family: name === "tauri.conf.json5" ? "ipv6" : "ipv4",
+          port:
+            name === "tauri.conf.json"
+              ? 49_152
+              : name === "tauri.conf.json5"
+                ? 49_153
+                : 49_154,
+        },
+      });
+    },
+  );
+
+  it.skipIf(process.platform !== "win32")(
+    "refuses a Windows launch when the reconstructed minimum is incomplete",
+    async () => {
+      const loaded = await fixture();
+      await expect(
+        prepareWindowsLaunch(
+          loaded,
+          "visible",
+          {},
+          {
+            values: {
+              SystemRoot: " ",
+              ComSpec: "",
+              PATHEXT: ".EXE;.CMD",
+              Path: "C:\\tools",
+              TEMP: "C:\\Temp",
+              TMP: "C:\\Temp",
+              USERPROFILE: "C:\\Users\\dev",
+            },
+            available: true,
+          },
+        ),
+      ).rejects.toMatchObject({ code: "APP_START_FAILED" });
+    },
+  );
+
   it.each([
     ["pnpm", ["tauri", "dev"], ["dev"]],
     ["npm", ["run", "tauri", "--", "dev"], ["dev"]],
@@ -476,7 +536,7 @@ SET "NPM_CLI_JS=%~dp0node_modules\npm\bin\npm-cli.js"
 
     const prepared = await prepareWindowsLaunch(loaded, "visible", {});
 
-    expect(prepared.request.command).toBe(process.execPath);
+    expect(prepared.request.command).toBe(await realpath(process.execPath));
     expect(prepared.request.args[0]).toBe(cli);
     await prepared.cleanup();
   });
@@ -498,12 +558,13 @@ SET "NPM_CLI_JS=%~dp0node_modules\npm\bin\npm-cli.js"
 `,
       );
 
+      const nodeExecutable = await realpath(process.execPath);
       await expect(
         resolveWindowsLaunch("npm", ["--version"], project, {
           Path: tools,
         }),
       ).resolves.toEqual({
-        command: process.execPath,
+        command: nodeExecutable,
         args: [cli, "--version"],
       });
     },
@@ -563,7 +624,7 @@ SET "NPM_CLI_JS=%~dp0node_modules\npm\bin\npm-cli.js"
       loaded.config.launch.executablePath = shim;
       const prepared = await prepareWindowsLaunch(loaded, "visible", {});
 
-      expect(prepared.request.command).toBe(process.execPath);
+      expect(prepared.request.command).toBe(await realpath(process.execPath));
       expect(prepared.request.args[0]).toBe(cli);
       await prepared.cleanup();
     },

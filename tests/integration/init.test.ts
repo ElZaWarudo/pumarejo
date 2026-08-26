@@ -20,8 +20,14 @@ import {
   initializeProject,
   planIntegration,
 } from "../../src/installer/plan.js";
+import { CARGO_EOL_CRLF_ATTRIBUTION } from "../../src/installer/cargo.js";
 import { contentHash } from "../../src/installer/manifest.js";
 import { removeIntegration } from "../../src/installer/remove.js";
+import {
+  PROVIDER_KIND,
+  PROVIDER_SOURCE_ALLOWLIST,
+  PROVIDER_STAGED_ROOT,
+} from "../../src/installer/provider-source.js";
 
 const FIXTURE_ROOT = join(
   import.meta.dirname,
@@ -122,6 +128,9 @@ describe("Tauri project initialization", () => {
       ".pumarejo/agent-capability.json",
       ".gitignore",
       ".pumarejo.json",
+      ...PROVIDER_SOURCE_ALLOWLIST.map(
+        (path) => `${PROVIDER_STAGED_ROOT}/${path}`,
+      ),
     ]);
     expect(await treeSnapshot(project)).toBe(before);
   });
@@ -140,7 +149,10 @@ describe("Tauri project initialization", () => {
       join(project, "src-tauri", "Cargo.toml"),
       "utf8",
     );
-    expect(cargo.match(/tauri-plugin-wdio-webdriver/g)).toHaveLength(2);
+    expect(cargo.match(/tauri-plugin-wdio-webdriver/g)).toHaveLength(3);
+    expect(cargo).toContain(
+      'path = "../.pumarejo/provider/tauri-plugin-wdio-webdriver"',
+    );
     expect(cargo).toContain('pumarejo = ["dep:tauri-plugin-wdio-webdriver"]');
     expect(cargo).not.toContain("target.'cfg(debug_assertions)'.dependencies");
 
@@ -165,6 +177,7 @@ describe("Tauri project initialization", () => {
     ) as { permissions: string[] };
     expect(capability.permissions).toEqual([
       "wdio-webdriver:default",
+      "wdio-webdriver:allow-request-dialog",
       "core:window:allow-set-size",
       "core:window:allow-maximize",
       "core:window:allow-is-maximized",
@@ -179,6 +192,9 @@ describe("Tauri project initialization", () => {
       "utf8",
     );
     expect(projectCapability).not.toContain("wdio-webdriver:default");
+    expect(projectCapability).not.toContain(
+      "wdio-webdriver:allow-request-dialog",
+    );
 
     const packageManifest = JSON.parse(
       await readFile(join(project, "package.json"), "utf8"),
@@ -199,7 +215,11 @@ describe("Tauri project initialization", () => {
     ) as {
       version: number;
       state: string;
-      changes: Array<{ attribution: string[] }>;
+      changes: Array<{
+        relativePath: string;
+        kind: string;
+        attribution: string[];
+      }>;
     };
     expect(manifest).toMatchObject({
       version: 2,
@@ -207,13 +227,26 @@ describe("Tauri project initialization", () => {
       pluginVersion: "1",
       state: "applied",
     });
-    expect(manifest.changes).toHaveLength(5);
+    expect(manifest.changes).toHaveLength(5 + PROVIDER_SOURCE_ALLOWLIST.length);
+    expect(
+      manifest.changes.filter((change) => change.kind === PROVIDER_KIND),
+    ).toHaveLength(PROVIDER_SOURCE_ALLOWLIST.length);
+    expect(
+      manifest.changes
+        .filter((change) => change.kind === PROVIDER_KIND)
+        .map((change) => change.relativePath),
+    ).toEqual(
+      PROVIDER_SOURCE_ALLOWLIST.map(
+        (path) => `${PROVIDER_STAGED_ROOT}/${path}`,
+      ),
+    );
     expect(manifest.changes.flatMap((change) => change.attribution)).toEqual(
       expect.arrayContaining([
         "dependency:tauri-plugin-wdio-webdriver:optional",
         "feature:pumarejo:created:dep:tauri-plugin-wdio-webdriver",
         "marker:<pumarejo:begin>",
         "permission:wdio-webdriver:default",
+        "permission:wdio-webdriver:allow-request-dialog",
         "permission:core:window:allow-set-size",
         "permission:core:window:allow-maximize",
         "permission:core:window:allow-is-maximized",
@@ -221,6 +254,121 @@ describe("Tauri project initialization", () => {
         "created:.pumarejo.json",
       ]),
     );
+    expect(
+      manifest.changes.find((change) => change.kind === "cargo")?.attribution,
+    ).toContain(CARGO_EOL_CRLF_ATTRIBUTION);
+  });
+
+  it("rejects repeated init when uniform Cargo EOL provenance is removed", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const manifestPath = join(
+      project,
+      ".pumarejo",
+      "integration-manifest.json",
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      changes: Array<{ kind: string; attribution: string[] }>;
+    };
+    const cargoEntry = manifest.changes.find(
+      (change) => change.kind === "cargo",
+    );
+    expect(cargoEntry).toBeDefined();
+    cargoEntry!.attribution = cargoEntry!.attribution.filter(
+      (value) => !value.startsWith("eol:cargo:"),
+    );
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    await expect(initializeProject(project)).rejects.toMatchObject({
+      reason: "ALREADY_INTEGRATED_MODIFIED",
+    });
+  });
+
+  it("rejects repeated init when the owned Cargo EOL marker is missing", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const cargoPath = join(project, "src-tauri", "Cargo.toml");
+    const cargo = await readFile(cargoPath, "utf8");
+    const marker = cargo.match(/^# <pumarejo:cargo-eol:(?:lf|crlf)>\r?\n/mu);
+    expect(marker).not.toBeNull();
+    await writeFile(cargoPath, cargo.replace(marker![0], ""), "utf8");
+
+    await expect(initializeProject(project)).rejects.toMatchObject({
+      reason: "ALREADY_INTEGRATED_MODIFIED",
+    });
+  });
+
+  it("rejects repeated init when the Cargo EOL token is swapped", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const manifestPath = join(
+      project,
+      ".pumarejo",
+      "integration-manifest.json",
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      changes: Array<{ kind: string; attribution: string[] }>;
+    };
+    const cargoEntry = manifest.changes.find(
+      (change) => change.kind === "cargo",
+    );
+    expect(cargoEntry).toBeDefined();
+    cargoEntry!.attribution = cargoEntry!.attribution.map((value) =>
+      value === "eol:cargo:lf"
+        ? "eol:cargo:crlf"
+        : value === "eol:cargo:crlf"
+          ? "eol:cargo:lf"
+          : value,
+    );
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    await expect(initializeProject(project)).rejects.toMatchObject({
+      reason: "ALREADY_INTEGRATED_MODIFIED",
+    });
+  });
+
+  it("adds only the attributable provider path to an existing Tinto registry dependency", async () => {
+    const project = await projectCopy();
+    const cargoPath = join(project, "src-tauri", "Cargo.toml");
+    const original = `${await readFile(cargoPath, "utf8")}\ntauri-plugin-wdio-webdriver = { version = "1.2.0", optional = true }\n\n[features]\ne2e-wdio = ["dep:tauri-plugin-wdio-webdriver"]\n`;
+    await writeFile(cargoPath, original, "utf8");
+
+    await expect(initializeProject(project)).resolves.toMatchObject({
+      status: "applied",
+    });
+    const initialized = await readFile(cargoPath, "utf8");
+    expect(initialized).toMatch(
+      /# <pumarejo:cargo-dependency-path>\r?\ntauri-plugin-wdio-webdriver = \{ path = "\.\.\/\.pumarejo\/provider\/tauri-plugin-wdio-webdriver", version = "1\.2\.0", optional = true \}/u,
+    );
+    expect(initialized).toContain(
+      'e2e-wdio = ["dep:tauri-plugin-wdio-webdriver"]',
+    );
+    expect(initialized).toContain(
+      'pumarejo = ["dep:tauri-plugin-wdio-webdriver"]',
+    );
+    const manifest = JSON.parse(
+      await readFile(
+        join(project, ".pumarejo", "integration-manifest.json"),
+        "utf8",
+      ),
+    ) as {
+      changes: Array<{
+        relativePath: string;
+        kind: string;
+        attribution: string[];
+      }>;
+    };
+    expect(
+      manifest.changes.find((change) => change.kind === "cargo")?.attribution,
+    ).toContain("dependency:tauri-plugin-wdio-webdriver:path-added");
+
+    await expect(initializeProject(project)).resolves.toMatchObject({
+      status: "already-integrated",
+    });
+    await expect(removeIntegration(project)).resolves.toMatchObject({
+      status: "removed",
+    });
+    expect(await readFile(cargoPath, "utf8")).toBe(original);
   });
 
   it("migrates a canonical v1 integration and its private capability to v2", async () => {
@@ -295,6 +443,7 @@ describe("Tauri project initialization", () => {
     expect(upgraded.permissions).toEqual(
       expect.arrayContaining([
         "wdio-webdriver:default",
+        "wdio-webdriver:allow-request-dialog",
         "core:window:allow-set-size",
         "core:window:allow-maximize",
         "core:window:allow-is-maximized",
@@ -572,7 +721,7 @@ describe("Tauri project initialization", () => {
       await readFile(plan.manifestChange.absolutePath, "utf8"),
     ) as { state: string; changes: unknown[] };
     expect(journal).toMatchObject({ state: "applying" });
-    expect(journal.changes).toHaveLength(5);
+    expect(journal.changes).toHaveLength(5 + PROVIDER_SOURCE_ALLOWLIST.length);
   });
 
   it("derives an agent-only capability from TOML without changing the source", async () => {

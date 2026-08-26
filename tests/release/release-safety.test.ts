@@ -24,6 +24,26 @@ async function listFiles(directory: string): Promise<string[]> {
 }
 
 describe("release safety", () => {
+  it("validates canonical provider sources before creating bundle output", async () => {
+    const builder = await readFile(
+      resolve("scripts/build-provider-bundle.mjs"),
+      "utf8",
+    );
+
+    expect(builder).toMatch(/await realpath\(sourceRoot\)/u);
+    expect(builder).toMatch(/await realpath\(sourcePath\)/u);
+    expect(builder).toMatch(
+      /metadata\.isSymbolicLink\(\) \|\| !metadata\.isFile\(\)/u,
+    );
+    const validationStart = builder.indexOf(
+      "const canonicalSourceRoot = await validateSourceRoot();",
+    );
+    expect(validationStart).toBeGreaterThan(-1);
+    expect(builder.indexOf("await mkdir(outputRoot")).toBeGreaterThan(
+      validationStart,
+    );
+  });
+
   it("keeps the WebDriver provider optional and debug-only", async () => {
     const cargo = await readFile(
       resolve("tests/fixtures/tauri-app/src-tauri/Cargo.toml"),
@@ -86,5 +106,19 @@ describe("release safety", () => {
         /(?:password|token|secret)\s*[:=]\s*["'][^"'[\]\s][^"']*["']/i,
       );
     }
+  });
+
+  it("ships the fail-closed Windows custody boundary", async () => {
+    const source = await readFile(
+      resolve("src/platform/windows/job-object.ts"),
+      "utf8",
+    );
+
+    expect(source).toContain("STARTUPINFOEX");
+    expect(source).toContain("PROC_THREAD_ATTRIBUTE_HANDLE_LIST");
+    expect(source).toContain("TerminateAndWait(pi.hProcess)");
+    expect(source).toContain("async function cleanupHelper");
+    expect(source).toContain("isTargetAlive");
+    expect(source).not.toMatch(/taskkill|process\.kill\s*\(/iu);
   });
 });

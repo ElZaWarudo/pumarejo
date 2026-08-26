@@ -58,6 +58,7 @@ describe("CLI contract", () => {
     await expect(runCli(["--help"], undefined, io)).resolves.toBe(0);
     await expect(runCli(["--version"], undefined, io)).resolves.toBe(0);
     expect(stdout.join("")).toContain("pumarejo mcp --project <path>");
+    expect(stdout.join("")).toContain("pumarejo doctor --self [--json]");
     expect(stdout.join("")).toContain("pumarejo mcp print-config");
     expect(stdout.join("")).toContain("0.1.0");
     expect(stderr).toEqual([]);
