@@ -1,4 +1,5 @@
 import { spawn as spawnChild } from "node:child_process";
+import { once } from "node:events";
 import { kill } from "node:process";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -207,7 +208,9 @@ describe("tracked process custody", () => {
     });
     try {
       const spawned = await adapter.spawn(request());
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      if (helper !== undefined && helper.exitCode === null) {
+        await once(helper, "exit", { signal: AbortSignal.timeout(5_000) });
+      }
       await expect(adapter.inspect(spawned.pid)).resolves.toBeUndefined();
       await expect(
         adapter.custody!.terminate(spawned, spawned.custodyAttachment!),
