@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
-import { chmod, stat } from "node:fs/promises";
-import { win32 } from "node:path";
+import { chmod, lstat, realpath, stat } from "node:fs/promises";
+import { resolve, win32 } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -21,6 +21,15 @@ export interface PermissionCommandRunner {
 
 const WINDOWS_IDENTITY_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
+$modulePath = [Environment]::GetEnvironmentVariable(
+  'PUMAREJO_ARTIFACT_MODULE_PATH',
+  'Process'
+)
+if ([string]::IsNullOrEmpty($modulePath)) { exit 44 }
+$env:PSModulePath = $modulePath
+Import-Module (
+  Join-Path $modulePath 'Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1'
+) -Force -ErrorAction Stop
 $path = [Environment]::GetEnvironmentVariable(
   'PUMAREJO_ARTIFACT_PATH',
   'Process'
@@ -35,6 +44,15 @@ Write-Output $sid.Value
 
 const WINDOWS_VERIFY_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
+$modulePath = [Environment]::GetEnvironmentVariable(
+  'PUMAREJO_ARTIFACT_MODULE_PATH',
+  'Process'
+)
+if ([string]::IsNullOrEmpty($modulePath)) { exit 44 }
+$env:PSModulePath = $modulePath
+Import-Module (
+  Join-Path $modulePath 'Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1'
+) -Force -ErrorAction Stop
 $path = [Environment]::GetEnvironmentVariable(
   'PUMAREJO_ARTIFACT_PATH',
   'Process'
@@ -97,13 +115,25 @@ export function createArtifactPermissionEnforcer(
       if (platform === "win32") {
         const systemRoot = options.systemRoot ?? process.env.SystemRoot;
         if (systemRoot === undefined) throw new Error("SystemRoot missing");
+        if (!win32.isAbsolute(systemRoot)) {
+          throw new Error("SystemRoot must be absolute");
+        }
+        const windowsPowerShellModulePath = win32.join(
+          systemRoot,
+          "System32",
+          "WindowsPowerShell",
+          "v1.0",
+          "Modules",
+        );
         const environment = {
           ...process.env,
           ComSpec:
             process.env.ComSpec ??
             win32.join(systemRoot, "System32", "cmd.exe"),
+          PSModulePath: windowsPowerShellModulePath,
           PUMAREJO_ARTIFACT_PATH: path,
           PUMAREJO_ARTIFACT_KIND: kind,
+          PUMAREJO_ARTIFACT_MODULE_PATH: windowsPowerShellModulePath,
         };
         const powerShell = win32.join(
           systemRoot,
@@ -155,9 +185,29 @@ export function createArtifactPermissionEnforcer(
         );
         return;
       }
+      const expectedPath = resolve(path);
+      const before = await lstat(expectedPath);
+      const canonical = await realpath(expectedPath);
+      const revalidated = await lstat(expectedPath);
+      const revalidatedCanonical = await realpath(expectedPath);
+      const expectedDirectory = kind === "directory";
+      if (
+        before.isSymbolicLink() ||
+        (expectedDirectory ? !before.isDirectory() : !before.isFile()) ||
+        revalidated.isSymbolicLink() ||
+        (expectedDirectory
+          ? !revalidated.isDirectory()
+          : !revalidated.isFile()) ||
+        canonical !== expectedPath ||
+        revalidatedCanonical !== expectedPath ||
+        before.dev !== revalidated.dev ||
+        before.ino !== revalidated.ino
+      ) {
+        throw new Error("artifact permission target changed");
+      }
       const expected = kind === "directory" ? 0o700 : 0o600;
-      await chmod(path, expected);
-      const metadata = await stat(path);
+      await chmod(expectedPath, expected);
+      const metadata = await stat(expectedPath);
       if ((metadata.mode & 0o777) !== expected) {
         throw new Error("owner-only mode verification failed");
       }

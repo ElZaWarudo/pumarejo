@@ -3,6 +3,12 @@ import { z } from "zod";
 import { W3C_ELEMENT_KEY } from "../webdriver/protocol.js";
 
 const boundedString = z.string().max(65_536);
+// Private identity values are used only for stale-reference validation and
+// fingerprints. Keep their schema limits aligned with the browser collector
+// so an untrusted provider response cannot create an oversized internal
+// generation before the public snapshot is serialized.
+const boundedIdentityName = z.string().max(512);
+const boundedOwnershipContext = z.string().max(64);
 const referenceIndexSchema = z.number().int().nonnegative().max(499);
 const finiteNumber = z.number().finite();
 
@@ -38,9 +44,9 @@ export const rawRelationshipSchema = z
 
 export const semanticIdentitySchema = z
   .object({
-    name: z.string().max(65_536).optional(),
+    name: boundedIdentityName.optional(),
     inputType: z.string().max(128).optional(),
-    ownershipContext: z.string().max(16_384),
+    ownershipContext: boundedOwnershipContext,
   })
   .strict();
 
@@ -248,6 +254,11 @@ export interface SemanticNode
 export interface SemanticSnapshot {
   readonly generation: number;
   readonly observedAt: string;
+  readonly surface?: {
+    readonly surfaceRef: string;
+    readonly identity: string;
+    readonly kind: string;
+  };
   readonly window: {
     readonly label: string;
     readonly title: string;

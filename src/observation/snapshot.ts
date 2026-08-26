@@ -2,7 +2,7 @@ import { PumarejoError } from "../shared/errors.js";
 import type { WebDriverClient } from "../webdriver/client.js";
 import { W3C_ELEMENT_KEY } from "../webdriver/protocol.js";
 import { assertRedactionBoundary } from "./redaction.js";
-import { ReferenceTable } from "./refs.js";
+import { ReferenceTable, type ReferenceGenerationReservation } from "./refs.js";
 import {
   rawSnapshotSchema,
   type RawSnapshot,
@@ -10,6 +10,7 @@ import {
   type SnapshotRequest,
 } from "./schema.js";
 import { loadSnapshotScript } from "./snapshot-script.js";
+import type { SurfaceRecord } from "./surfaces.js";
 
 const MAX_WINDOW_TITLE_LENGTH = 4_096;
 
@@ -19,7 +20,13 @@ export interface SnapshotEngineOptions {
   readonly references?: ReferenceTable;
   readonly script?: () => Promise<string>;
   readonly now?: () => Date;
+  readonly surface?: Pick<SurfaceRecord, "surfaceRef" | "identity" | "kind">;
 }
+
+export type SnapshotSurface = Pick<
+  SurfaceRecord,
+  "surfaceRef" | "identity" | "kind"
+>;
 
 function hasDefaultComparableScope(request?: SnapshotRequest): boolean {
   return (
@@ -54,6 +61,8 @@ export class SnapshotEngine {
   #tail: Promise<void> = Promise.resolve();
   #currentSnapshot: SemanticSnapshot | undefined;
   #currentSnapshotComparable = false;
+  #surface: SnapshotSurface | undefined;
+  readonly #comparisonRaw = new WeakMap<SemanticSnapshot, RawSnapshot>();
 
   constructor(options: SnapshotEngineOptions) {
     if (
@@ -67,6 +76,7 @@ export class SnapshotEngine {
     this.references = options.references ?? new ReferenceTable();
     this.#script = options.script ?? loadSnapshotScript;
     this.#now = options.now ?? (() => new Date());
+    this.#surface = options.surface;
   }
 
   get currentSnapshot(): SemanticSnapshot | undefined {
@@ -75,6 +85,18 @@ export class SnapshotEngine {
 
   get currentSnapshotComparable(): boolean {
     return this.#currentSnapshotComparable;
+  }
+
+  get activeSurface(): SnapshotSurface | undefined {
+    return this.#surface;
+  }
+
+  /** Select a graph surface and invalidate every reference from its prior context. */
+  setSurface(surface: SnapshotSurface): number {
+    this.#surface = { ...surface };
+    this.#currentSnapshot = undefined;
+    this.#currentSnapshotComparable = false;
+    return this.references.advance();
   }
 
   snapshot(
@@ -92,6 +114,64 @@ export class SnapshotEngine {
       () => operation(() => this.captureWithRetry(undefined, signal)),
       signal,
     );
+  }
+
+  interactionComparison<T>(
+    operation: (refresh: () => Promise<SemanticSnapshot>) => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    return this.enqueue(
+      () =>
+        operation(() => this.captureWithRetry(undefined, signal, "comparison")),
+      signal,
+    );
+  }
+
+  publishComparison(
+    comparison: SemanticSnapshot,
+    reservation: ReferenceGenerationReservation,
+  ): SemanticSnapshot {
+    const raw = this.#comparisonRaw.get(comparison);
+    let published: SemanticSnapshot;
+    if (raw === undefined || comparison.partial === true) {
+      this.references.abandon(reservation);
+      published = {
+        ...comparison,
+        generation: reservation.generation,
+        nodes: [],
+        partial: true,
+      };
+      this.#currentSnapshotComparable = false;
+    } else {
+      published = {
+        ...comparison,
+        generation: reservation.generation,
+        nodes: this.references.publish(raw, reservation),
+      };
+      this.#currentSnapshotComparable = true;
+    }
+    this.#currentSnapshot = published;
+    this.#comparisonRaw.delete(comparison);
+    return published;
+  }
+
+  preserveComparison(comparison: SemanticSnapshot): SemanticSnapshot {
+    if (
+      comparison.partial === true ||
+      this.#currentSnapshot === undefined ||
+      !this.#comparisonRaw.has(comparison)
+    ) {
+      throw new PumarejoError("INTERNAL_ERROR");
+    }
+    const preserved = {
+      ...comparison,
+      generation: this.references.generation,
+      nodes: this.#currentSnapshot.nodes,
+    };
+    this.#currentSnapshot = preserved;
+    this.#currentSnapshotComparable = true;
+    this.#comparisonRaw.delete(comparison);
+    return preserved;
   }
 
   private enqueue<T>(
@@ -112,10 +192,11 @@ export class SnapshotEngine {
   private async captureWithRetry(
     request?: SnapshotRequest,
     signal?: AbortSignal,
+    mode: "publish" | "comparison" = "publish",
   ): Promise<SemanticSnapshot> {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        return await this.capture(request, signal);
+        return await this.capture(request, signal, mode);
       } catch (error) {
         if (
           signal?.aborted ||
@@ -126,11 +207,12 @@ export class SnapshotEngine {
         }
       }
     }
-    return await this.partialSnapshot(signal);
+    return await this.partialSnapshot(signal, mode);
   }
 
   private async partialSnapshot(
     signal?: AbortSignal,
+    mode: "publish" | "comparison" = "publish",
   ): Promise<SemanticSnapshot> {
     signal?.throwIfAborted();
     const [rawTitle, rect] = await Promise.all([
@@ -139,7 +221,10 @@ export class SnapshotEngine {
     ]);
     const { title } = boundedWindowTitle(rawTitle);
     signal?.throwIfAborted();
-    const generation = this.references.advance();
+    const generation =
+      mode === "publish"
+        ? this.references.advance()
+        : this.references.generation + 1;
     const snapshot: SemanticSnapshot = {
       generation,
       observedAt: this.#now().toISOString(),
@@ -149,6 +234,7 @@ export class SnapshotEngine {
         width: rect.width,
         height: rect.height,
       },
+      ...(this.#surface === undefined ? {} : { surface: this.#surface }),
       nodes: [],
       truncation: {
         truncated: true,
@@ -180,14 +266,17 @@ export class SnapshotEngine {
         },
       ],
     };
-    this.#currentSnapshot = snapshot;
-    this.#currentSnapshotComparable = false;
+    if (mode === "publish") {
+      this.#currentSnapshot = snapshot;
+      this.#currentSnapshotComparable = false;
+    }
     return snapshot;
   }
 
   private async capture(
     request?: SnapshotRequest,
     signal?: AbortSignal,
+    mode: "publish" | "comparison" = "publish",
   ): Promise<SemanticSnapshot> {
     signal?.throwIfAborted();
     try {
@@ -264,9 +353,12 @@ export class SnapshotEngine {
       for (const { descriptor } of raw.nodes) {
         assertRedactionBoundary(descriptor);
       }
-      const nodes = this.references.replace(raw);
+      const staged =
+        mode === "publish" ? undefined : this.references.stage(raw);
+      const nodes =
+        staged === undefined ? this.references.replace(raw) : staged.nodes;
       const snapshot: SemanticSnapshot = {
-        generation: this.references.generation,
+        generation: staged?.generation ?? this.references.generation,
         observedAt: this.#now().toISOString(),
         window: {
           label: this.#windowLabel,
@@ -274,6 +366,7 @@ export class SnapshotEngine {
           width: raw.viewport.width,
           height: raw.viewport.height,
         },
+        ...(this.#surface === undefined ? {} : { surface: this.#surface }),
         nodes,
         truncation: titleTruncated
           ? {
@@ -285,8 +378,12 @@ export class SnapshotEngine {
             }
           : raw.truncation,
       };
-      this.#currentSnapshot = snapshot;
-      this.#currentSnapshotComparable = hasDefaultComparableScope(request);
+      if (mode === "publish") {
+        this.#currentSnapshot = snapshot;
+        this.#currentSnapshotComparable = hasDefaultComparableScope(request);
+      } else {
+        this.#comparisonRaw.set(snapshot, raw);
+      }
       return snapshot;
     } catch (error) {
       if (signal?.aborted) throw signal.reason;

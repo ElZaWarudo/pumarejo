@@ -23,6 +23,17 @@ export interface SemanticReference {
   };
 }
 
+export interface ReferenceGenerationReservation {
+  readonly generation: number;
+  readonly token: symbol;
+}
+
+export interface StagedReferenceTable {
+  readonly generation: number;
+  readonly nodes: readonly SemanticNode[];
+  readonly references: ReadonlyMap<string, SemanticReference>;
+}
+
 function fingerprint(descriptor: RawSemanticDescriptor): string {
   return createHash("sha256")
     .update(
@@ -40,14 +51,22 @@ function fingerprint(descriptor: RawSemanticDescriptor): string {
 export class ReferenceTable {
   #generation = 0;
   #references = new Map<string, SemanticReference>();
+  #reservation: ReferenceGenerationReservation | undefined;
 
   get generation(): number {
     return this.#generation;
   }
 
   replace(snapshot: RawSnapshot): readonly SemanticNode[] {
+    const reservation = this.reserve();
+    return this.publish(snapshot, reservation);
+  }
+
+  stage(
+    snapshot: RawSnapshot,
+    generation = this.#generation + 1,
+  ): StagedReferenceTable {
     const elementIds = snapshot.handles.map(elementIdFrom);
-    const generation = this.#generation + 1;
     const refs = snapshot.nodes.map(
       (_node, index) => `e${generation}-${index + 1}`,
     );
@@ -98,9 +117,45 @@ export class ReferenceTable {
       };
     });
 
-    this.#references = next;
-    this.#generation = generation;
-    return nodes;
+    return { generation, nodes, references: next };
+  }
+
+  reserve(): ReferenceGenerationReservation {
+    if (this.#reservation !== undefined) return this.#reservation;
+    const reservation = {
+      generation: this.#generation + 1,
+      token: Symbol("reference-generation"),
+    };
+    this.#references = new Map();
+    this.#generation = reservation.generation;
+    this.#reservation = reservation;
+    return reservation;
+  }
+
+  publish(
+    snapshot: RawSnapshot,
+    reservation: ReferenceGenerationReservation,
+  ): readonly SemanticNode[] {
+    if (
+      this.#reservation?.token !== reservation.token ||
+      this.#generation !== reservation.generation
+    ) {
+      throw new PumarejoError("INTERNAL_ERROR");
+    }
+    const staged = this.stage(snapshot, reservation.generation);
+    this.#references = new Map(staged.references);
+    this.#reservation = undefined;
+    return staged.nodes;
+  }
+
+  abandon(reservation: ReferenceGenerationReservation): void {
+    if (
+      this.#reservation?.token !== reservation.token ||
+      this.#generation !== reservation.generation
+    ) {
+      throw new PumarejoError("INTERNAL_ERROR");
+    }
+    this.#reservation = undefined;
   }
 
   resolve(ref: string): SemanticReference {
@@ -112,12 +167,12 @@ export class ReferenceTable {
   }
 
   advance(): number {
-    this.#references = new Map();
-    this.#generation += 1;
-    return this.#generation;
+    return this.reserve().generation;
   }
 
   clear(): void {
+    // Clearing current refs does not consume an already-reserved generation.
+    // Only publish() or abandon() may close that reservation.
     this.#references = new Map();
   }
 }

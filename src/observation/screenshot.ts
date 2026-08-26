@@ -31,6 +31,128 @@ export interface ScreenshotResult {
   };
 }
 
+export type CoverageStatus = "covered" | "gap" | "coverage_unknown";
+
+export interface CoverageRegion {
+  readonly surfaceRef: string;
+  readonly bounds: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly supported: boolean;
+  readonly code: string;
+}
+
+export interface SemanticCoverageBounds {
+  readonly surfaceRef: string;
+  readonly bounds: CoverageRegion["bounds"];
+}
+
+export interface CoverageDiagnostic {
+  readonly status: CoverageStatus;
+  readonly screenshot: { readonly width: number; readonly height: number };
+  readonly gaps: readonly {
+    readonly surfaceRef: string;
+    readonly bounds: CoverageRegion["bounds"];
+    readonly code: string;
+    readonly actionable: false;
+  }[];
+}
+
+const MAX_COVERAGE_REGIONS = 64;
+
+function validCoverageBounds(value: CoverageRegion["bounds"]): boolean {
+  return (
+    Number.isFinite(value.x) &&
+    Number.isFinite(value.y) &&
+    Number.isFinite(value.width) &&
+    Number.isFinite(value.height) &&
+    value.width >= 0 &&
+    value.height >= 0
+  );
+}
+
+/**
+ * Compare only provider-owned regions against semantic bounds. A provider
+ * region is a proven gap only when it is explicitly unsupported and its
+ * geometry is fully inside the screenshot. Everything else remains
+ * `coverage_unknown`; this function never emits a selector or coordinate
+ * action.
+ */
+export function diagnoseCoverage(input: {
+  readonly screenshot: { readonly width: number; readonly height: number };
+  readonly regions: readonly CoverageRegion[];
+  readonly semanticBounds?: readonly SemanticCoverageBounds[];
+}): CoverageDiagnostic {
+  const width = Math.max(
+    0,
+    Math.min(32_768, Math.trunc(input.screenshot.width)),
+  );
+  const height = Math.max(
+    0,
+    Math.min(32_768, Math.trunc(input.screenshot.height)),
+  );
+  if (width === 0 || height === 0) {
+    return {
+      status: "coverage_unknown",
+      screenshot: { width, height },
+      gaps: [],
+    };
+  }
+  const gaps: CoverageDiagnostic["gaps"][number][] = [];
+  let inconclusive = false;
+  if (input.regions.length === 0) inconclusive = true;
+  for (const region of input.regions.slice(0, MAX_COVERAGE_REGIONS)) {
+    if (!validCoverageBounds(region.bounds)) {
+      inconclusive = true;
+      continue;
+    }
+    const inside =
+      region.bounds.x >= 0 &&
+      region.bounds.y >= 0 &&
+      region.bounds.x + region.bounds.width <= width &&
+      region.bounds.y + region.bounds.height <= height;
+    if (!inside) {
+      inconclusive = true;
+      continue;
+    }
+    const coveredBySemantics = (input.semanticBounds ?? []).some(
+      (semantic) =>
+        semantic.surfaceRef === region.surfaceRef &&
+        validCoverageBounds(semantic.bounds) &&
+        semantic.bounds.x >= region.bounds.x &&
+        semantic.bounds.y >= region.bounds.y &&
+        semantic.bounds.x + semantic.bounds.width >=
+          region.bounds.x + region.bounds.width &&
+        semantic.bounds.y + semantic.bounds.height >=
+          region.bounds.y + region.bounds.height,
+    );
+    if (!region.supported && !coveredBySemantics) {
+      gaps.push({
+        surfaceRef: region.surfaceRef.slice(0, 128),
+        bounds: region.bounds,
+        code: region.code.slice(0, 64),
+        actionable: false,
+      });
+    } else if (region.supported && !coveredBySemantics) {
+      // The provider confirms the region but geometry cannot prove semantic
+      // representation, so remain conservative rather than declaring a gap.
+      inconclusive = true;
+    }
+  }
+  return {
+    status: inconclusive
+      ? "coverage_unknown"
+      : gaps.length > 0
+        ? "gap"
+        : "covered",
+    screenshot: { width, height },
+    gaps: gaps.slice(0, MAX_COVERAGE_REGIONS),
+  };
+}
+
 export interface ScreenshotServiceOptions {
   readonly webdriver: Pick<WebDriverClient, "screenshot">;
   readonly generation: () => number;

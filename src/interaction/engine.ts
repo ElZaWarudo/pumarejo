@@ -21,6 +21,30 @@ import {
   webdriverModifiers,
 } from "./keys.js";
 import { currentIdentitySchema, type CurrentIdentity } from "./schema.js";
+import { reduceGeneration, type GenerationOutcome } from "./generation.js";
+
+// Provider failures are intentionally kept out of the public error envelope.
+// This internal marker lets the sequence boundary distinguish an ambiguous
+// mutation failure from a target/configuration rejection that happened before
+// dispatch, even when both use the same bounded Pumarejo error code.
+const postDispatchFailures = new WeakSet<object>();
+
+export function markPostDispatchFailure(error: unknown): void {
+  if (
+    (typeof error === "object" && error !== null) ||
+    typeof error === "function"
+  ) {
+    postDispatchFailures.add(error);
+  }
+}
+
+export function isPostDispatchFailure(error: unknown): boolean {
+  return (
+    ((typeof error === "object" && error !== null) ||
+      typeof error === "function") &&
+    postDispatchFailures.has(error)
+  );
+}
 
 interface InteractionWebDriver {
   execute(
@@ -70,13 +94,7 @@ interface InteractionWebDriver {
 
 export interface InteractionEngineOptions {
   readonly webdriver: InteractionWebDriver;
-  readonly snapshot: Pick<
-    SnapshotEngine,
-    | "currentSnapshot"
-    | "currentSnapshotComparable"
-    | "interaction"
-    | "references"
-  >;
+  readonly snapshot: InteractionSnapshotPort;
   readonly identityScript?: () => Promise<string>;
   readonly settle?: (
     milliseconds: number,
@@ -84,7 +102,24 @@ export interface InteractionEngineOptions {
   ) => Promise<void>;
 }
 
+export interface InteractionStabilizationResult {
+  readonly generation: number;
+  readonly effect: "no_observable_change" | "state_changed" | "uncertain";
+  readonly snapshot?: SemanticSnapshot;
+}
+
+type InteractionSnapshotPort = Pick<
+  SnapshotEngine,
+  | "currentSnapshot"
+  | "currentSnapshotComparable"
+  | "interactionComparison"
+  | "publishComparison"
+  | "preserveComparison"
+  | "references"
+>;
+
 export type ObservableEffect =
+  | "surface_change"
   | "window_change"
   | "semantic_change"
   | "focus_only"
@@ -156,7 +191,7 @@ const SNAPSHOT_COMPARISONS = new WeakMap<
 
 function focusEvidence(
   snapshot: SemanticSnapshot | undefined,
-  fallbackGeneration: number,
+  generation: number,
   actionable: boolean,
 ): FocusEvidence {
   const focusedIndex =
@@ -166,7 +201,7 @@ function focusEvidence(
       ? undefined
       : snapshot.nodes[focusedIndex];
   return {
-    generation: snapshot?.generation ?? fallbackGeneration,
+    generation,
     ref: focused?.ref ?? null,
     actionable: actionable && focused !== undefined,
   };
@@ -238,6 +273,13 @@ function classifyEffect(
     return "unknown";
   }
   if (
+    before.surface?.surfaceRef !== after.surface?.surfaceRef ||
+    before.surface?.identity !== after.surface?.identity ||
+    before.surface?.kind !== after.surface?.kind
+  ) {
+    return "surface_change";
+  }
+  if (
     before.window.label !== after.window.label ||
     before.window.title !== after.window.title ||
     before.window.width !== after.window.width ||
@@ -274,10 +316,7 @@ function sameIdentity(
 
 export class InteractionEngine {
   readonly #webdriver: InteractionWebDriver;
-  readonly #snapshot: Pick<
-    SnapshotEngine,
-    "currentSnapshot" | "currentSnapshotComparable" | "interaction"
-  >;
+  readonly #snapshot: InteractionSnapshotPort;
   readonly #references: ReferenceTable;
   readonly #identityScript: () => Promise<string>;
   readonly #settle: (
@@ -298,8 +337,90 @@ export class InteractionEngine {
       });
   }
 
+  get generation(): number {
+    return this.#references.generation;
+  }
+
+  focusedRef(generation: number): string | null {
+    const snapshot = this.#snapshot.currentSnapshot;
+    if (
+      generation !== this.#references.generation ||
+      snapshot?.generation !== generation ||
+      snapshot.partial === true ||
+      !this.#snapshot.currentSnapshotComparable
+    ) {
+      return null;
+    }
+    const ref = snapshot.nodes.find((node) => node.focused)?.ref;
+    if (ref === undefined) return null;
+    try {
+      this.#references.resolve(ref);
+      return ref;
+    } catch {
+      return null;
+    }
+  }
+
+  invalidateUncertain(): number {
+    return (
+      this.advance({ effect: "uncertain", reason: "uncertain_effect" })
+        ?.generation ?? this.#references.generation
+    );
+  }
+
+  stabilize(signal?: AbortSignal): Promise<InteractionStabilizationResult> {
+    return this.interaction(async (refresh) => {
+      const before = this.#snapshot.currentSnapshot;
+      const beforeComparable = this.#snapshot.currentSnapshotComparable;
+      let comparison: SemanticSnapshot;
+      let refreshStarted = false;
+      try {
+        signal?.throwIfAborted();
+        await this.#settle(250, signal);
+        signal?.throwIfAborted();
+        refreshStarted = true;
+        comparison = await refresh();
+      } catch (error) {
+        this.advance({
+          effect: "uncertain",
+          reason: refreshStarted ? "final_refresh_failed" : "uncertain_effect",
+        });
+        if (signal?.aborted === true) throw error;
+        return {
+          generation: this.#references.generation,
+          effect: "uncertain",
+        };
+      }
+      const observed = classifyEffect(
+        before,
+        beforeComparable,
+        comparison,
+        comparison.partial !== true,
+      );
+      if (observed === "no_observable_change") {
+        const snapshot = this.#snapshot.preserveComparison(comparison);
+        return {
+          generation: snapshot.generation,
+          effect: "no_observable_change",
+          snapshot,
+        };
+      }
+      const reservation = this.#references.reserve();
+      const snapshot = this.#snapshot.publishComparison(
+        comparison,
+        reservation,
+      );
+      return {
+        generation: snapshot.generation,
+        effect: observed === "unknown" ? "uncertain" : "state_changed",
+        ...(snapshot.partial === true ? {} : { snapshot }),
+      };
+    }, signal);
+  }
+
   click(input: ClickInput, signal?: AbortSignal): Promise<InteractionResult> {
-    return this.#snapshot.interaction(async (refresh) => {
+    return this.interaction(async (refresh) => {
+      this.validateInput(input);
       const before = this.#snapshot.currentSnapshot;
       const beforeComparable = this.#snapshot.currentSnapshotComparable;
       const reference = await this.requireTarget(input.ref, "click", signal);
@@ -323,7 +444,8 @@ export class InteractionEngine {
   }
 
   type(input: TypeInput, signal?: AbortSignal): Promise<InteractionResult> {
-    return this.#snapshot.interaction(async (refresh) => {
+    return this.interaction(async (refresh) => {
+      this.validateInput(input);
       const before = this.#snapshot.currentSnapshot;
       const beforeComparable = this.#snapshot.currentSnapshotComparable;
       if (input.text.length > 65_536) {
@@ -333,6 +455,7 @@ export class InteractionEngine {
       const clear = input.clear ?? true;
       let mutationStarted = false;
       try {
+        signal?.throwIfAborted();
         if (clear) {
           mutationStarted = true;
           await this.#webdriver.clear(reference.elementId, signal);
@@ -340,7 +463,16 @@ export class InteractionEngine {
         mutationStarted = true;
         await this.#webdriver.type(reference.elementId, input.text, signal);
       } catch (error) {
-        if (mutationStarted) this.#references.clear();
+        if (mutationStarted) {
+          markPostDispatchFailure(error);
+          this.advance({
+            effect: "uncertain",
+            reason:
+              signal?.aborted === true
+                ? "cancelled_after_dispatch"
+                : "uncertain_effect",
+          });
+        }
         throw error;
       }
       return await this.observe(
@@ -363,7 +495,8 @@ export class InteractionEngine {
     input: PressKeyInput,
     signal?: AbortSignal,
   ): Promise<InteractionResult> {
-    return this.#snapshot.interaction(async (refresh) => {
+    return this.interaction(async (refresh) => {
+      this.validateInput(input);
       const before = this.#snapshot.currentSnapshot;
       const beforeComparable = this.#snapshot.currentSnapshotComparable;
       const value = webdriverKey(input.key);
@@ -392,7 +525,8 @@ export class InteractionEngine {
     input: PointerInput,
     signal?: AbortSignal,
   ): Promise<InteractionResult> {
-    return this.#snapshot.interaction(async (refresh) => {
+    return this.interaction(async (refresh) => {
+      this.validateInput(input);
       const before = this.#snapshot.currentSnapshot;
       const beforeComparable = this.#snapshot.currentSnapshotComparable;
       const reference = await this.requireTarget(input.ref, "pointer", signal);
@@ -425,7 +559,8 @@ export class InteractionEngine {
   }
 
   scroll(input: ScrollInput, signal?: AbortSignal): Promise<InteractionResult> {
-    return this.#snapshot.interaction(async (refresh) => {
+    return this.interaction(async (refresh) => {
+      this.validateInput(input);
       const before = this.#snapshot.currentSnapshot;
       const beforeComparable = this.#snapshot.currentSnapshotComparable;
       const reference = await this.requireTarget(input.ref, "scroll", signal);
@@ -463,7 +598,8 @@ export class InteractionEngine {
     input: SelectOptionInput,
     signal?: AbortSignal,
   ): Promise<InteractionResult> {
-    return this.#snapshot.interaction(async (refresh) => {
+    return this.interaction(async (refresh) => {
+      this.validateInput(input);
       const before = this.#snapshot.currentSnapshot;
       const beforeComparable = this.#snapshot.currentSnapshotComparable;
       const reference = await this.requireTarget(input.ref, "option", signal);
@@ -491,7 +627,8 @@ export class InteractionEngine {
   }
 
   window(input: WindowInput, signal?: AbortSignal): Promise<InteractionResult> {
-    return this.#snapshot.interaction(async (refresh) => {
+    return this.interaction(async (refresh) => {
+      this.validateInput(input);
       const before = this.#snapshot.currentSnapshot;
       const beforeComparable = this.#snapshot.currentSnapshotComparable;
       const windowAction = this.#webdriver.windowAction;
@@ -549,19 +686,24 @@ export class InteractionEngine {
         ),
       );
     } catch (error) {
+      if (signal?.aborted) throw signal.reason;
       if (
         error instanceof PumarejoError &&
         error.code === "STALE_ELEMENT_REF"
       ) {
-        this.#references.clear();
+        this.advance({
+          effect: "proven_state_change",
+          reason: "stale_reference",
+        });
         throw error;
       }
-      if (signal?.aborted) throw signal.reason;
-      this.#references.clear();
-      throw new PumarejoError("STALE_ELEMENT_REF", { cause: error });
+      throw new PumarejoError("STALE_ELEMENT_REF");
     }
     if (!sameIdentity(reference, current)) {
-      this.#references.clear();
+      this.advance({
+        effect: "proven_state_change",
+        reason: "stale_reference",
+      });
       throw new PumarejoError("STALE_ELEMENT_REF");
     }
     // Native <option> elements are commonly reported as non-visible even
@@ -587,13 +729,40 @@ export class InteractionEngine {
     action: () => Promise<void>,
     signal?: AbortSignal,
   ): Promise<void> {
+    signal?.throwIfAborted();
     try {
-      signal?.throwIfAborted();
       await action();
     } catch (error) {
-      this.#references.clear();
+      markPostDispatchFailure(error);
+      this.advance({
+        effect: "uncertain",
+        reason:
+          signal?.aborted === true
+            ? "cancelled_after_dispatch"
+            : "uncertain_effect",
+      });
       throw error;
     }
+  }
+
+  private interaction<T>(
+    operation: (refresh: () => Promise<SemanticSnapshot>) => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    return this.#snapshot.interactionComparison(operation, signal);
+  }
+
+  private validateInput(input: ActionInput): void {
+    const settleMs = input.settleMs ?? 250;
+    if (!Number.isInteger(settleMs) || settleMs < 0 || settleMs > 2_000) {
+      throw new PumarejoError("CONFIG_INVALID");
+    }
+  }
+
+  private advance(outcome: GenerationOutcome) {
+    const decision = reduceGeneration(this.#references.generation, outcome);
+    if (decision.preservesReferences) return undefined;
+    return this.#references.reserve();
   }
 
   private async observe(
@@ -616,29 +785,64 @@ export class InteractionEngine {
     refresh: () => Promise<SemanticSnapshot>,
     signal?: AbortSignal,
   ): Promise<InteractionResult> {
+    const startingGeneration = this.#references.generation;
     const settleMs = input.settleMs ?? 250;
-    if (!Number.isInteger(settleMs) || settleMs < 0 || settleMs > 2_000) {
-      this.#references.clear();
-      throw new PumarejoError("CONFIG_INVALID");
+    try {
+      await this.#settle(settleMs, signal);
+    } catch (error) {
+      markPostDispatchFailure(error);
+      this.advance({
+        effect: "uncertain",
+        reason:
+          signal?.aborted === true
+            ? "cancelled_after_dispatch"
+            : "uncertain_effect",
+      });
+      throw error;
     }
-    this.#references.clear();
-    await this.#settle(settleMs, signal);
-    const after = await refresh();
+    let comparison: SemanticSnapshot;
+    try {
+      comparison = await refresh();
+    } catch (error) {
+      markPostDispatchFailure(error);
+      this.advance({ effect: "uncertain", reason: "final_refresh_failed" });
+      throw error;
+    }
+    const effect = classifyEffect(before, beforeComparable, comparison, true);
+    const outcome: GenerationOutcome =
+      effect === "no_observable_change"
+        ? { effect: "proven_no_change", reason: "no_observable_change" }
+        : effect === "unknown"
+          ? { effect: "uncertain", reason: "uncertain_effect" }
+          : {
+              effect: "proven_state_change",
+              reason:
+                effect === "semantic_change"
+                  ? "semantic_changed"
+                  : effect === "focus_only"
+                    ? "focus_changed"
+                    : effect === "surface_change"
+                      ? "surface_changed"
+                      : "window_changed",
+            };
+    const decision = reduceGeneration(this.#references.generation, outcome);
+    let after: SemanticSnapshot;
+    if (decision.preservesReferences) {
+      after = this.#snapshot.preserveComparison(comparison);
+    } else {
+      const reservation = this.#references.reserve();
+      after = this.#snapshot.publishComparison(comparison, reservation);
+    }
     return {
       ...result,
-      generation: after.generation,
+      generation: decision.generation,
       dispatch: { method: "webdriver", dispatched: true },
       focus: {
-        before: focusEvidence(before, after.generation - 1, false),
+        before: focusEvidence(before, startingGeneration, false),
         after: focusEvidence(after, after.generation, true),
       },
       effect: {
-        kind: classifyEffect(
-          before,
-          beforeComparable,
-          after,
-          this.#snapshot.currentSnapshotComparable,
-        ),
+        kind: effect,
         settleMs,
       },
       ...((input.snapshotAfter ?? true) ? { snapshotAfter: after } : {}),
