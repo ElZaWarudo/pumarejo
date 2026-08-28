@@ -1327,7 +1327,11 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                     }}
 
                     return true;
-                }})()"#
+                }})()"#,
+                shift = modifiers.shift,
+                ctrl = modifiers.ctrl,
+                alt = modifiers.alt,
+                meta = modifiers.meta,
             )
         } else {
             format!(

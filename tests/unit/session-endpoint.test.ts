@@ -127,6 +127,7 @@ describe("owned loopback endpoint", () => {
 
     for (const [method, path] of [
       ["POST", "/session/owned/elements"],
+      ["POST", "/session/owned/window/rect"],
       ["GET", "/session/owned/element/ref-1/shadow"],
       ["POST", "/session/owned/shadow/shadow-1/elements"],
     ] as const) {
@@ -143,8 +144,9 @@ describe("owned loopback endpoint", () => {
         value: { path },
       });
     }
-    expect(provider.accepted()).toBe(4);
+    expect(provider.accepted()).toBe(5);
     expect(provider.received.slice(1)).toEqual([
+      { contentLength: "2", body: "{}" },
       { contentLength: "2", body: "{}" },
       { body: "" },
       { contentLength: "2", body: "{}" },
@@ -167,7 +169,7 @@ describe("owned loopback endpoint", () => {
       });
       expect(forbidden.status).toBe(404);
     }
-    expect(provider.accepted()).toBe(4);
+    expect(provider.accepted()).toBe(5);
   });
 
   it("keeps the provider nonce private and makes the proxy unreachable after close", async () => {
