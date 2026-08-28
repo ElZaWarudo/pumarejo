@@ -735,6 +735,15 @@ Stable v1 codes:
 Unexpected internal details and local secrets are never included in MCP error messages.
 Missing, hidden, disabled, stale, incompatible, and unsupported-key failures use this same envelope with a corrective `suggestion`.
 
+Window-action failures preserve the legacy top-level `code: "UNSUPPORTED_ACTION"`
+and add one optional `windowActionCode` discriminator:
+
+- `WINDOW_ACTION_UNSUPPORTED`
+- `WINDOW_ACTION_DENIED`
+- `WINDOW_ACTION_UNAVAILABLE`
+- `WINDOW_ACTION_FAILED`
+- `WINDOW_ACTION_POSTCONDITION_FAILED`
+
 ## Compatibility policy
 
 - Public CLI names, configuration v1, MCP tool names, input fields, success fields, and error codes follow semantic versioning.

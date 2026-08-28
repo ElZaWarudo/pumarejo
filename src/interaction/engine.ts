@@ -13,7 +13,7 @@ import type { SnapshotEngine } from "../observation/snapshot.js";
 import type { ReferenceTable, SemanticReference } from "../observation/refs.js";
 import type { SemanticNode, SemanticSnapshot } from "../observation/schema.js";
 import { loadIdentityScript } from "../observation/snapshot-script.js";
-import { PumarejoError } from "../shared/errors.js";
+import { isPreDispatchFailure, PumarejoError } from "../shared/errors.js";
 import { W3C_ELEMENT_KEY } from "../webdriver/protocol.js";
 import {
   canonicalModifiers,
@@ -733,6 +733,7 @@ export class InteractionEngine {
     try {
       await action();
     } catch (error) {
+      if (isPreDispatchFailure(error)) throw error;
       markPostDispatchFailure(error);
       this.advance({
         effect: "uncertain",

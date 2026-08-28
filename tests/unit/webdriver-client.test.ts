@@ -566,6 +566,32 @@ describe("WebDriverClient", () => {
     expect(fallbackScript).toContain("current.isMaximized()");
   });
 
+  it("distinguishes an unmet resize postcondition from unsupported dispatch", async () => {
+    const rect = { x: 0, y: 0, width: 800, height: 600 };
+    const fetchImplementation = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const path = new URL(String(input)).pathname;
+        const method = init?.method ?? "GET";
+        if (path === "/session") {
+          return jsonResponse({ value: { sessionId: "session-1" } });
+        }
+        if (path.endsWith("/window/rect") && method === "POST") {
+          return jsonResponse({ value: rect });
+        }
+        if (path.endsWith("/window/rect")) {
+          return jsonResponse({ value: rect });
+        }
+        throw new Error(`unexpected route: ${method} ${path}`);
+      },
+    ) as unknown as typeof fetch;
+    const webdriver = client(fetchImplementation);
+    await webdriver.createSession();
+
+    await expect(
+      webdriver.windowAction({ action: "resize", width: 640, height: 480 }),
+    ).rejects.toMatchObject({ code: "WINDOW_ACTION_POSTCONDITION_FAILED" });
+  });
+
   it.each([
     ["a direct select child", "HTMLSelectElement"],
     ["an optgroup child", "HTMLOptGroupElement"],

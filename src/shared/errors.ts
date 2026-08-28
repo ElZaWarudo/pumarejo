@@ -34,12 +34,27 @@ export const PUMAREJO_ERROR_CODES = [
   "ELEMENT_NOT_INTERACTABLE",
   "UNSUPPORTED_KEY",
   "UNSUPPORTED_ACTION",
+  "WINDOW_ACTION_UNSUPPORTED",
+  "WINDOW_ACTION_DENIED",
+  "WINDOW_ACTION_UNAVAILABLE",
+  "WINDOW_ACTION_FAILED",
+  "WINDOW_ACTION_POSTCONDITION_FAILED",
   "SCREENSHOT_FAILED",
   "CLOSE_FAILED",
   "INTERNAL_ERROR",
 ] as const;
 
 export type PumarejoErrorCode = (typeof PUMAREJO_ERROR_CODES)[number];
+
+export const WINDOW_ACTION_ERROR_CODES = [
+  "WINDOW_ACTION_UNSUPPORTED",
+  "WINDOW_ACTION_DENIED",
+  "WINDOW_ACTION_UNAVAILABLE",
+  "WINDOW_ACTION_FAILED",
+  "WINDOW_ACTION_POSTCONDITION_FAILED",
+] as const;
+
+export type WindowActionErrorCode = (typeof WINDOW_ACTION_ERROR_CODES)[number];
 
 export type PumarejoErrorPhase =
   | "configuration"
@@ -55,8 +70,28 @@ export type PumarejoErrorPhase =
   | "close"
   | "internal";
 
+const preDispatchFailures = new WeakSet<object>();
+
+export function markPreDispatchFailure(error: unknown): void {
+  if (
+    (typeof error === "object" && error !== null) ||
+    typeof error === "function"
+  ) {
+    preDispatchFailures.add(error);
+  }
+}
+
+export function isPreDispatchFailure(error: unknown): boolean {
+  return (
+    ((typeof error === "object" && error !== null) ||
+      typeof error === "function") &&
+    preDispatchFailures.has(error)
+  );
+}
+
 export interface ErrorEnvelope {
   readonly code: PumarejoErrorCode;
+  readonly windowActionCode?: WindowActionErrorCode;
   readonly message: string;
   readonly phase: PumarejoErrorPhase;
   readonly retryable: boolean;
@@ -311,6 +346,42 @@ const ERROR_DEFINITIONS: Record<
     retryable: false,
     suggestion: "Use a documented WebView action or inspect another surface.",
   },
+  WINDOW_ACTION_UNSUPPORTED: {
+    message: "The provider does not support the requested window action.",
+    phase: "interaction",
+    retryable: false,
+    suggestion:
+      "Inspect tauri_status windowCapabilities and update the Pumarejo provider integration.",
+  },
+  WINDOW_ACTION_DENIED: {
+    message:
+      "The requested window action was denied by the provider capability boundary.",
+    phase: "interaction",
+    retryable: false,
+    suggestion:
+      "Run pumarejo doctor and restore the required Tauri window permissions before retrying.",
+  },
+  WINDOW_ACTION_UNAVAILABLE: {
+    message: "The requested window action is unavailable in this session.",
+    phase: "interaction",
+    retryable: true,
+    suggestion:
+      "Inspect tauri_status windowCapabilities, repair integration drift, and relaunch the session.",
+  },
+  WINDOW_ACTION_FAILED: {
+    message: "The provider failed while applying the requested window action.",
+    phase: "interaction",
+    retryable: true,
+    suggestion:
+      "Inspect bounded diagnostics and retry after confirming the provider is healthy.",
+  },
+  WINDOW_ACTION_POSTCONDITION_FAILED: {
+    message: "The requested window geometry was not achieved after dispatch.",
+    phase: "interaction",
+    retryable: true,
+    suggestion:
+      "Check operating-system window constraints and retry with supported dimensions.",
+  },
   SCREENSHOT_FAILED: {
     message: "The WebView screenshot could not be captured.",
     phase: "observation",
@@ -353,8 +424,12 @@ export class PumarejoError extends Error {
   }
 
   toJSON(): ErrorEnvelope {
+    const windowActionCode = WINDOW_ACTION_ERROR_CODES.find(
+      (code) => code === this.code,
+    );
     return {
-      code: this.code,
+      code: windowActionCode === undefined ? this.code : "UNSUPPORTED_ACTION",
+      ...(windowActionCode === undefined ? {} : { windowActionCode }),
       message: this.message,
       phase: this.phase,
       retryable: this.retryable,

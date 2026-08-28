@@ -196,6 +196,10 @@ pub fn create_router<R: Runtime + 'static>(state: Arc<AppState<R>>) -> Router {
             "/session/{session_id}/window/fullscreen",
             post(handlers::window::fullscreen::<R>),
         )
+        .route(
+            "/session/{session_id}/pumarejo/window-capabilities",
+            get(handlers::window::capabilities::<R>),
+        )
         // Frames
         .route(
             "/session/{session_id}/frame",

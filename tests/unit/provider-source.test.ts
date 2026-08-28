@@ -37,4 +37,37 @@ describe("curated provider source", () => {
       ".pumarejo/provider/tauri-plugin-wdio-webdriver",
     );
   });
+
+  it("implements cancellable forward and reverse Tab focus traversal", async () => {
+    const bundle = await readProviderBundle();
+    const executor = bundle.find(
+      (entry) => entry.sourceRelativePath === "src/platform/executor.rs",
+    )?.content;
+
+    expect(executor).toContain('is_down && js_key == "Tab"');
+    expect(executor).toContain("keydownEvent.defaultPrevented");
+    expect(executor).toContain("modifiers.shift");
+    expect(executor).toContain("shadowRoot.activeElement");
+    expect(executor).toContain("next.focus()");
+  });
+
+  it("advertises truthful desktop window capabilities from the provider", async () => {
+    const bundle = await readProviderBundle();
+    const router = bundle.find(
+      (entry) => entry.sourceRelativePath === "src/server/router.rs",
+    )?.content;
+    const windowHandler = bundle.find(
+      (entry) => entry.sourceRelativePath === "src/server/handlers/window.rs",
+    )?.content;
+
+    expect(router).toContain(
+      '"/session/{session_id}/pumarejo/window-capabilities"',
+    );
+    expect(windowHandler).toContain("pub async fn capabilities");
+    expect(windowHandler).toContain("window.is_resizable()");
+    expect(windowHandler).toContain("window.is_maximizable()");
+    expect(windowHandler).toContain('Ok(false) => ("unsupported"');
+    expect(windowHandler).toContain('Err(_) => ("failed"');
+    expect(windowHandler).toContain('"unsupported_on_mobile"');
+  });
 });

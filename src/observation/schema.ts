@@ -277,7 +277,18 @@ export interface SnapshotIssue {
   readonly phase: "observation";
   readonly retryable: true;
   readonly suggestion: string;
+  readonly attempts: readonly SnapshotFailureStage[];
 }
+
+export type SnapshotFailureStage =
+  | "load_script"
+  | "resolve_root"
+  | "execute_script"
+  | "materialize_handles"
+  | "read_title"
+  | "validate_schema"
+  | "validate_redaction"
+  | "publish_references";
 
 export interface SnapshotRequest {
   readonly rootRef?: string;

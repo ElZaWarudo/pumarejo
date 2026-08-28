@@ -44,6 +44,11 @@ describe("PumarejoError", () => {
       "ELEMENT_NOT_INTERACTABLE",
       "UNSUPPORTED_KEY",
       "UNSUPPORTED_ACTION",
+      "WINDOW_ACTION_UNSUPPORTED",
+      "WINDOW_ACTION_DENIED",
+      "WINDOW_ACTION_UNAVAILABLE",
+      "WINDOW_ACTION_FAILED",
+      "WINDOW_ACTION_POSTCONDITION_FAILED",
       "SCREENSHOT_FAILED",
       "CLOSE_FAILED",
       "INTERNAL_ERROR",
@@ -59,6 +64,18 @@ describe("PumarejoError", () => {
       phase: "configuration",
       retryable: false,
       suggestion: "Fix .pumarejo.json or run pumarejo doctor.",
+    });
+  });
+
+  it("keeps the legacy window code and adds a precise discriminator", () => {
+    const error = new PumarejoError("WINDOW_ACTION_DENIED");
+
+    expect(error.code).toBe("WINDOW_ACTION_DENIED");
+    expect(toErrorEnvelope(error)).toMatchObject({
+      code: "UNSUPPORTED_ACTION",
+      windowActionCode: "WINDOW_ACTION_DENIED",
+      phase: "interaction",
+      retryable: false,
     });
   });
 

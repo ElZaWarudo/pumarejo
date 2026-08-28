@@ -68,6 +68,49 @@ describe("WebDriver native control boundary", () => {
     expect(nonceHeader).toBe(NONCE);
   });
 
+  it.each([
+    ["unsupported", "WINDOW_ACTION_UNSUPPORTED"],
+    ["denied", "WINDOW_ACTION_DENIED"],
+    ["unavailable", "WINDOW_ACTION_UNAVAILABLE"],
+    ["failed", "WINDOW_ACTION_FAILED"],
+  ] as const)(
+    "rejects a %s resize capability before dispatch with a precise code",
+    async (state, code) => {
+      const routes: string[] = [];
+      const fetchImplementation = vi.fn(
+        async (input: string | URL | Request, init?: RequestInit) => {
+          const path = new URL(String(input)).pathname;
+          routes.push(`${init?.method ?? "GET"} ${path}`);
+          if (path === "/session") {
+            return jsonResponse({ value: { sessionId: "session-1" } });
+          }
+          if (path.endsWith("/pumarejo/window-capabilities")) {
+            return jsonResponse({
+              value: {
+                window: {
+                  resize: { state, code: `provider_resize_${state}` },
+                },
+              },
+            });
+          }
+          throw new Error(`unexpected route: ${path}`);
+        },
+      ) as unknown as typeof fetch;
+      const client = new WebDriverClient({
+        port: 49_152,
+        nonce: NONCE,
+        fetch: fetchImplementation,
+      });
+
+      await client.createSession();
+      await client.probeWindowCapabilities();
+      await expect(
+        client.windowAction({ action: "resize", width: 640, height: 480 }),
+      ).rejects.toMatchObject({ code });
+      expect(routes).toHaveLength(2);
+    },
+  );
+
   it("reports the dedicated dialog boundary as unsupported when the provider lacks it", async () => {
     const fetchImplementation = vi.fn(async (input: string | URL | Request) => {
       const path = new URL(String(input)).pathname;
