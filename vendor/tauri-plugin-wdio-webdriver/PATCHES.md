@@ -16,6 +16,14 @@ The authenticated agent proxy injects this secret upstream; callers know only
 their separate session nonce and cannot bypass the proxy through the raw
 loopback port.
 
+Pumarejo also patches keyboard action dispatch so Tab and Shift+Tab perform
+cancellable sequential focus traversal, including open shadow roots, instead
+of emitting a synthetic event that cannot trigger the browser default action.
+The provider exposes a launch-scoped `pumarejo/window-capabilities` endpoint so
+desktop actions are preflighted against the concrete window's resizable and
+maximizable constraints, while mobile support is reported truthfully before
+dispatch. Maximize also verifies its native postcondition before returning.
+
 RU1 verifies the patch through the same live visible/background W3C sequence on
 Windows and Ubuntu, including PNG signature validation, DOM actions, session
 deletion, and process/port cleanup. Re-evaluate this patch before upgrading the

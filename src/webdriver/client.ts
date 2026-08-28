@@ -1,6 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 
-import { PumarejoError } from "../shared/errors.js";
+import { markPreDispatchFailure, PumarejoError } from "../shared/errors.js";
 import { createWryCapabilities } from "./capabilities.js";
 import {
   isInvalidSessionError,
@@ -1047,6 +1047,18 @@ export class WebDriverClient {
         },
     signal?: AbortSignal,
   ): Promise<EffectiveWindowResult> {
+    const capability = this.#windowCapabilities?.[input.action];
+    if (capability !== undefined && capability.state !== "supported") {
+      const code = {
+        unsupported: "WINDOW_ACTION_UNSUPPORTED",
+        denied: "WINDOW_ACTION_DENIED",
+        unavailable: "WINDOW_ACTION_UNAVAILABLE",
+        failed: "WINDOW_ACTION_FAILED",
+      } as const;
+      const error = new PumarejoError(code[capability.state]);
+      markPreDispatchFailure(error);
+      throw error;
+    }
     try {
       if (input.action === "maximize") {
         if (this.#windowState === "maximized") {
@@ -1075,7 +1087,7 @@ export class WebDriverClient {
           signal,
         );
         if (externalRestore === "failed") {
-          throw new PumarejoError("UNSUPPORTED_ACTION");
+          throw new PumarejoError("WINDOW_ACTION_FAILED");
         }
         if (externalRestore === "restored") {
           const rect = await this.windowRect(signal);
@@ -1094,7 +1106,7 @@ export class WebDriverClient {
           ? { width: input.width, height: input.height }
           : this.#restoreRect;
       if (target === undefined) {
-        throw new PumarejoError("UNSUPPORTED_ACTION");
+        throw new PumarejoError("WINDOW_ACTION_UNAVAILABLE");
       }
       const response = await this.sessionCommand(
         "POST",
@@ -1107,7 +1119,7 @@ export class WebDriverClient {
         input.action === "resize" &&
         (rect.width !== input.width || rect.height !== input.height)
       ) {
-        throw new PumarejoError("UNSUPPORTED_ACTION");
+        throw new PumarejoError("WINDOW_ACTION_POSTCONDITION_FAILED");
       }
       if (input.action === "resize") this.#restoreRect = rect;
       this.#windowState = "restored";
@@ -1168,7 +1180,13 @@ export class WebDriverClient {
           [input.action, clientTarget?.width, clientTarget?.height],
           signal,
         );
-        if (!invoked) throw new PumarejoError("UNSUPPORTED_ACTION");
+        if (!invoked) {
+          throw new PumarejoError(
+            capability === undefined
+              ? "WINDOW_ACTION_UNSUPPORTED"
+              : "WINDOW_ACTION_FAILED",
+          );
+        }
         const deadline = Date.now() + 3_000;
         let rect = await this.windowRect(signal);
         while (
@@ -1183,14 +1201,14 @@ export class WebDriverClient {
           target !== undefined &&
           (rect.width !== target.width || rect.height !== target.height)
         ) {
-          throw new PumarejoError("UNSUPPORTED_ACTION");
+          throw new PumarejoError("WINDOW_ACTION_POSTCONDITION_FAILED");
         }
         if (input.action === "resize") this.#restoreRect = rect;
         this.#windowState =
           input.action === "maximize" ? "maximized" : "restored";
         return { state: this.#windowState, rect };
       }
-      throw normalizeWebDriverError(error, "UNSUPPORTED_ACTION");
+      throw normalizeWebDriverError(error, "WINDOW_ACTION_FAILED");
     }
   }
 

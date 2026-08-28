@@ -469,10 +469,9 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         );
         let result = self.evaluate_js(&script).await?;
 
-        let value = result
-            .get("value")
-            .cloned()
-            .ok_or_else(|| WebDriverErrorResponse::unknown_error("element center script returned no value"))?;
+        let value = result.get("value").cloned().ok_or_else(|| {
+            WebDriverErrorResponse::unknown_error("element center script returned no value")
+        })?;
 
         #[derive(serde::Deserialize)]
         struct Center {
@@ -1109,8 +1108,107 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
         let event_type = if is_down { "keydown" } else { "keyup" };
 
+        // Synthetic KeyboardEvents do not trigger the browser's native Tab default action.
+        // Reproduce sequential focus navigation after giving the application a chance to
+        // cancel keydown. Include open shadow roots so the focused semantic node remains
+        // observable instead of stopping at its host element.
+        let script = if is_down && js_key == "Tab" {
+            let reverse = modifiers.shift;
+            format!(
+                r#"(function() {{
+                    function deepActiveElement(root) {{
+                        var activeEl = root.activeElement || document.body;
+                        while (activeEl && activeEl.shadowRoot && activeEl.shadowRoot.activeElement) {{
+                            activeEl = activeEl.shadowRoot.activeElement;
+                        }}
+                        return activeEl;
+                    }}
+
+                    function collect(root, result, ancestorExcluded, ancestorHidden) {{
+                        for (var child of root.children || []) {{
+                            var excluded = ancestorExcluded || child.hasAttribute('inert') || child.getAttribute('aria-hidden') === 'true';
+                            if (excluded || ancestorHidden) continue;
+                            var style = getComputedStyle(child);
+                            var hidden = style.display === 'none' || style.visibility === 'hidden';
+                            if (hidden) continue;
+                            if (child instanceof HTMLElement && child.tabIndex >= 0 && !child.matches(':disabled')) {{
+                                result.push(child);
+                            }}
+                            if (child.shadowRoot) collect(child.shadowRoot, result, false, false);
+                            collect(child, result, false, false);
+                        }}
+                    }}
+
+                    function collapseRadioGroups(candidates, reverse) {{
+                        var groupsByRoot = new Map();
+                        var groupsByRadio = new WeakMap();
+                        for (var candidate of candidates) {{
+                            if (!(candidate instanceof HTMLInputElement) || candidate.type !== 'radio' || !candidate.name) continue;
+                            var root = candidate.getRootNode();
+                            var byForm = groupsByRoot.get(root);
+                            if (!byForm) {{ byForm = new Map(); groupsByRoot.set(root, byForm); }}
+                            var byName = byForm.get(candidate.form);
+                            if (!byName) {{ byName = new Map(); byForm.set(candidate.form, byName); }}
+                            var group = byName.get(candidate.name);
+                            if (!group) {{ group = {{ first: candidate, last: candidate, checked: null }}; byName.set(candidate.name, group); }}
+                            group.last = candidate;
+                            if (candidate.checked) group.checked = candidate;
+                            groupsByRadio.set(candidate, group);
+                        }}
+                        return candidates.filter(function(candidate) {{
+                            var group = groupsByRadio.get(candidate);
+                            return !group || (group.checked || (reverse ? group.last : group.first)) === candidate;
+                        }});
+                    }}
+
+                    var activeEl = deepActiveElement(document);
+                    var keydownEvent = new KeyboardEvent('keydown', {{
+                        key: 'Tab',
+                        code: 'Tab',
+                        keyCode: 9,
+                        which: 9,
+                        shiftKey: {reverse},
+                        ctrlKey: {ctrl},
+                        altKey: {alt},
+                        metaKey: {meta},
+                        bubbles: true,
+                        cancelable: true
+                    }});
+                    activeEl.dispatchEvent(keydownEvent);
+                    if (keydownEvent.defaultPrevented) return true;
+
+                    var candidates = [];
+                    collect(document, candidates, false, false);
+                    candidates = collapseRadioGroups(candidates, {reverse});
+                    var positive = [];
+                    var regular = [];
+                    candidates.forEach(function(el, index) {{
+                        if (el.tabIndex > 0) positive.push({{ el: el, index: index }});
+                        else regular.push(el);
+                    }});
+                    var ordered = positive
+                        .sort(function(a, b) {{
+                            if (a.el.tabIndex !== b.el.tabIndex) return a.el.tabIndex - b.el.tabIndex;
+                            return a.index - b.index;
+                        }})
+                        .map(function(entry) {{ return entry.el; }})
+                        .concat(regular);
+
+                    if (ordered.length === 0) return true;
+                    var currentIndex = ordered.indexOf(activeEl);
+                    var nextIndex = {reverse}
+                        ? (currentIndex <= 0 ? ordered.length - 1 : currentIndex - 1)
+                        : (currentIndex < 0 || currentIndex === ordered.length - 1 ? 0 : currentIndex + 1);
+                    var next = ordered[nextIndex];
+                    next.focus();
+                    return true;
+                }})()"#,
+                ctrl = modifiers.ctrl,
+                alt = modifiers.alt,
+                meta = modifiers.meta,
+            )
         // For special keys that modify input (Backspace, Delete), handle value changes
-        let script = if is_down && (js_key == "Backspace" || js_key == "Delete") {
+        } else if is_down && (js_key == "Backspace" || js_key == "Delete") {
             format!(
                 r"(function() {{
                     var activeEl = document.activeElement || document.body;
@@ -1193,6 +1291,10 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                         code: '{js_code}',
                         keyCode: {key_code},
                         which: {key_code},
+                        shiftKey: {shift},
+                        ctrlKey: {ctrl},
+                        altKey: {alt},
+                        metaKey: {meta},
                         bubbles: true,
                         cancelable: true
                     }});
@@ -1235,13 +1337,24 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                         code: '{js_code}',
                         keyCode: {key_code},
                         which: {key_code},
+                        shiftKey: {shift},
+                        ctrlKey: {ctrl},
+                        altKey: {alt},
+                        metaKey: {meta},
                         bubbles: true,
                         cancelable: true
                     }});
                     var activeEl = document.activeElement || document.body;
+                    while (activeEl && activeEl.shadowRoot && activeEl.shadowRoot.activeElement) {{
+                        activeEl = activeEl.shadowRoot.activeElement;
+                    }}
                     activeEl.dispatchEvent(event);
                     return true;
-                }})()"
+                }})()",
+                shift = modifiers.shift,
+                ctrl = modifiers.ctrl,
+                alt = modifiers.alt,
+                meta = modifiers.meta,
             )
         };
 
@@ -1526,8 +1639,19 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     /// Maximize window
     #[cfg(desktop)]
     async fn maximize_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        let _ = self.window().maximize();
+        self.window()
+            .maximize()
+            .map_err(|error| WebDriverErrorResponse::unknown_error(&error.to_string()))?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        if !self
+            .window()
+            .is_maximized()
+            .map_err(|error| WebDriverErrorResponse::unknown_error(&error.to_string()))?
+        {
+            return Err(WebDriverErrorResponse::unknown_error(
+                "window maximize postcondition was not achieved",
+            ));
+        }
         self.get_window_rect().await
     }
 

@@ -14,6 +14,7 @@ type PublicNode = {
   readonly redacted?: boolean;
   readonly pressed?: boolean;
   readonly selected?: boolean;
+  readonly focused?: boolean;
   readonly current?: boolean | string;
   readonly relationships?: Record<string, readonly string[]>;
 };
@@ -149,6 +150,52 @@ describe("live public real-usage journey", () => {
           after: expect.any(Object),
         });
         current = focus.snapshotAfter as PublicSnapshot;
+
+        let previousFocusRef = (
+          focus.focus as { readonly after?: { readonly ref?: string | null } }
+        ).after?.ref;
+        expect(previousFocusRef).toEqual(expect.any(String));
+        const forwardFocusRefs = [previousFocusRef];
+        for (let press = 0; press < 16; press += 1) {
+          const tab = structured(
+            await client.callTool({
+              name: "tauri_press_key",
+              arguments: { key: "TAB", snapshotAfter: true },
+            }),
+          );
+          const afterRef = (
+            tab.focus as { readonly after?: { readonly ref?: string | null } }
+          ).after?.ref;
+          expect(afterRef).toEqual(expect.any(String));
+          expect(afterRef).not.toBe(previousFocusRef);
+          current = tab.snapshotAfter as PublicSnapshot;
+          expect(
+            current.nodes.find((node) => node.ref === afterRef),
+          ).toMatchObject({ focused: true });
+          previousFocusRef = afterRef;
+          forwardFocusRefs.push(afterRef);
+        }
+
+        const reverseTab = structured(
+          await client.callTool({
+            name: "tauri_press_key",
+            arguments: {
+              key: "TAB",
+              modifiers: ["SHIFT"],
+              snapshotAfter: true,
+            },
+          }),
+        );
+        const reverseRef = (
+          reverseTab.focus as {
+            readonly after?: { readonly ref?: string | null };
+          }
+        ).after?.ref;
+        expect(reverseRef).toBe(forwardFocusRefs.at(-2));
+        current = reverseTab.snapshotAfter as PublicSnapshot;
+        expect(
+          current.nodes.find((node) => node.ref === reverseRef),
+        ).toMatchObject({ focused: true });
 
         const chord = structured(
           await client.callTool({

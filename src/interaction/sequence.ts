@@ -93,9 +93,17 @@ function publicReason(error: unknown): string {
     case "ELEMENT_NOT_INTERACTABLE":
       return "invalid_target";
     case "UNSUPPORTED_ACTION":
+    case "WINDOW_ACTION_UNSUPPORTED":
     case "UNSUPPORTED_KEY":
     case "INTEGRATION_INCOMPLETE":
       return "unsupported";
+    case "WINDOW_ACTION_DENIED":
+      return "capability_denied";
+    case "WINDOW_ACTION_UNAVAILABLE":
+      return "capability_unavailable";
+    case "WINDOW_ACTION_FAILED":
+    case "WINDOW_ACTION_POSTCONDITION_FAILED":
+      return "window_action_failed";
     case "SESSION_NOT_ACTIVE":
       return "session_not_active";
     default:

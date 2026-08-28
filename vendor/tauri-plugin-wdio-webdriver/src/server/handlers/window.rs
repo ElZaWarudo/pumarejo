@@ -34,6 +34,67 @@ pub struct WindowRectRequest {
     pub height: Option<u32>,
 }
 
+/// GET `/session/{session_id}/pumarejo/window-capabilities` - Report the
+/// launch-scoped window operations implemented by this provider and platform.
+pub async fn capabilities<R: Runtime>(
+    State(state): State<Arc<AppState<R>>>,
+    Path(session_id): Path<String>,
+) -> WebDriverResult {
+    let sessions = state.sessions.read().await;
+    let session = sessions.get(&session_id)?;
+    let current_window = session.current_window.clone();
+    drop(sessions);
+
+    let window = state
+        .app
+        .webview_windows()
+        .get(&current_window)
+        .cloned()
+        .ok_or_else(WebDriverErrorResponse::no_such_window)?;
+
+    #[cfg(desktop)]
+    let (resize_state, resize_suffix, maximize_state, maximize_suffix) = {
+        let resize = window.is_resizable();
+        let maximize = window.is_maximizable();
+        let classify = |result: tauri::Result<bool>| match result {
+            Ok(true) => ("supported", "supported"),
+            Ok(false) => ("unsupported", "constrained_by_window"),
+            Err(_) => ("failed", "probe_failed"),
+        };
+        let (resize_state, resize_suffix) = classify(resize);
+        let (maximize_state, maximize_suffix) = classify(maximize);
+        (resize_state, resize_suffix, maximize_state, maximize_suffix)
+    };
+    #[cfg(mobile)]
+    let (resize_state, resize_suffix, maximize_state, maximize_suffix) = (
+        "unsupported",
+        "unsupported_on_mobile",
+        "unsupported",
+        "unsupported_on_mobile",
+    );
+
+    Ok(WebDriverResponse::success(json!({
+        "window": {
+            "resize": {
+                "state": resize_state,
+                "code": format!("provider_resize_{resize_suffix}")
+            },
+            "maximize": {
+                "state": maximize_state,
+                "code": format!("provider_maximize_{maximize_suffix}")
+            },
+            "restore": {
+                "state": resize_state,
+                "code": format!("provider_restore_{resize_suffix}")
+            },
+            "initialSize": {
+                "state": resize_state,
+                "code": format!("provider_initial_size_{resize_suffix}")
+            }
+        }
+    })))
+}
+
 /// GET `/session/{session_id}/window` - Get current window handle
 pub async fn get_window_handle<R: Runtime>(
     State(state): State<Arc<AppState<R>>>,

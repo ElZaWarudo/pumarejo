@@ -10,7 +10,10 @@ import type {
   RawSnapshot,
   SemanticSnapshot,
 } from "../../src/observation/schema.js";
-import { PumarejoError } from "../../src/shared/errors.js";
+import {
+  markPreDispatchFailure,
+  PumarejoError,
+} from "../../src/shared/errors.js";
 import { W3C_ELEMENT_KEY } from "../../src/webdriver/protocol.js";
 
 const OWNERSHIP = "root/button:button:Save";
@@ -768,6 +771,45 @@ describe("semantic interactions", () => {
         rect: { width: 640, height: 480 },
       },
       effect: { kind: "window_change" },
+    });
+  });
+
+  it("preserves references when a window capability rejects before dispatch", async () => {
+    const before = observedSnapshot({ generation: 1 });
+    const references = referenceTable();
+    const snapshot = vi.fn();
+    const windowAction = vi.fn(async () => {
+      const error = new PumarejoError("WINDOW_ACTION_DENIED");
+      markPreDispatchFailure(error);
+      throw error;
+    });
+    const engine = new InteractionEngine({
+      webdriver: {
+        execute: vi.fn(async () => currentIdentity()),
+        click: vi.fn(),
+        clear: vi.fn(),
+        type: vi.fn(),
+        pressKey: vi.fn(),
+        windowAction,
+      } as never,
+      snapshot: snapshotPort(snapshot, references, before),
+      identityScript: async () => "identity",
+      settle: async () => undefined,
+    });
+
+    await expect(
+      (engine as never as { window(input: unknown): Promise<unknown> }).window({
+        action: "resize",
+        width: 640,
+        height: 480,
+        settleMs: 0,
+      }),
+    ).rejects.toMatchObject({ code: "WINDOW_ACTION_DENIED" });
+    expect(windowAction).toHaveBeenCalledOnce();
+    expect(snapshot).not.toHaveBeenCalled();
+    expect(references.generation).toBe(1);
+    expect(references.resolve("e1-1")).toMatchObject({
+      elementId: "exact-element-id",
     });
   });
 

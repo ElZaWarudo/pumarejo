@@ -388,11 +388,12 @@ describe("semantic snapshots", () => {
   });
 
   it("returns a structured partial snapshot after two semantic extraction failures", async () => {
+    const providerSecret = "provider-stack-secret";
     const execute = vi
       .fn()
       .mockResolvedValueOnce(rawSnapshot([rawNode(0)]))
-      .mockRejectedValueOnce(new PumarejoError("INTERNAL_ERROR"))
-      .mockRejectedValueOnce(new PumarejoError("INTERNAL_ERROR"));
+      .mockRejectedValueOnce(new Error(providerSecret))
+      .mockRejectedValueOnce(new Error(providerSecret));
     const client = {
       execute,
       title: vi.fn(async () => "Fixture"),
@@ -429,9 +430,11 @@ describe("semantic snapshots", () => {
           code: "SEMANTIC_EXTRACTION_FAILED",
           phase: "observation",
           retryable: true,
+          attempts: ["execute_script", "execute_script"],
         },
       ],
     });
+    expect(JSON.stringify(partial)).not.toContain(providerSecret);
     expect(partial.truncation).toMatchObject({
       truncated: true,
       reasons: expect.arrayContaining(["semanticExtraction"]),

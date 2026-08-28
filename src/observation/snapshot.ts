@@ -7,6 +7,7 @@ import {
   rawSnapshotSchema,
   type RawSnapshot,
   type SemanticSnapshot,
+  type SnapshotFailureStage,
   type SnapshotRequest,
 } from "./schema.js";
 import { loadSnapshotScript } from "./snapshot-script.js";
@@ -50,6 +51,15 @@ function boundedWindowTitle(title: string): {
 } {
   const bounded = title.slice(0, MAX_WINDOW_TITLE_LENGTH);
   return { title: bounded, truncated: bounded.length < title.length };
+}
+
+class SnapshotCaptureError extends PumarejoError {
+  readonly stage: SnapshotFailureStage;
+
+  constructor(stage: SnapshotFailureStage, cause: unknown) {
+    super("INTERNAL_ERROR", { cause });
+    this.stage = stage;
+  }
 }
 
 export class SnapshotEngine {
@@ -194,6 +204,7 @@ export class SnapshotEngine {
     signal?: AbortSignal,
     mode: "publish" | "comparison" = "publish",
   ): Promise<SemanticSnapshot> {
+    const failedStages: SnapshotFailureStage[] = [];
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         return await this.capture(request, signal, mode);
@@ -205,12 +216,15 @@ export class SnapshotEngine {
         ) {
           throw error;
         }
+        if (!(error instanceof SnapshotCaptureError)) throw error;
+        failedStages.push(error.stage);
       }
     }
-    return await this.partialSnapshot(signal, mode);
+    return await this.partialSnapshot(failedStages, signal, mode);
   }
 
   private async partialSnapshot(
+    failedStages: readonly SnapshotFailureStage[],
     signal?: AbortSignal,
     mode: "publish" | "comparison" = "publish",
   ): Promise<SemanticSnapshot> {
@@ -263,6 +277,7 @@ export class SnapshotEngine {
           phase: "observation",
           retryable: true,
           suggestion: "Retry with tighter snapshot limits or filters.",
+          attempts: failedStages,
         },
       ],
     };
@@ -279,8 +294,10 @@ export class SnapshotEngine {
     mode: "publish" | "comparison" = "publish",
   ): Promise<SemanticSnapshot> {
     signal?.throwIfAborted();
+    let stage: SnapshotFailureStage = "load_script";
     try {
       const script = await this.#script();
+      stage = "resolve_root";
       const root =
         request?.rootRef === undefined
           ? undefined
@@ -297,6 +314,7 @@ export class SnapshotEngine {
         ...(request?.name === undefined ? {} : { name: request.name }),
         ...(request?.types === undefined ? {} : { types: request.types }),
       };
+      stage = "execute_script";
       let rawValue = await this.#webdriver.execute<unknown>(
         script,
         root === undefined
@@ -325,6 +343,7 @@ export class SnapshotEngine {
               : -1,
           ),
         );
+        stage = "materialize_handles";
         const providerHandles = await this.#webdriver.snapshotElementHandles(
           signal,
           maximumProviderIndex,
@@ -347,12 +366,16 @@ export class SnapshotEngine {
         }));
         rawValue = { ...rawValue, handles, nodes };
       }
+      stage = "read_title";
       const rawTitle = await this.#webdriver.title(signal);
       const { title, truncated: titleTruncated } = boundedWindowTitle(rawTitle);
+      stage = "validate_schema";
       const raw: RawSnapshot = rawSnapshotSchema.parse(rawValue);
+      stage = "validate_redaction";
       for (const { descriptor } of raw.nodes) {
         assertRedactionBoundary(descriptor);
       }
+      stage = "publish_references";
       const staged =
         mode === "publish" ? undefined : this.references.stage(raw);
       const nodes =
@@ -387,8 +410,11 @@ export class SnapshotEngine {
       return snapshot;
     } catch (error) {
       if (signal?.aborted) throw signal.reason;
-      if (error instanceof PumarejoError) throw error;
-      throw new PumarejoError("INTERNAL_ERROR", { cause: error });
+      if (error instanceof SnapshotCaptureError) throw error;
+      if (error instanceof PumarejoError && error.code !== "INTERNAL_ERROR") {
+        throw error;
+      }
+      throw new SnapshotCaptureError(stage, error);
     }
   }
 }
