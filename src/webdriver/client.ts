@@ -525,6 +525,13 @@ export class WebDriverClient {
         )?.value,
       )?.error;
       const providerErrorText = String(providerError).toLowerCase();
+      if (providerErrorText === "no such alert") {
+        return {
+          state: "unavailable",
+          code: "provider_dialog_absent",
+          pending: false,
+        };
+      }
       const unsupported = providerError === "unknown command";
       const denied =
         providerErrorText.includes("denied") ||

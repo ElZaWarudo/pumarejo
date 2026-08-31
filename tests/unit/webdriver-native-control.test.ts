@@ -138,6 +138,26 @@ describe("WebDriver native control boundary", () => {
     });
   });
 
+  it("recognizes the native broker's no-such-alert response as no pending dialog", async () => {
+    const fetchImplementation = vi.fn(async (input: string | URL | Request) => {
+      if (new URL(String(input)).pathname === "/session") {
+        return jsonResponse({ value: { sessionId: "session-1" } });
+      }
+      return jsonResponse({ value: { error: "no such alert" } }, 404);
+    }) as unknown as typeof fetch;
+    const client = new WebDriverClient({
+      port: 49_152,
+      nonce: NONCE,
+      fetch: fetchImplementation,
+    });
+    await client.createSession();
+    await expect(client.detectNativeDialog()).resolves.toMatchObject({
+      state: "unavailable",
+      code: "provider_dialog_absent",
+      pending: false,
+    });
+  });
+
   it("maps provider-supported endpoint with no pending dialog to unavailable", async () => {
     const fetchImplementation = vi.fn(async (input: string | URL | Request) => {
       const path = new URL(String(input)).pathname;
