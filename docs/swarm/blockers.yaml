@@ -479,7 +479,7 @@ blockers:
     wave: wave-f-final-convergence
     type: architecture
     risk: critical
-    description: Managed launch and the independently bounded environment, listener-family, lease-scan, and untracked-orphan remediations are green. The remaining release-critical finding is architectural: the windows_validated_tree fallback revalidates identity and then invokes taskkill by raw PID, leaving a non-atomic PID-reuse window.
+    description: "Managed launch and the independently bounded environment, listener-family, lease-scan, and untracked-orphan remediations are green. The remaining release-critical finding is architectural: the windows_validated_tree fallback revalidates identity and then invokes taskkill by raw PID, leaving a non-atomic PID-reuse window."
     decision_required: Choose an identity-bound Windows termination backend (the existing job-object seam backed by a portable native implementation, a portable helper with equivalent handle-bound proof, or removal of the validated-tree fallback from the supported Windows row) and authorize the associated packaging scope.
     impact_if_ignored: Pumarejo can demonstrate READY, exact-family listener cleanup, fail-closed durable recovery, and first-close idle locally, but cannot make a release-grade claim that the validated-tree fallback never terminates a PID-reused replacement.
     affected_units: [rdm-016-process-custody, rdm-017-portable-runtime, rdm-019-tinto-certification, rdm-023-release-certification]
