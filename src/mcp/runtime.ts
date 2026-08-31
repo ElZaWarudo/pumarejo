@@ -824,15 +824,24 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
   ): Promise<DomainResult> {
     return this.run(async (signal) => {
       signal.throwIfAborted();
-      const active = this.requireActive();
+      const active = this.#active;
+      const diagnostics =
+        active?.diagnostics ??
+        ((this.#status.state === "idle" ||
+          this.#status.state === "cleanup_failed") &&
+        this.#launchOperation === undefined
+          ? this.#diagnostics
+          : undefined);
+      if (diagnostics === undefined) this.requireActive();
       this.#status = { ...this.#status, lastAction: "diagnostics" };
       const surfaceOwned =
         input.surfaceRef === undefined ||
-        active.surfaces.graph?.surfaces.some(
-          (surface) => surface.surfaceRef === input.surfaceRef,
-        ) === true ||
-        active.snapshot.activeSurface?.surfaceRef === input.surfaceRef;
-      const projection = active.diagnostics.query({
+        (active !== undefined &&
+          (active.surfaces.graph?.surfaces.some(
+            (surface) => surface.surfaceRef === input.surfaceRef,
+          ) === true ||
+            active.snapshot.activeSurface?.surfaceRef === input.surfaceRef));
+      const projection = diagnostics!.query({
         sources: input.sources,
         surfaceRef: input.surfaceRef,
         maxRecords: input.maxRecords,
@@ -1037,6 +1046,8 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
         throw error;
       }
     }
+    this.#diagnostics?.close();
+    this.#diagnostics = undefined;
     const sessionId = this.#dependencies.sessionId();
     if (!/^[a-f0-9]{32,64}$/u.test(sessionId)) {
       this.#status = { state: "idle", lastAction: "launch" };
@@ -1223,14 +1234,18 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
       });
       const cleanupFailures: unknown[] = [];
       if (this.#active !== undefined) {
-        await this.closeNow().catch((cleanupError: unknown) => {
-          cleanupFailures.push(cleanupError);
-        });
+        await this.closeNow({ retainDiagnostics: true }).catch(
+          (cleanupError: unknown) => {
+            cleanupFailures.push(cleanupError);
+          },
+        );
       } else {
         this.#pendingArtifactClose = artifacts;
-        await this.closeNow().catch((cleanupError: unknown) => {
-          cleanupFailures.push(cleanupError);
-        });
+        await this.closeNow({ retainDiagnostics: true }).catch(
+          (cleanupError: unknown) => {
+            cleanupFailures.push(cleanupError);
+          },
+        );
       }
       if (cleanupFailures.length > 0) {
         if (this.#status.state !== "closing") {
@@ -1318,7 +1333,9 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
     return queued;
   }
 
-  private async closeNow(): Promise<void> {
+  private async closeNow(
+    options: { retainDiagnostics?: boolean } = {},
+  ): Promise<void> {
     const active = this.#active;
     this.#active = undefined;
     const diagnostics = active?.diagnostics ?? this.#diagnostics;
@@ -1343,8 +1360,10 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
     } catch (error) {
       failures.push(error);
     }
-    diagnostics?.close();
-    if (this.#diagnostics === diagnostics) this.#diagnostics = undefined;
+    if (options.retainDiagnostics !== true) {
+      diagnostics?.close();
+      if (this.#diagnostics === diagnostics) this.#diagnostics = undefined;
+    }
     if (failures.length > 0) {
       throw new PumarejoError("CLOSE_FAILED", {
         cause: new AggregateError(failures),

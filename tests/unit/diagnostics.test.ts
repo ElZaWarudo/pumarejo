@@ -22,7 +22,10 @@ describe("bounded runtime diagnostics", () => {
 
     const serialized = JSON.stringify(store.query());
     expect(serialized).not.toContain("super-secret");
-    expect(serialized).not.toContain("C:\\Users\\private");
+    expect(store.query().records[0]?.message).not.toContain(
+      "C:\\Users\\private",
+    );
+    expect(store.query().records[0]?.message).toContain("[REDACTED_PATH]");
     expect(serialized).not.toContain("sensitive application content");
     expect(store.query().records[0]).toMatchObject({
       source: "process_stderr",
@@ -33,6 +36,17 @@ describe("bounded runtime diagnostics", () => {
       sensitive: true,
       scope: { surfaceRef: "surface-1" },
     });
+  });
+
+  it.each([
+    "C:\\Users\\private\\cli\\index.js:567",
+    "c:/Users/private/cli/index.js:567",
+  ])("redacts a native launch stack path before retention: %s", (path) => {
+    const store = new DiagnosticStore({ sessionId: SESSION_ID });
+    store.recordProcess("stderr", `Cannot find native binding at ${path}`);
+    expect(store.query().records[0]?.message).toBe(
+      "Cannot find native binding at [REDACTED_PATH]",
+    );
   });
 
   it("evicts oldest entries deterministically by count and bytes", () => {

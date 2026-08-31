@@ -58,7 +58,7 @@ const SECRET_PATTERNS = [
 ];
 
 const PATH_PATTERN =
-  /(?:[a-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:home|Users|user|tmp|var|private|workspace|workspaces|opt|etc)\/(?:[^\s"'<>]+))/gu;
+  /(?:[a-zA-Z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:home|Users|user|tmp|var|private|workspace|workspaces|opt|etc)\/(?:[^\s"'<>]+))/gu;
 const CONTROL_PATTERN = /[\u0000-\u001f\u007f]/gu;
 const CODE_PATTERN = /^[a-z][a-z0-9_]{0,63}$/u;
 const SURFACE_REF_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/u;

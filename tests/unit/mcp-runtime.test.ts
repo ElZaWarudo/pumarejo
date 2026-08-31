@@ -71,6 +71,7 @@ function harness() {
       mode: "visible" | "background";
       signal?: AbortSignal;
       onPhase?: (phase: LaunchPhase) => void;
+      onOutput?: (stream: "stdout" | "stderr", chunk: string) => void;
     }) => {
       managerState = { ...ready, mode: options.mode };
       return { ...ready, mode: options.mode };
@@ -93,7 +94,9 @@ function harness() {
   const artifactClose = vi.fn(
     async (): Promise<ArtifactCleanupOutcome | void> => undefined,
   );
-  const diagnostics = new DiagnosticStore({ sessionId: SESSION_ID });
+  let diagnostics = new DiagnosticStore({ sessionId: SESSION_ID });
+  const sessionId = vi.fn(() => SESSION_ID);
+  let diagnosticsCreated = false;
   const writePng = vi.fn(async () => ({
     projectRelativePath: ".pumarejo/artifacts/screenshot.png",
   }));
@@ -263,7 +266,7 @@ function harness() {
     manager,
     recoverArtifacts,
     recordLaunchVerification: recordVerification,
-    sessionId: () => SESSION_ID,
+    sessionId,
     createArtifacts: () => ({
       open: artifactOpen,
       close: artifactClose,
@@ -316,10 +319,15 @@ function harness() {
         throw new PumarejoError("SURFACE_NOT_FOUND");
       }),
     }),
-    createDiagnostics: () => diagnostics,
+    createDiagnostics: (sessionId) => {
+      if (diagnosticsCreated) diagnostics = new DiagnosticStore({ sessionId });
+      diagnosticsCreated = true;
+      return diagnostics;
+    },
   });
   return {
     runtime,
+    sessionId,
     manager,
     setManagerState(state: SessionSnapshot) {
       managerState = state;
@@ -330,7 +338,9 @@ function harness() {
     recordVerification,
     artifactOpen,
     artifactClose,
-    diagnostics,
+    get diagnostics() {
+      return diagnostics;
+    },
     snapshot,
     screenshot,
     click,
@@ -529,6 +539,120 @@ describe("application-scoped MCP runtime", () => {
     expect(JSON.stringify(await test.runtime.status(context()))).not.toContain(
       "private path and nonce",
     );
+  });
+
+  it("retains sanitized failed-launch diagnostics until close and isolates relaunches", async () => {
+    const test = harness();
+    test.launch.mockImplementationOnce(async (options) => {
+      options.onPhase?.("creating_session");
+      options.onOutput?.(
+        "stderr",
+        "launch failed at /private/trace C:\\Users\\private\\cli.js token=secret123",
+      );
+      throw new PumarejoError("SESSION_CREATE_FAILED");
+    });
+
+    await expect(
+      test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context()),
+    ).rejects.toMatchObject({ code: "SESSION_CREATE_FAILED" });
+
+    const failedLaunch = await test.runtime.diagnostics(
+      { maxRecords: 16, maxBytes: 8_192 },
+      context(),
+    );
+    expect(failedLaunch).toMatchObject({
+      sessionId: SESSION_ID,
+      records: expect.arrayContaining([
+        expect.objectContaining({ source: "phase", phase: "creating_session" }),
+        expect.objectContaining({ source: "process_stderr" }),
+        expect.objectContaining({
+          source: "last_error",
+          code: "session_create_failed",
+        }),
+      ]),
+    });
+    const failedLaunchJson = JSON.stringify(failedLaunch);
+    expect(failedLaunchJson).toContain("[REDACTED_PATH]");
+    expect(failedLaunchJson).toContain("token=[REDACTED]");
+    expect(failedLaunchJson).not.toContain("/private/trace");
+    expect(failedLaunch.records).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringContaining("C:\\Users"),
+        }),
+      ]),
+    );
+    const oldStore = test.diagnostics;
+    const closeOldStore = vi.spyOn(oldStore, "close");
+
+    await expect(
+      test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context()),
+    ).resolves.toMatchObject({ sessionId: SESSION_ID });
+    expect(closeOldStore).toHaveBeenCalledTimes(1);
+    expect(oldStore.query().records).toEqual([]);
+    const relaunched = await test.runtime.diagnostics(
+      { maxRecords: 16, maxBytes: 8_192 },
+      context(),
+    );
+    expect(JSON.stringify(relaunched)).not.toContain("secret123");
+    expect(JSON.stringify(relaunched)).not.toContain("session_create_failed");
+
+    await expect(
+      test.runtime.diagnostics(
+        { surfaceRef: "stale-surface", maxRecords: 16, maxBytes: 8_192 },
+        context(),
+      ),
+    ).resolves.toMatchObject({ records: [], lastErrors: [] });
+    await expect(test.runtime.close(context())).resolves.toMatchObject({
+      state: "idle",
+    });
+    await expect(
+      test.runtime.diagnostics({ maxRecords: 16, maxBytes: 8_192 }, context()),
+    ).rejects.toMatchObject({ code: "SESSION_NOT_ACTIVE" });
+  });
+
+  it("discards failed-launch records even if the replacement session ID is invalid", async () => {
+    const test = harness();
+    test.launch.mockRejectedValueOnce(
+      new PumarejoError("SESSION_CREATE_FAILED"),
+    );
+    await expect(
+      test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context()),
+    ).rejects.toMatchObject({ code: "SESSION_CREATE_FAILED" });
+    const oldStore = test.diagnostics;
+    test.sessionId.mockReturnValueOnce("invalid");
+    await expect(
+      test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context()),
+    ).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
+    expect(oldStore.query().records).toEqual([]);
+    await expect(
+      test.runtime.diagnostics({ maxRecords: 16, maxBytes: 8_192 }, context()),
+    ).rejects.toMatchObject({ code: "SESSION_NOT_ACTIVE" });
+  });
+
+  it("keeps failed-launch diagnostics queryable when owned cleanup requires a retry", async () => {
+    const test = harness();
+    test.launch.mockRejectedValueOnce(
+      new PumarejoError("SESSION_CREATE_FAILED"),
+    );
+    test.artifactClose.mockRejectedValueOnce(new PumarejoError("CLOSE_FAILED"));
+    await expect(
+      test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context()),
+    ).rejects.toMatchObject({ code: "SESSION_CREATE_FAILED" });
+    await expect(test.runtime.status(context())).resolves.toMatchObject({
+      state: "cleanup_failed",
+    });
+    await expect(
+      test.runtime.diagnostics({ maxRecords: 16, maxBytes: 8_192 }, context()),
+    ).resolves.toMatchObject({
+      lastErrors: expect.arrayContaining([
+        expect.objectContaining({ code: "session_create_failed" }),
+      ]),
+    });
+    await test.runtime.close(context());
+    await expect(
+      test.runtime.diagnostics({ maxRecords: 16, maxBytes: 8_192 }, context()),
+    ).rejects.toMatchObject({ code: "SESSION_NOT_ACTIVE" });
   });
 
   it("exposes bounded diagnostics only for the active owned session and clears them on close", async () => {
