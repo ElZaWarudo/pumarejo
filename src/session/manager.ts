@@ -479,6 +479,15 @@ export class SessionManager {
         const deadline = Date.now() + providerReadinessTimeout(request);
         let observation: Awaited<ReturnType<typeof observeLoopback>>;
         do {
+          options.signal?.throwIfAborted();
+          if (
+            !processIdentityMatches(
+              lease,
+              await this.#dependencies.process.inspect(spawned.pid),
+            )
+          ) {
+            throw new PumarejoError("SESSION_CREATE_FAILED");
+          }
           const remainingMs = Math.max(1, deadline - Date.now());
           observation = await observeLoopback(endpoint, {
             probe: probeLoopbackEndpoint,

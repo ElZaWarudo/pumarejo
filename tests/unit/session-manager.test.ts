@@ -687,6 +687,31 @@ describe("SessionManager", () => {
     expect(terminate).not.toHaveBeenCalled();
   });
 
+  it.each(["exited", "reused"])(
+    "stops provider readiness when the launch process has %s without killing a replacement",
+    async (state) => {
+      const terminate = vi.fn(async () => undefined);
+      const runtime = harness({
+        terminate,
+        inspect: async () =>
+          state === "exited"
+            ? undefined
+            : {
+                pid: 71,
+                startedAt: 2_000,
+                commandHash: "replacement",
+                sessionNonce: "c".repeat(64),
+              },
+      });
+      await expect(
+        runtime.manager.launch({ ...launchOptions, loopbackFamily: "ipv4" }),
+      ).rejects.toMatchObject({ code: "SESSION_CREATE_FAILED" });
+      expect(terminate).not.toHaveBeenCalled();
+      expect(runtime.events).not.toContain("proxy");
+      expect(runtime.manager.snapshot.state).toBe("idle");
+    },
+  );
+
   it("never spawns when an explicit occupied port is rejected", async () => {
     const runtime = harness({ failure: "reserve" });
     await expect(
