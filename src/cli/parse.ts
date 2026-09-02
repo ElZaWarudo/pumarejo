@@ -1,4 +1,10 @@
-export type CliCommandName = "init" | "doctor" | "remove" | "mcp";
+export type CliCommandName =
+  | "init"
+  | "doctor"
+  | "remove"
+  | "mcp"
+  | "recover-leases"
+  | "cleanup-artifacts";
 export type McpHost = "codex" | "claude-code" | "cursor";
 
 export type CliInvocation =
@@ -13,6 +19,12 @@ export type CliInvocation =
       readonly self?: boolean;
       readonly subcommand?: "print-config";
       readonly host?: McpHost;
+      readonly execute?: boolean;
+      readonly bindLegacy?: boolean;
+      readonly upgradeBinding?: boolean;
+      readonly manifestPath?: string;
+      readonly expectedWorkflowId?: string;
+      readonly expectedSessionId?: string;
     };
 
 export class CliUsageError extends Error {
@@ -22,7 +34,14 @@ export class CliUsageError extends Error {
   }
 }
 
-const COMMANDS = new Set<CliCommandName>(["init", "doctor", "remove", "mcp"]);
+const COMMANDS = new Set<CliCommandName>([
+  "init",
+  "doctor",
+  "remove",
+  "mcp",
+  "recover-leases",
+  "cleanup-artifacts",
+]);
 const MAX_CLI_ARGUMENTS = 32;
 const MAX_PROJECT_PATH_LENGTH = 4_096;
 
@@ -45,14 +64,23 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
 
   const command = arguments_[0] as CliCommandName | undefined;
   if (!command || !COMMANDS.has(command)) {
-    throw new CliUsageError("Expected init, doctor, remove, or mcp.");
+    throw new CliUsageError(
+      "Expected init, doctor, remove, mcp, recover-leases, or cleanup-artifacts.",
+    );
   }
 
   let project = ".";
   let projectProvided = false;
-  let dryRun = false;
+  let dryRun = command === "recover-leases" || command === "cleanup-artifacts";
   let json = false;
   let self = false;
+  let execute = false;
+  let bindLegacy = false;
+  let upgradeBinding = false;
+  let dryRunProvided = false;
+  let manifestPath: string | undefined;
+  let expectedWorkflowId: string | undefined;
+  let expectedSessionId: string | undefined;
   let subcommand: "print-config" | undefined;
   let host: McpHost | undefined;
 
@@ -79,13 +107,83 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
         break;
       }
       case "--dry-run":
-        if (command !== "init" && command !== "remove") {
+        if (
+          command !== "init" &&
+          command !== "remove" &&
+          command !== "recover-leases" &&
+          command !== "cleanup-artifacts"
+        ) {
           throw new CliUsageError(`Unknown option ${option} for ${command}.`);
         }
         dryRun = true;
+        dryRunProvided = true;
         break;
+      case "--execute":
+        if (command !== "recover-leases" && command !== "cleanup-artifacts") {
+          throw new CliUsageError(`Unknown option ${option} for ${command}.`);
+        }
+        execute = true;
+        dryRun = false;
+        break;
+      case "--bind-legacy":
+        if (command !== "recover-leases") {
+          throw new CliUsageError(`Unknown option ${option} for ${command}.`);
+        }
+        bindLegacy = true;
+        break;
+      case "--upgrade-binding":
+        if (command !== "recover-leases") {
+          throw new CliUsageError(`Unknown option ${option} for ${command}.`);
+        }
+        upgradeBinding = true;
+        break;
+      case "--manifest": {
+        if (command !== "cleanup-artifacts") {
+          throw new CliUsageError(`Unknown option ${option} for ${command}.`);
+        }
+        const value = arguments_[index + 1];
+        if (
+          !value ||
+          value.startsWith("-") ||
+          value.length > MAX_PROJECT_PATH_LENGTH ||
+          value.includes("\0")
+        ) {
+          throw new CliUsageError("--manifest requires a valid path.");
+        }
+        manifestPath = value;
+        index += 1;
+        break;
+      }
+      case "--workflow": {
+        if (command !== "cleanup-artifacts") {
+          throw new CliUsageError(`Unknown option ${option} for ${command}.`);
+        }
+        const value = arguments_[index + 1];
+        if (!value || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(value)) {
+          throw new CliUsageError("--workflow requires a bounded identifier.");
+        }
+        expectedWorkflowId = value;
+        index += 1;
+        break;
+      }
+      case "--session": {
+        if (command !== "cleanup-artifacts") {
+          throw new CliUsageError(`Unknown option ${option} for ${command}.`);
+        }
+        const value = arguments_[index + 1];
+        if (!value || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(value)) {
+          throw new CliUsageError("--session requires a bounded identifier.");
+        }
+        expectedSessionId = value;
+        index += 1;
+        break;
+      }
       case "--json":
-        if (command !== "doctor") {
+        if (
+          command !== "doctor" &&
+          command !== "recover-leases" &&
+          command !== "cleanup-artifacts"
+        ) {
           throw new CliUsageError(`Unknown option ${option} for ${command}.`);
         }
         json = true;
@@ -128,6 +226,20 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
   if (self && projectProvided) {
     throw new CliUsageError("--self cannot be combined with --project.");
   }
+  if (dryRunProvided && execute) {
+    throw new CliUsageError("--dry-run cannot be combined with --execute.");
+  }
+  if (bindLegacy && upgradeBinding) {
+    throw new CliUsageError(
+      "--bind-legacy cannot be combined with --upgrade-binding.",
+    );
+  }
+  if (command === "cleanup-artifacts" && manifestPath === undefined) {
+    throw new CliUsageError("cleanup-artifacts requires --manifest <path>.");
+  }
+  if (command === "cleanup-artifacts" && expectedWorkflowId === undefined) {
+    throw new CliUsageError("cleanup-artifacts requires --workflow <id>.");
+  }
 
   return {
     kind: "command",
@@ -138,5 +250,11 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
     ...(self ? { self: true } : {}),
     ...(subcommand === undefined ? {} : { subcommand }),
     ...(host === undefined ? {} : { host }),
+    ...(execute ? { execute: true } : {}),
+    ...(bindLegacy ? { bindLegacy: true } : {}),
+    ...(upgradeBinding ? { upgradeBinding: true } : {}),
+    ...(manifestPath === undefined ? {} : { manifestPath }),
+    ...(expectedWorkflowId === undefined ? {} : { expectedWorkflowId }),
+    ...(expectedSessionId === undefined ? {} : { expectedSessionId }),
   };
 }

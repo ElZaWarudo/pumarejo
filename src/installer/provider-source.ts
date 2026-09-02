@@ -227,6 +227,7 @@ async function listStagedFiles(root: string): Promise<{
 export async function validateProviderStaging(
   projectRoot: string,
   expectedEntries: readonly { readonly relativePath: string }[],
+  options: { readonly reconcileLineEndings?: boolean } = {},
 ): Promise<void> {
   const stageRoot = safePath(resolve(projectRoot), PROVIDER_STAGED_ROOT);
   try {
@@ -274,13 +275,21 @@ export async function validateProviderStaging(
     throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
   }
   const bundle = await readProviderBundle();
-  const expectedHashes = new Map(
-    bundle.map((entry) => [entry.sourceRelativePath, entry.afterHash]),
+  const expectedSources = new Map(
+    bundle.map((entry) => [entry.sourceRelativePath, entry.content]),
   );
   for (const sourceRelativePath of actual) {
     const stagedPath = safePath(stageRoot, sourceRelativePath);
     const source = await readFile(stagedPath, "utf8");
-    if (expectedHashes.get(sourceRelativePath) !== hash(source)) {
+    const expected = expectedSources.get(sourceRelativePath);
+    if (
+      expected === undefined ||
+      (source !== expected &&
+        !(
+          options.reconcileLineEndings === true &&
+          source.replaceAll("\r\n", "\n") === expected.replaceAll("\r\n", "\n")
+        ))
+    ) {
       throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
     }
   }

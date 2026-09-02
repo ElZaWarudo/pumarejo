@@ -25,6 +25,9 @@ import {
   recordLaunchVerification,
 } from "../../src/installer/launch-verification.js";
 import { loadProjectConfig } from "../../src/config/load.js";
+import { CustodyLeaseStore } from "../../src/session/custody-lease.js";
+import { runLeaseRecovery } from "../../src/session/lease-recovery.js";
+import type { WindowsBootIdentifier } from "../../src/platform/windows/boot-identifier.js";
 
 const FIXTURE = join(
   import.meta.dirname,
@@ -48,6 +51,17 @@ const READY_DEPENDENCIES: DoctorDependencies = {
   executableAvailable: async () => true,
   webviewAvailable: async () => true,
   portAvailable: async () => true,
+};
+
+const CURRENT_BOOT: WindowsBootIdentifier = {
+  scheme: "windows-boot-sequence/v2",
+  bootEnvironmentGuid: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  bootId: 52,
+};
+const PREVIOUS_BOOT: WindowsBootIdentifier = {
+  scheme: "windows-boot-sequence/v2",
+  bootEnvironmentGuid: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  bootId: 51,
 };
 
 afterEach(async () => {
@@ -82,6 +96,64 @@ describe("pumarejo doctor", () => {
       "residue.owned",
     ]);
     expect(new Set(report.diagnostics.map((item) => item.id))).toHaveLength(14);
+  });
+
+  it("requires semantic lease closure before residue becomes ready", async () => {
+    const project = await projectCopy();
+    await initializeProject(project);
+    const store = new CustodyLeaseStore({
+      root: join(project, ".pumarejo", "sessions"),
+      controllerId: "a".repeat(64),
+      controllerPid: 101,
+      now: () => 10_000,
+      bootIdentifier: async () => PREVIOUS_BOOT,
+      context: { command: "doctor-test", projectRoot: project },
+    });
+    await store.create({
+      controllerId: "a".repeat(64),
+      launchId: "1".repeat(32),
+      identity: {
+        pid: 202,
+        startedAt: 9_000,
+        commandHash: "b".repeat(64),
+        sessionNonce: "c".repeat(64),
+      },
+      mechanism: "windows_job_object",
+    });
+
+    const before = await doctorProject(project, {
+      ...READY_DEPENDENCIES,
+      bootIdentifier: async () => CURRENT_BOOT,
+    });
+    expect(
+      before.diagnostics.find((item) => item.id === "residue.owned"),
+    ).toMatchObject({
+      status: "warn",
+      classification: "recoverable_previous_boot",
+    });
+
+    await runLeaseRecovery({
+      projectRoot: project,
+      action: "recover",
+      execute: true,
+      platform: "win32",
+      currentBootIdentifier: async () => CURRENT_BOOT,
+      actingIdentity: async () => ({ sid: "S-1-5-21-1001", pid: 303 }),
+      now: () => 20_000,
+      operationId: "d".repeat(32),
+    });
+
+    const after = await doctorProject(project, {
+      ...READY_DEPENDENCIES,
+      bootIdentifier: async () => CURRENT_BOOT,
+    });
+    expect(
+      after.diagnostics.find((item) => item.id === "residue.owned"),
+    ).toMatchObject({
+      status: "ready",
+      classification: "verified_closed",
+    });
+    expect(after.status).toBe("ready");
   });
 
   it("keeps independent failures visible when the project and platform are unavailable", async () => {

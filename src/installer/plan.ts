@@ -43,6 +43,7 @@ import { IntegrationPlanError } from "./plan-error.js";
 import { TAURI_WEBDRIVER_PLUGIN_VERSION, VERSION } from "../version.js";
 import { detectTauriProject } from "./project.js";
 import { planRustEdit, rustBuilderOccurrences } from "./rust.js";
+import { evaluateAttributedEntry } from "./attributed-drift.js";
 import {
   applyWrites,
   type ApplyWritesOptions,
@@ -75,6 +76,15 @@ export interface IntegrationPlan {
   readonly changes: readonly PlannedIntegrationChange[];
   readonly manifestChange: PlannedFileWrite | null;
   readonly finalManifestChange: PlannedFileWrite | null;
+  /** Complete read set for a current-provider reconciliation, including unchanged inputs. */
+  readonly reconciliation?: {
+    readonly inputs: readonly {
+      readonly relativePath: string;
+      readonly hash: string;
+    }[];
+    readonly providerHashes: readonly string[];
+    readonly providerEntries: readonly IntegrationManifestChange[];
+  };
 }
 
 export interface IntegrationResult {
@@ -169,6 +179,14 @@ async function existingIntegration(
       throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
     }
     validateAppliedManifest(manifest);
+    const providerEntries = manifest.changes.filter(
+      (entry) => entry.kind === PROVIDER_KIND,
+    );
+    const currentVersion =
+      manifest.version === 2 &&
+      manifest.pumarejoVersion === VERSION &&
+      manifest.pluginVersion === TAURI_WEBDRIVER_PLUGIN_VERSION &&
+      providerEntries.length === 46;
     const currentByPath = new Map<string, string>();
     for (const entry of manifest.changes) {
       const path = resolve(projectRoot, entry.relativePath);
@@ -183,17 +201,31 @@ async function existingIntegration(
       if (
         current === null ||
         hashSource === null ||
-        contentHash(hashSource) !== entry.afterHash
+        (contentHash(hashSource) !== entry.afterHash &&
+          !(
+            currentVersion &&
+            ["rust", "cargo", "ignore"].includes(entry.kind) &&
+            evaluateAttributedEntry(entry, current, {
+              expectedWindow: windowLabel,
+            }).owned === "intact"
+          ))
+      ) {
+        throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
+      }
+      if (
+        currentVersion &&
+        entry.kind !== PROVIDER_KIND &&
+        evaluateAttributedEntry(entry, current, { expectedWindow: windowLabel })
+          .owned !== "intact"
       ) {
         throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
       }
       currentByPath.set(entry.relativePath, current);
     }
-    const providerEntries = manifest.changes.filter(
-      (entry) => entry.kind === PROVIDER_KIND,
-    );
     if (providerEntries.length > 0) {
-      await validateProviderStaging(projectRoot, providerEntries);
+      await validateProviderStaging(projectRoot, providerEntries, {
+        reconcileLineEndings: currentVersion,
+      });
     } else {
       const providerRoot = resolve(projectRoot, PROVIDER_STAGED_ROOT);
       try {
@@ -211,11 +243,80 @@ async function existingIntegration(
         }
       }
     }
-    const currentVersion =
-      manifest.version === 2 &&
-      manifest.pumarejoVersion === VERSION &&
-      manifest.pluginVersion === TAURI_WEBDRIVER_PLUGIN_VERSION &&
-      providerEntries.length === 46;
+    if (currentVersion) {
+      const bundle = await readProviderBundle();
+      const providerChanges = bundle.flatMap((entry) => {
+        const path = `${PROVIDER_STAGED_ROOT}/${entry.sourceRelativePath}`;
+        const current = currentByPath.get(path)!;
+        return current === entry.content
+          ? []
+          : [
+              change(projectRoot, path, PROVIDER_KIND, current, entry.content, [
+                providerAttribution(entry.sourceRelativePath),
+              ]),
+            ];
+      });
+      const reconciliation = {
+        inputs: [
+          {
+            relativePath: INTEGRATION_MANIFEST_RELATIVE_PATH,
+            hash: contentHash(source),
+          },
+          ...Array.from(currentByPath, ([relativePath, content]) => ({
+            relativePath,
+            hash: contentHash(content),
+          })),
+        ],
+        providerHashes: bundle.map((entry) => entry.afterHash),
+        providerEntries,
+      };
+      if (providerChanges.length === 0) {
+        return {
+          projectRoot,
+          status: "already-integrated",
+          changes: [],
+          manifestChange: null,
+          finalManifestChange: null,
+          reconciliation,
+        };
+      }
+      const manifestChanges = manifest.changes.map((entry) => {
+        const updated = providerChanges.find(
+          (item) => item.relativePath === entry.relativePath,
+        );
+        return updated === undefined
+          ? entry
+          : { ...entry, afterHash: updated.afterHash };
+      });
+      const applying = serializeIntegrationManifest(
+        createIntegrationManifest(manifestChanges, "applying"),
+      );
+      const applied = serializeIntegrationManifest(
+        createIntegrationManifest(manifestChanges, "applied"),
+      );
+      return {
+        projectRoot,
+        status: "planned",
+        changes: providerChanges,
+        reconciliation,
+        manifestChange: change(
+          projectRoot,
+          INTEGRATION_MANIFEST_RELATIVE_PATH,
+          "config",
+          source,
+          applying,
+          ["reconcile:provider-line-endings"],
+        ),
+        finalManifestChange: change(
+          projectRoot,
+          INTEGRATION_MANIFEST_RELATIVE_PATH,
+          "config",
+          applying,
+          applied,
+          ["state:integration-manifest:applied"],
+        ),
+      };
+    }
     if (!currentVersion) {
       const cargoEntry = manifest.changes.find(
         (entry) => entry.kind === "cargo",
@@ -766,17 +867,61 @@ export async function applyIntegrationPlan(
   plan: IntegrationPlan,
   writeOptions: ApplyWritesOptions = {},
 ): Promise<IntegrationResult> {
+  const expectedInputs = new Map(
+    plan.reconciliation?.inputs.map((entry) => [
+      entry.relativePath,
+      entry.hash,
+    ]),
+  );
+  const verifyReconciliation = async () => {
+    if (plan.reconciliation === undefined) return;
+    for (const [path, expected] of expectedInputs) {
+      const current = await readSafeFile(
+        plan.projectRoot,
+        resolve(plan.projectRoot, path),
+        true,
+      );
+      if (current === null || contentHash(current) !== expected) {
+        throw new IntegrationPlanError("PROJECT_CHANGED");
+      }
+    }
+    await validateProviderStaging(
+      plan.projectRoot,
+      plan.reconciliation.providerEntries,
+      { reconcileLineEndings: true },
+    );
+    const bundle = await readProviderBundle();
+    if (
+      bundle.some(
+        (entry, index) =>
+          entry.afterHash !== plan.reconciliation!.providerHashes[index],
+      )
+    ) {
+      throw new IntegrationPlanError("PROJECT_CHANGED");
+    }
+  };
+  await verifyReconciliation();
   if (plan.status === "already-integrated") {
     return { status: "already-integrated", changes: [] };
   }
   if (plan.manifestChange === null || plan.finalManifestChange === null) {
     throw new IntegrationPlanError("WRITE_FAILED");
   }
-  await applyWrites(
-    plan.projectRoot,
-    [plan.manifestChange, ...plan.changes, plan.finalManifestChange],
-    writeOptions,
-  );
+  const writes = [
+    plan.manifestChange,
+    ...plan.changes,
+    plan.finalManifestChange,
+  ];
+  await applyWrites(plan.projectRoot, writes, {
+    beforeWrite: async (index) => {
+      await writeOptions.beforeWrite?.(index);
+      if (index > 0 && plan.reconciliation !== undefined) {
+        const previous = writes[index - 1];
+        expectedInputs.set(previous.relativePath, previous.afterHash);
+      }
+      await verifyReconciliation();
+    },
+  });
   return { status: "applied", changes: reportChanges(plan) };
 }
 

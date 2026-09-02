@@ -17,8 +17,14 @@ import type {
   ProcessIdentity,
 } from "../platform/types.js";
 import type { LoopbackFamily } from "../platform/loopback.js";
+import {
+  readWindowsBootIdentifier,
+  validateWindowsBootIdentifier,
+  type WindowsBootIdentifier,
+} from "../platform/windows/boot-identifier.js";
 
-export const CUSTODY_LEASE_VERSION = 1 as const;
+export const LEGACY_CUSTODY_LEASE_VERSION = 1 as const;
+export const CUSTODY_LEASE_VERSION = 2 as const;
 export const CUSTODY_LEASE_MAX_BYTES = 32 * 1024;
 export const CUSTODY_LEASE_MAX_COUNT = 64;
 
@@ -44,8 +50,28 @@ export type CustodyLeaseState =
   | "retryable"
   | "closed";
 
+export interface CustodyLeaseContext {
+  readonly command: string;
+  readonly projectRoot?: string;
+  readonly runtimeMode?: "visible" | "background";
+}
+
+export interface CustodyLeaseRecoveryEvent {
+  readonly operationId: string;
+  readonly recoveredAt: number;
+  readonly actorSid: string;
+  readonly actorPid: number;
+  readonly source: "creation_boot" | "legacy_binding";
+  readonly reason: "previous_boot";
+  readonly leaseSha256: string;
+  readonly previousBootIdentifier: WindowsBootIdentifier;
+  readonly currentBootIdentifier: WindowsBootIdentifier;
+}
+
 export interface CustodyLeaseRecord {
-  readonly version: typeof CUSTODY_LEASE_VERSION;
+  readonly version:
+    | typeof LEGACY_CUSTODY_LEASE_VERSION
+    | typeof CUSTODY_LEASE_VERSION;
   readonly launchId: string;
   readonly controllerId: string;
   readonly controllerPid: number;
@@ -64,6 +90,11 @@ export interface CustodyLeaseRecord {
   readonly state: CustodyLeaseState;
   readonly createdAt: number;
   readonly updatedAt: number;
+  readonly platform?: "win32" | "linux";
+  readonly bootIdentifier?: WindowsBootIdentifier;
+  readonly bootProvenance?: "creation" | "legacy_binding";
+  readonly context?: CustodyLeaseContext;
+  readonly recoveryHistory?: readonly CustodyLeaseRecoveryEvent[];
 }
 
 export interface CustodyLeaseInput {
@@ -79,6 +110,9 @@ export interface CustodyLeaseInput {
   readonly proxyPort?: number;
   readonly launchId?: string;
   readonly now?: number;
+  readonly platform?: "win32" | "linux";
+  readonly bootIdentifier?: WindowsBootIdentifier;
+  readonly context?: CustodyLeaseContext;
 }
 
 export interface CustodyLeaseScan {
@@ -94,6 +128,8 @@ export interface CustodyLeaseStoreOptions {
   readonly now?: () => number;
   readonly maxBytes?: number;
   readonly maxCount?: number;
+  readonly bootIdentifier?: () => Promise<WindowsBootIdentifier>;
+  readonly context?: CustodyLeaseContext;
 }
 
 export type CustodyProofFailure =
@@ -174,6 +210,60 @@ function boundedControllerId(value: unknown): value is string {
   return typeof value === "string" && HEX_64.test(value);
 }
 
+function validSid(value: unknown): value is string {
+  return typeof value === "string" && /^S-\d(?:-\d+)+$/u.test(value);
+}
+
+function validContext(value: unknown): value is CustodyLeaseContext {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const context = value as Record<string, unknown>;
+  const keys = Object.keys(context).sort().join(",");
+  if (
+    keys !== "command" &&
+    keys !== "command,projectRoot" &&
+    keys !== "command,runtimeMode" &&
+    keys !== "command,projectRoot,runtimeMode"
+  ) {
+    return false;
+  }
+  return (
+    typeof context.command === "string" &&
+    /^[a-z][a-z0-9_-]{0,63}$/u.test(context.command) &&
+    (context.projectRoot === undefined ||
+      (typeof context.projectRoot === "string" &&
+        context.projectRoot.length > 0 &&
+        context.projectRoot.length <= 4_096)) &&
+    (context.runtimeMode === undefined ||
+      context.runtimeMode === "visible" ||
+      context.runtimeMode === "background")
+  );
+}
+
+function validRecoveryEvent(
+  value: unknown,
+): value is CustodyLeaseRecoveryEvent {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const event = value as Record<string, unknown>;
+  return (
+    Object.keys(event).sort().join(",") ===
+      "actorPid,actorSid,currentBootIdentifier,leaseSha256,operationId,previousBootIdentifier,reason,recoveredAt,source" &&
+    boundedId(event.operationId) &&
+    validTimestamp(event.recoveredAt) &&
+    validSid(event.actorSid) &&
+    validPositiveInteger(event.actorPid) &&
+    (event.source === "creation_boot" || event.source === "legacy_binding") &&
+    event.reason === "previous_boot" &&
+    typeof event.leaseSha256 === "string" &&
+    HEX_64.test(event.leaseSha256) &&
+    validateWindowsBootIdentifier(event.previousBootIdentifier) &&
+    validateWindowsBootIdentifier(event.currentBootIdentifier)
+  );
+}
+
 function ensureKnownKeys(value: Record<string, unknown>): boolean {
   const allowed = new Set([
     "version",
@@ -195,6 +285,11 @@ function ensureKnownKeys(value: Record<string, unknown>): boolean {
     "state",
     "createdAt",
     "updatedAt",
+    "platform",
+    "bootIdentifier",
+    "bootProvenance",
+    "context",
+    "recoveryHistory",
   ]);
   return Object.keys(value).every((key) => allowed.has(key));
 }
@@ -206,7 +301,8 @@ export function validateCustodyLease(
   const record = value as Record<string, unknown>;
   if (!ensureKnownKeys(record)) return false;
   if (
-    record.version !== CUSTODY_LEASE_VERSION ||
+    (record.version !== LEGACY_CUSTODY_LEASE_VERSION &&
+      record.version !== CUSTODY_LEASE_VERSION) ||
     !boundedId(record.launchId) ||
     !boundedControllerId(record.controllerId) ||
     !validPositiveInteger(record.controllerPid) ||
@@ -229,6 +325,40 @@ export function validateCustodyLease(
     !optionalPositiveInteger(record.sessionId) ||
     !validProviderMetadata(record.providerPort, record.providerFamily) ||
     !optionalPort(record.proxyPort)
+  ) {
+    return false;
+  }
+  if (record.version === LEGACY_CUSTODY_LEASE_VERSION) {
+    return (
+      record.platform === undefined &&
+      record.bootIdentifier === undefined &&
+      record.bootProvenance === undefined &&
+      record.context === undefined &&
+      record.recoveryHistory === undefined
+    );
+  }
+  if (
+    (record.platform !== "win32" && record.platform !== "linux") ||
+    !validContext(record.context) ||
+    !Array.isArray(record.recoveryHistory) ||
+    record.recoveryHistory.length > 32 ||
+    !record.recoveryHistory.every(validRecoveryEvent)
+  ) {
+    return false;
+  }
+  const windowsMechanism =
+    record.mechanism === "windows_job_object" ||
+    record.mechanism === "windows_validated_tree";
+  if (
+    windowsMechanism !== (record.platform === "win32") ||
+    (windowsMechanism &&
+      (!validateWindowsBootIdentifier(record.bootIdentifier) ||
+        (record.bootProvenance !== "creation" &&
+          record.bootProvenance !== "legacy_binding"))) ||
+    (!windowsMechanism &&
+      (record.bootIdentifier !== undefined ||
+        record.bootProvenance !== undefined)) ||
+    (record.recoveryHistory.length > 0 && record.state !== "closed")
   ) {
     return false;
   }
@@ -306,6 +436,8 @@ export class CustodyLeaseStore {
   readonly #now: () => number;
   readonly #maxBytes: number;
   readonly #maxCount: number;
+  readonly #bootIdentifier: () => Promise<WindowsBootIdentifier>;
+  readonly #context: CustodyLeaseContext;
 
   constructor(options: CustodyLeaseStoreOptions) {
     this.#root = resolve(options.root);
@@ -320,8 +452,14 @@ export class CustodyLeaseStore {
       Math.max(1, options.maxCount ?? CUSTODY_LEASE_MAX_COUNT),
       CUSTODY_LEASE_MAX_COUNT,
     );
+    this.#bootIdentifier =
+      options.bootIdentifier ?? (() => readWindowsBootIdentifier());
+    this.#context = options.context ?? { command: "session-manager" };
     if (!boundedControllerId(this.#controllerId)) {
       throw new Error("Custody controller identity is invalid.");
+    }
+    if (!validContext(this.#context)) {
+      throw new Error("Custody lease context is invalid.");
     }
   }
 
@@ -350,6 +488,14 @@ export class CustodyLeaseStore {
     if (!boundedId(launchId))
       throw new Error("Custody launch identity is invalid.");
     const now = input.now ?? this.#now();
+    const windowsMechanism =
+      input.mechanism === "windows_job_object" ||
+      input.mechanism === "windows_validated_tree";
+    const platform = input.platform ?? (windowsMechanism ? "win32" : "linux");
+    const bootIdentifier = windowsMechanism
+      ? (input.bootIdentifier ?? (await this.#bootIdentifier()))
+      : undefined;
+    const context = input.context ?? this.#context;
     const record: CustodyLeaseRecord = {
       version: CUSTODY_LEASE_VERSION,
       launchId,
@@ -378,6 +524,13 @@ export class CustodyLeaseStore {
       state: "active",
       createdAt: now,
       updatedAt: now,
+      platform,
+      ...(bootIdentifier === undefined ? {} : { bootIdentifier }),
+      ...(bootIdentifier === undefined
+        ? {}
+        : { bootProvenance: "creation" as const }),
+      context,
+      recoveryHistory: [],
     };
     if (!validateCustodyLease(record))
       throw new Error("Custody lease fields are invalid.");

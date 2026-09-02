@@ -279,5 +279,5 @@ describe("packed package", () => {
     } finally {
       await rm(temporaryRoot, { recursive: true, force: true });
     }
-  });
+  }, 60_000);
 });

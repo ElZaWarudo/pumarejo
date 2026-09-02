@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { lstat, readdir, realpath } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath } from "node:fs/promises";
 import { createServer } from "node:net";
 import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -11,6 +11,17 @@ import {
 } from "../config/load.js";
 import { resolvedLaunchEnvironment } from "../platform/launch-environment.js";
 import { executableBasename } from "../shared/executable.js";
+import {
+  readWindowsBootIdentifier,
+  sameWindowsBootIdentifier,
+  type WindowsBootIdentifier,
+} from "../platform/windows/boot-identifier.js";
+import {
+  CUSTODY_LEASE_MAX_BYTES,
+  CUSTODY_LEASE_MAX_COUNT,
+  CUSTODY_LEASE_VERSION,
+  validateCustodyLease,
+} from "../session/custody-lease.js";
 import { TAURI_WEBDRIVER_PLUGIN_VERSION, VERSION } from "../version.js";
 import { evaluateAttributedEntry } from "./attributed-drift.js";
 import { cargoPluginIntegration, isSupportedProviderVersion } from "./cargo.js";
@@ -58,7 +69,14 @@ export interface DoctorDiagnostic {
     | "not_detected"
     | "not_on_path"
     | "verified"
-    | "version_drift";
+    | "version_drift"
+    | "recoverable_previous_boot"
+    | "ambiguous_same_boot"
+    | "ambiguous_missing_boot"
+    | "ambiguous_residue"
+    | "malformed"
+    | "artifact_residue"
+    | "verified_closed";
   readonly evidence?: {
     readonly executable?: string;
     readonly arguments?: readonly string[];
@@ -82,6 +100,7 @@ export interface DoctorDependencies {
   ) => Promise<boolean>;
   readonly webviewAvailable: (platform: NodeJS.Platform) => Promise<boolean>;
   readonly portAvailable: (port: number) => Promise<boolean>;
+  readonly bootIdentifier?: () => Promise<WindowsBootIdentifier>;
 }
 
 const execFileAsync = promisify(execFile);
@@ -202,6 +221,7 @@ const DEFAULT_DEPENDENCIES: DoctorDependencies = {
   executableAvailable,
   webviewAvailable: defaultWebviewAvailable,
   portAvailable,
+  bootIdentifier: readWindowsBootIdentifier,
 };
 
 function diagnostic(
@@ -465,6 +485,7 @@ function safeLaunchArguments(arguments_: readonly string[]): readonly string[] {
 
 async function residueDiagnostic(
   projectRoot: string | undefined,
+  dependencies: DoctorDependencies,
 ): Promise<DoctorDiagnostic> {
   if (projectRoot === undefined) {
     return diagnostic(
@@ -488,6 +509,27 @@ async function residueDiagnostic(
       interruptedManifest = true;
     }
   }
+  let artifactResidue = 0;
+  let unsafeArtifactResidue = 0;
+  for (const name of ["qa-project", "regression-artifacts"] as const) {
+    const artifactRoot = resolve(projectRoot, ".pumarejo", name);
+    try {
+      const metadata = await lstat(artifactRoot);
+      if (
+        metadata.isSymbolicLink() ||
+        !metadata.isDirectory() ||
+        (await realpath(artifactRoot)) !== artifactRoot
+      ) {
+        unsafeArtifactResidue += 1;
+      } else {
+        artifactResidue += 1;
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        unsafeArtifactResidue += 1;
+      }
+    }
+  }
   try {
     const metadata = await lstat(sessions);
     if (
@@ -497,19 +539,167 @@ async function residueDiagnostic(
     ) {
       throw new Error("unsafe sessions directory");
     }
-    const entries = await readdir(sessions);
-    return entries.length === 0 && !interruptedManifest
-      ? diagnostic("residue.owned", "ready", "No owned session residue exists.")
+    const entries = await readdir(sessions, { withFileTypes: true });
+    let verifiedClosed = 0;
+    let previousBoot = 0;
+    let sameBoot = 0;
+    let missingBoot = 0;
+    let malformed = 0;
+    let otherActive = 0;
+    let currentBoot: WindowsBootIdentifier | undefined;
+    for (const entry of entries.slice(0, CUSTODY_LEASE_MAX_COUNT)) {
+      if (!/^[a-f0-9]{32}\.json$/u.test(entry.name) || !entry.isFile()) {
+        malformed += 1;
+        continue;
+      }
+      const leasePath = resolve(sessions, entry.name);
+      try {
+        const leaseMetadata = await lstat(leasePath);
+        if (
+          leaseMetadata.isSymbolicLink() ||
+          !leaseMetadata.isFile() ||
+          leaseMetadata.size > CUSTODY_LEASE_MAX_BYTES ||
+          (await realpath(leasePath)) !== leasePath
+        ) {
+          malformed += 1;
+          continue;
+        }
+        const value: unknown = JSON.parse(await readFile(leasePath, "utf8"));
+        if (!validateCustodyLease(value)) {
+          malformed += 1;
+          continue;
+        }
+        if (value.version !== CUSTODY_LEASE_VERSION) {
+          missingBoot += 1;
+          continue;
+        }
+        if (value.state === "closed") {
+          verifiedClosed += 1;
+          continue;
+        }
+        if (value.platform !== "win32" || value.bootIdentifier === undefined) {
+          otherActive += 1;
+          continue;
+        }
+        currentBoot ??= await (
+          dependencies.bootIdentifier ?? readWindowsBootIdentifier
+        )();
+        if (sameWindowsBootIdentifier(value.bootIdentifier, currentBoot)) {
+          sameBoot += 1;
+        } else {
+          previousBoot += 1;
+        }
+      } catch {
+        malformed += 1;
+      }
+    }
+    malformed += Math.max(0, entries.length - CUSTODY_LEASE_MAX_COUNT);
+
+    if (interruptedManifest) {
+      return diagnostic(
+        "residue.owned",
+        "warn",
+        "An interrupted integration journal requires recovery.",
+        "Inspect the journal and complete or reverse its attributable edits.",
+        { classification: "ambiguous_residue" },
+      );
+    }
+    if (artifactResidue > 0 || unsafeArtifactResidue > 0) {
+      return diagnostic(
+        "residue.owned",
+        "warn",
+        `${artifactResidue + unsafeArtifactResidue} owned artifact roots require identity-bound cleanup.`,
+        "Run the supported artifact cleanup command with an authorized manifest.",
+        {
+          classification:
+            unsafeArtifactResidue > 0
+              ? "ambiguous_residue"
+              : "artifact_residue",
+          evidence: {
+            provenance: "artifact-root-inspection",
+            confidence: unsafeArtifactResidue > 0 ? "heuristic" : "verified",
+          },
+        },
+      );
+    }
+    const ambiguous = malformed + sameBoot + missingBoot + otherActive;
+    if (ambiguous > 0) {
+      const classification =
+        malformed > 0
+          ? "malformed"
+          : missingBoot > 0
+            ? "ambiguous_missing_boot"
+            : sameBoot > 0
+              ? "ambiguous_same_boot"
+              : "ambiguous_residue";
+      return diagnostic(
+        "residue.owned",
+        "warn",
+        `${ambiguous} custody leases are ambiguous and were not recovered.`,
+        "Inspect the evidence and use only the supported lease recovery command.",
+        {
+          classification,
+          evidence: {
+            provenance: "custody-lease-inspection",
+            confidence: malformed > 0 ? "heuristic" : "verified",
+          },
+        },
+      );
+    }
+    if (previousBoot > 0) {
+      return diagnostic(
+        "residue.owned",
+        "warn",
+        `${previousBoot} custody leases are proven to belong to a previous Windows boot.`,
+        "Run pumarejo recover-leases --execute for this project.",
+        {
+          classification: "recoverable_previous_boot",
+          evidence: {
+            provenance: "windows-boot-identity",
+            confidence: "verified",
+          },
+        },
+      );
+    }
+    return verifiedClosed > 0
+      ? diagnostic(
+          "residue.owned",
+          "ready",
+          `${verifiedClosed} custody leases have verified semantic closure.`,
+          undefined,
+          {
+            classification: "verified_closed",
+            evidence: {
+              provenance: "custody-lease-v2",
+              confidence: "verified",
+            },
+          },
+        )
       : diagnostic(
           "residue.owned",
-          "warn",
-          interruptedManifest
-            ? "An interrupted integration journal requires recovery."
-            : `${entries.length} owned session residue entries require recovery.`,
-          "Run the documented cleanup flow; doctor never terminates processes.",
+          "ready",
+          "No owned session residue exists.",
         );
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      if (artifactResidue > 0 || unsafeArtifactResidue > 0) {
+        return diagnostic(
+          "residue.owned",
+          "warn",
+          `${artifactResidue + unsafeArtifactResidue} owned artifact roots require identity-bound cleanup.`,
+          "Run the supported artifact cleanup command with an authorized manifest.",
+          {
+            classification:
+              unsafeArtifactResidue > 0
+                ? "ambiguous_residue"
+                : "artifact_residue",
+            evidence: {
+              provenance: "artifact-root-inspection",
+              confidence: unsafeArtifactResidue > 0 ? "heuristic" : "verified",
+            },
+          },
+        );
+      }
       return interruptedManifest
         ? diagnostic(
             "residue.owned",
@@ -772,7 +962,7 @@ export async function doctorProject(
         : "Release the configured port or omit webdriverPort.",
     ),
   );
-  diagnostics.push(await residueDiagnostic(projectRoot));
+  diagnostics.push(await residueDiagnostic(projectRoot, dependencies));
   return { status: overallStatus(diagnostics), diagnostics };
 }
 

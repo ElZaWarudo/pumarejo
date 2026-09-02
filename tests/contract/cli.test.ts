@@ -47,6 +47,88 @@ describe("CLI contract", () => {
     ).toThrowError(/invalid path/);
   });
 
+  it("makes lease recovery dry-run by default and mutation explicit", () => {
+    expect(parseCliArgs(["recover-leases", "--project", "."])).toEqual({
+      kind: "command",
+      command: "recover-leases",
+      project: ".",
+      dryRun: true,
+      json: false,
+    });
+    expect(
+      parseCliArgs([
+        "recover-leases",
+        "--project",
+        ".",
+        "--bind-legacy",
+        "--execute",
+        "--json",
+      ]),
+    ).toMatchObject({
+      command: "recover-leases",
+      dryRun: false,
+      execute: true,
+      bindLegacy: true,
+      json: true,
+    });
+    expect(() =>
+      parseCliArgs([
+        "recover-leases",
+        "--project",
+        ".",
+        "--dry-run",
+        "--execute",
+      ]),
+    ).toThrowError(/cannot be combined/i);
+    expect(
+      parseCliArgs([
+        "recover-leases",
+        "--project",
+        ".",
+        "--upgrade-binding",
+        "--execute",
+      ]),
+    ).toMatchObject({
+      command: "recover-leases",
+      upgradeBinding: true,
+      execute: true,
+    });
+    expect(() =>
+      parseCliArgs(["recover-leases", "--bind-legacy", "--upgrade-binding"]),
+    ).toThrowError(/cannot be combined/i);
+    expect(() => parseCliArgs(["doctor", "--execute"])).toThrowError(
+      /unknown option/i,
+    );
+  });
+
+  it("requires an explicit artifact manifest and origin assertion", () => {
+    expect(
+      parseCliArgs([
+        "cleanup-artifacts",
+        "--project",
+        ".",
+        "--manifest",
+        ".pumarejo/cleanup.json",
+        "--workflow",
+        "icook-repair",
+        "--session",
+        "historical-qa",
+      ]),
+    ).toMatchObject({
+      command: "cleanup-artifacts",
+      dryRun: true,
+      manifestPath: ".pumarejo/cleanup.json",
+      expectedWorkflowId: "icook-repair",
+      expectedSessionId: "historical-qa",
+    });
+    expect(() =>
+      parseCliArgs(["cleanup-artifacts", "--manifest", "manifest.json"]),
+    ).toThrowError(/--workflow/);
+    expect(() =>
+      parseCliArgs(["cleanup-artifacts", "--workflow", "repair"]),
+    ).toThrowError(/--manifest/);
+  });
+
   it("executes help and version with the documented exit code", async () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
@@ -60,6 +142,8 @@ describe("CLI contract", () => {
     expect(stdout.join("")).toContain("pumarejo mcp --project <path>");
     expect(stdout.join("")).toContain("pumarejo doctor --self [--json]");
     expect(stdout.join("")).toContain("pumarejo mcp print-config");
+    expect(stdout.join("")).toContain("pumarejo recover-leases");
+    expect(stdout.join("")).toContain("pumarejo cleanup-artifacts");
     expect(stdout.join("")).toContain("0.1.0");
     expect(stderr).toEqual([]);
   });

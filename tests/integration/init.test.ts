@@ -20,13 +20,17 @@ import {
   initializeProject,
   planIntegration,
 } from "../../src/installer/plan.js";
-import { CARGO_EOL_CRLF_ATTRIBUTION } from "../../src/installer/cargo.js";
+import {
+  CARGO_EOL_CRLF_ATTRIBUTION,
+  CARGO_EOL_LF_ATTRIBUTION,
+} from "../../src/installer/cargo.js";
 import { contentHash } from "../../src/installer/manifest.js";
 import { removeIntegration } from "../../src/installer/remove.js";
 import {
   PROVIDER_KIND,
   PROVIDER_SOURCE_ALLOWLIST,
   PROVIDER_STAGED_ROOT,
+  readProviderBundle,
 } from "../../src/installer/provider-source.js";
 
 const FIXTURE_ROOT = join(
@@ -37,6 +41,170 @@ const FIXTURE_ROOT = join(
   "pnpm-json",
 );
 const temporaryDirectories: string[] = [];
+
+async function lineEndingRecoveryFixture() {
+  const project = await projectCopy();
+  await initializeProject(project);
+  const manifestPath = join(project, ".pumarejo/integration-manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const bundle = await readProviderBundle();
+  const provider = bundle.find(
+    (entry) => entry.sourceRelativePath === "src/platform/executor.rs",
+  )!;
+  const providerPath = `${PROVIDER_STAGED_ROOT}/${provider.sourceRelativePath}`;
+  const alternate = provider.content.includes("\r\n")
+    ? provider.content.replaceAll("\r\n", "\n")
+    : provider.content.replaceAll("\n", "\r\n");
+  await writeFile(join(project, providerPath), alternate);
+  manifest.changes.find(
+    (entry: { relativePath: string }) => entry.relativePath === providerPath,
+  ).afterHash = contentHash(alternate);
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  return { project, manifestPath, manifest, provider, providerPath };
+}
+
+describe("current-provider line-ending reconciliation", () => {
+  it("recovers verified EOL drift, preserves unrelated edits and original attribution, and repeats without writes", async () => {
+    const { project, manifest, manifestPath, provider, providerPath } =
+      await lineEndingRecoveryFixture();
+    const appPaths = [
+      "src-tauri/src/lib.rs",
+      "src-tauri/Cargo.toml",
+      ".gitignore",
+    ];
+    const before = new Map<string, string>();
+    for (const path of appPaths) {
+      const original = await readFile(join(project, path), "utf8");
+      const eol = original.includes("\r\n") ? "\r\n" : "\n";
+      const content =
+        original +
+        eol +
+        (path.endsWith(".rs")
+          ? "// unrelated application edit"
+          : "# unrelated application edit") +
+        eol;
+      await writeFile(join(project, path), content);
+      before.set(path, content);
+    }
+    const snapshot = await treeSnapshot(project);
+    await expect(
+      initializeProject(project, { dryRun: true }),
+    ).resolves.toMatchObject({ status: "planned" });
+    expect(await treeSnapshot(project)).toBe(snapshot);
+    await expect(initializeProject(project)).resolves.toMatchObject({
+      status: "applied",
+      changes: [expect.objectContaining({ relativePath: providerPath })],
+    });
+    expect(await readFile(join(project, providerPath), "utf8")).toBe(
+      provider.content,
+    );
+    const after = JSON.parse(await readFile(manifestPath, "utf8"));
+    for (const path of appPaths) {
+      expect(await readFile(join(project, path), "utf8")).toBe(
+        before.get(path),
+      );
+      expect(
+        after.changes.find(
+          (entry: { relativePath: string }) => entry.relativePath === path,
+        ),
+      ).toEqual(
+        manifest.changes.find(
+          (entry: { relativePath: string }) => entry.relativePath === path,
+        ),
+      );
+    }
+    const recovered = await treeSnapshot(project);
+    await expect(initializeProject(project)).resolves.toMatchObject({
+      status: "already-integrated",
+      changes: [],
+    });
+    expect(await treeSnapshot(project)).toBe(recovered);
+  });
+
+  it.each([
+    "tampered-provider",
+    "forged-provider-hash",
+    "missing-provider",
+    "missing-manifest",
+    "foreign-file",
+    "foreign-directory",
+    "owned-rust",
+    "capability",
+    "config",
+  ])("rejects %s without writes", async (fault) => {
+    const { project, manifestPath, manifest, providerPath } =
+      await lineEndingRecoveryFixture();
+    if (fault === "missing-provider") await rm(join(project, providerPath));
+    if (fault === "missing-manifest") await rm(manifestPath);
+    if (fault === "foreign-file")
+      await writeFile(
+        join(project, PROVIDER_STAGED_ROOT, "foreign.txt"),
+        "foreign",
+      );
+    if (fault === "foreign-directory")
+      await mkdir(join(project, PROVIDER_STAGED_ROOT, "foreign"));
+    if (fault === "tampered-provider" || fault === "forged-provider-hash") {
+      const content = "foreign executable content\n";
+      await writeFile(join(project, providerPath), content);
+      if (fault === "forged-provider-hash") {
+        manifest.changes.find(
+          (entry: { relativePath: string }) =>
+            entry.relativePath === providerPath,
+        ).afterHash = contentHash(content);
+        await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+      }
+    }
+    if (fault === "owned-rust") {
+      const path = join(project, "src-tauri/src/lib.rs");
+      await writeFile(
+        path,
+        (await readFile(path, "utf8")).replace(
+          "// <pumarejo:begin>",
+          "// changed-owned-marker",
+        ),
+      );
+    }
+    for (const [name, path] of [
+      ["capability", ".pumarejo/agent-capability.json"],
+      ["config", ".pumarejo.json"],
+    ]) {
+      if (fault === name)
+        await writeFile(
+          join(project, path),
+          (await readFile(join(project, path), "utf8")) + "\n",
+        );
+    }
+    const snapshot = await treeSnapshot(project);
+    await expect(initializeProject(project)).rejects.toThrow();
+    expect(await treeSnapshot(project)).toBe(snapshot);
+  });
+
+  it("rejects a stale unchanged input and rolls back a failed provider write", async () => {
+    const { project, providerPath } = await lineEndingRecoveryFixture();
+    const plan = await planIntegration(project);
+    const rust = join(project, "src-tauri/src/lib.rs");
+    await writeFile(
+      rust,
+      (await readFile(rust, "utf8")) + "\n// concurrent edit\n",
+    );
+    const stale = await treeSnapshot(project);
+    await expect(applyIntegrationPlan(plan)).rejects.toThrow();
+    expect(await treeSnapshot(project)).toBe(stale);
+    const fresh = await planIntegration(project);
+    const before = await treeSnapshot(project);
+    await expect(
+      applyIntegrationPlan(fresh, {
+        beforeWrite: (index) => {
+          if (index === 1) throw new Error("injected failure");
+        },
+      }),
+    ).rejects.toThrow();
+    expect(await treeSnapshot(project)).toBe(before);
+    expect(fresh.changes.map((entry) => entry.relativePath)).toEqual([
+      providerPath,
+    ]);
+  });
+});
 
 async function projectCopy(fixture = "pnpm-json"): Promise<string> {
   const project = await mkdtemp(join(tmpdir(), "pumarejo-init-"));
@@ -137,6 +305,10 @@ describe("Tauri project initialization", () => {
 
   it("applies once and reports an unchanged integration on the second run", async () => {
     const project = await projectCopy();
+    const cargoBefore = await readFile(
+      join(project, "src-tauri", "Cargo.toml"),
+      "utf8",
+    );
     const first = await initializeProject(project);
     const afterFirst = await treeSnapshot(project);
     const second = await initializeProject(project);
@@ -256,7 +428,11 @@ describe("Tauri project initialization", () => {
     );
     expect(
       manifest.changes.find((change) => change.kind === "cargo")?.attribution,
-    ).toContain(CARGO_EOL_CRLF_ATTRIBUTION);
+    ).toContain(
+      cargoBefore.includes("\r\n")
+        ? CARGO_EOL_CRLF_ATTRIBUTION
+        : CARGO_EOL_LF_ATTRIBUTION,
+    );
   });
 
   it("rejects repeated init when uniform Cargo EOL provenance is removed", async () => {

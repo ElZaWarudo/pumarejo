@@ -6,9 +6,11 @@ import { serveMcpOverStdio } from "../mcp/server.js";
 import { PumarejoError, toErrorEnvelope } from "../shared/errors.js";
 import { VERSION } from "../version.js";
 import { runDoctorCommand } from "./doctor.js";
+import { runCleanupArtifactsCommand } from "./cleanup-artifacts.js";
 import { runInitCommand } from "./init.js";
 import { CliUsageError, parseCliArgs, type CliInvocation } from "./parse.js";
 import { runRemoveCommand } from "./remove.js";
+import { runRecoverLeasesCommand } from "./recover-leases.js";
 import { printMcpConfig } from "./print-config.js";
 import type { McpHost } from "./parse.js";
 
@@ -21,6 +23,10 @@ Usage:
   pumarejo doctor [--project <path>] [--json]
   pumarejo doctor --self [--json]
   pumarejo remove [--project <path>] [--dry-run]
+  pumarejo recover-leases [--project <path>] [--dry-run] [--bind-legacy | --upgrade-binding] [--json]
+  pumarejo recover-leases [--project <path>] --execute [--bind-legacy | --upgrade-binding] [--json]
+  pumarejo cleanup-artifacts --project <path> --manifest <path> --workflow <id> [--session <id>] [--dry-run] [--json]
+  pumarejo cleanup-artifacts --project <path> --manifest <path> --workflow <id> [--session <id>] --execute [--json]
   pumarejo mcp --project <path>
   pumarejo mcp print-config --host <codex|claude-code|cursor> --project <path>
   pumarejo --version
@@ -65,6 +71,14 @@ async function defaultHandler(
   }
   if (invocation.command === "doctor") {
     await runDoctorCommand(invocation, channels);
+    return;
+  }
+  if (invocation.command === "recover-leases") {
+    await runRecoverLeasesCommand(invocation, channels);
+    return;
+  }
+  if (invocation.command === "cleanup-artifacts") {
+    await runCleanupArtifactsCommand(invocation, channels);
     return;
   }
   throw new PumarejoError("INTEGRATION_INCOMPLETE");

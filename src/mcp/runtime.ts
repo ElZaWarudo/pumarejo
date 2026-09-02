@@ -340,6 +340,7 @@ function defaultManager(
     return new SessionManager({
       process: createWindowsProcessAdapter(),
       leaseRoot: join(config.projectRoot, ".pumarejo", "sessions"),
+      leaseContext: { command: "mcp", projectRoot: config.projectRoot },
       custodyEvidence,
       loopbackEvidence,
       prepareLaunch: (options) =>
@@ -355,6 +356,7 @@ function defaultManager(
   return new SessionManager({
     process: createLinuxProcessAdapter(),
     leaseRoot: join(config.projectRoot, ".pumarejo", "sessions"),
+    leaseContext: { command: "mcp", projectRoot: config.projectRoot },
     custodyEvidence,
     loopbackEvidence,
     prepareLaunch: (options) =>

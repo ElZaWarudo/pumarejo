@@ -34,6 +34,7 @@ import {
   identityForLease,
   proveCustodyOwnership,
   sanitizeCustodyEvidence,
+  type CustodyLeaseContext,
   type CustodyLeaseRecord,
   type SanitizedCustodyEvidence,
 } from "./custody-lease.js";
@@ -83,6 +84,7 @@ export interface SessionManagerDependencies {
   /** Internal durable lease root. Omit only for non-native test doubles. */
   readonly leaseRoot?: string;
   readonly leaseStore?: CustodyLeaseStore;
+  readonly leaseContext?: Omit<CustodyLeaseContext, "runtimeMode">;
   readonly custodyEvidence?: (
     evidence: SanitizedCustodyEvidence,
   ) => void | Promise<void>;
@@ -189,6 +191,7 @@ export class SessionManager {
         : new CustodyLeaseStore({
             root: this.#dependencies.leaseRoot,
             controllerId: this.#controllerId,
+            context: this.#dependencies.leaseContext,
           }));
   }
 
@@ -455,6 +458,12 @@ export class SessionManager {
           ...(custodyFacts.sessionId === undefined
             ? {}
             : { sessionId: custodyFacts.sessionId }),
+          context: {
+            ...(this.#dependencies.leaseContext ?? {
+              command: "session-manager",
+            }),
+            runtimeMode: options.mode,
+          },
         });
         await this.emitCustodyEvidence(
           sanitizeCustodyEvidence({
