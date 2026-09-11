@@ -1087,7 +1087,7 @@ describe("application-scoped MCP runtime", () => {
     expect(test.artifactClose).toHaveBeenCalledTimes(2);
   });
 
-  it("cancels an active call and closes every resource", async () => {
+  it("cancels an active snapshot without closing the session or blocking follow-up observations", async () => {
     const test = harness();
     await test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context());
     const controller = new AbortController();
@@ -1113,20 +1113,289 @@ describe("application-scoped MCP runtime", () => {
     controller.abort(new DOMException("cancelled", "AbortError"));
 
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
-    expect(test.artifactClose).toHaveBeenCalledOnce();
-    expect(test.managerClose).toHaveBeenCalledOnce();
+    expect(test.artifactClose).not.toHaveBeenCalled();
+    expect(test.managerClose).not.toHaveBeenCalled();
     await expect(
-      test.runtime.snapshot(SNAPSHOT_INPUT, context()),
-    ).rejects.toMatchObject({
-      code: "SESSION_NOT_ACTIVE",
+      test.runtime.snapshot({ ...SNAPSHOT_INPUT, maxDepth: 2 }, context()),
+    ).resolves.toMatchObject({ generation: 1 });
+    await expect(
+      test.runtime.diagnostics({ maxRecords: 10, maxBytes: 4096 }, context()),
+    ).resolves.toMatchObject({
+      sessionId: SESSION_ID,
     });
-    await expect(test.runtime.status(context())).resolves.toEqual({
-      state: "idle",
-      lastAction: "snapshot",
+    await expect(test.runtime.status(context())).resolves.toMatchObject({
+      state: "ready",
+      ownedPid: 71,
+      lastAction: "diagnostics",
     });
   });
 
-  it("reports cleanup failure when cancellation cannot close artifacts", async () => {
+  it("retains the owned session after an SDK snapshot timeout reaches the runtime", async () => {
+    const test = harness();
+    const server = createMcpServer(test.runtime);
+    const client = new Client({ name: "timeout-client", version: "1.0.0" });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    try {
+      await client.callTool({
+        name: "tauri_launch",
+        arguments: { mode: "visible" },
+      });
+      let observationSignal: AbortSignal | undefined;
+      test.snapshot.mockImplementationOnce(async (_input, signal) => {
+        observationSignal = signal;
+        return await new Promise<SemanticSnapshot>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(signal.reason), {
+            once: true,
+          });
+        });
+      });
+      await expect(
+        client.callTool({ name: "tauri_snapshot", arguments: {} }, undefined, {
+          timeout: 100,
+        }),
+      ).rejects.toMatchObject({ code: -32001 });
+      await vi.waitFor(() => expect(observationSignal?.aborted).toBe(true));
+      const fresh = await client.callTool({
+        name: "tauri_snapshot",
+        arguments: { maxDepth: 2 },
+      });
+      expect(fresh.isError).not.toBe(true);
+      expect(fresh.structuredContent).toMatchObject({ generation: 1 });
+      expect(test.managerClose).not.toHaveBeenCalled();
+      expect(test.artifactClose).not.toHaveBeenCalled();
+      await expect(
+        client.callTool({ name: "tauri_status", arguments: {} }),
+      ).resolves.toMatchObject({
+        structuredContent: { state: "ready", ownedPid: 71 },
+      });
+      await expect(
+        client.callTool({
+          name: "tauri_diagnostics",
+          arguments: { maxRecords: 10 },
+        }),
+      ).resolves.toMatchObject({
+        structuredContent: { sessionId: SESSION_ID },
+      });
+      await client.callTool({ name: "tauri_close", arguments: {} });
+      expect(test.managerClose).toHaveBeenCalledOnce();
+      expect(test.artifactClose).toHaveBeenCalledOnce();
+      await expect(
+        client.callTool({ name: "tauri_status", arguments: {} }),
+      ).resolves.toMatchObject({
+        structuredContent: { state: "idle" },
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("skips a cancelled queued snapshot and releases the FIFO for a fresh observation", async () => {
+    const test = harness();
+    await test.runtime.launch({ mode: "visible", waitMs: 0 }, context());
+    let release!: (value: SemanticSnapshot) => void;
+    test.snapshot.mockImplementationOnce(
+      async () =>
+        await new Promise<SemanticSnapshot>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const active = test.runtime.snapshot(SNAPSHOT_INPUT, context());
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    const controller = new AbortController();
+    const queued = test.runtime.snapshot(
+      SNAPSHOT_INPUT,
+      context(controller.signal),
+    );
+    controller.abort(new DOMException("cancelled", "AbortError"));
+    const rejected = expect(queued).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    const fresh = test.runtime.snapshot(
+      { ...SNAPSHOT_INPUT, maxDepth: 2 },
+      context(),
+    );
+    release(semanticSnapshot(2));
+    await active;
+    await rejected;
+    await expect(fresh).resolves.toMatchObject({ generation: 1 });
+    expect(test.snapshot).toHaveBeenCalledTimes(3);
+    expect(test.managerClose).not.toHaveBeenCalled();
+    expect(test.artifactClose).not.toHaveBeenCalled();
+  });
+
+  it.each(["close", "shutdown"] as const)(
+    "preserves %s cleanup when an active snapshot is cancelled",
+    async (teardown) => {
+      const test = harness();
+      await test.runtime.launch({ mode: "visible", waitMs: 0 }, context());
+      let observationSignal: AbortSignal | undefined;
+      test.snapshot.mockImplementationOnce(async (_input, signal) => {
+        observationSignal = signal;
+        return await new Promise<SemanticSnapshot>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(signal.reason), {
+            once: true,
+          });
+        });
+      });
+      const controller = new AbortController();
+      const pending = test.runtime.snapshot(
+        SNAPSHOT_INPUT,
+        context(controller.signal),
+      );
+      await vi.waitFor(() => expect(observationSignal).toBeDefined());
+      const rejected = expect(pending).rejects.toMatchObject({
+        name: "AbortError",
+      });
+      controller.abort(new DOMException("cancelled", "AbortError"));
+      await (teardown === "close"
+        ? test.runtime.close(context())
+        : test.runtime.shutdown());
+      await rejected;
+      expect(test.artifactClose).toHaveBeenCalledOnce();
+      expect(test.managerClose).toHaveBeenCalled();
+      await expect(
+        test.runtime.snapshot(SNAPSHOT_INPUT, context()),
+      ).rejects.toMatchObject({ code: "SESSION_NOT_ACTIVE" });
+      await expect(test.runtime.status(context())).resolves.toMatchObject({
+        state: "idle",
+      });
+    },
+  );
+
+  it("retains the session on caller screenshot cancellation", async () => {
+    const test = harness();
+    await test.runtime.launch({ mode: "visible", waitMs: 0 }, context());
+    const controller = new AbortController();
+    test.screenshot.mockImplementationOnce(async () => {
+      controller.abort(new DOMException("cancelled", "AbortError"));
+      throw controller.signal.reason;
+    });
+    await expect(
+      test.runtime.screenshot({ save: false }, context(controller.signal)),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(test.managerClose).not.toHaveBeenCalled();
+    expect(test.artifactClose).not.toHaveBeenCalled();
+  });
+
+  it("attributes a cancelled ENTER to pressKey and retains uncertain outcome without replay", async () => {
+    const test = harness();
+    await test.runtime.launch({ mode: "visible", waitMs: 5000 }, context());
+    await test.runtime.diagnostics(
+      { maxRecords: 16, maxBytes: 8192 },
+      context(),
+    );
+    const controller = new AbortController();
+    test.pressKey.mockImplementationOnce(async () => {
+      controller.abort(new DOMException("cancelled", "AbortError"));
+      throw controller.signal.reason;
+    });
+    await expect(
+      test.runtime.pressKey({ key: "ENTER" }, context(controller.signal)),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(test.pressKey).toHaveBeenCalledOnce();
+    expect(test.managerClose).not.toHaveBeenCalled();
+    expect(test.artifactClose).not.toHaveBeenCalled();
+    await expect(test.runtime.status(context())).resolves.toMatchObject({
+      state: "ready",
+      ownedPid: 71,
+      lastCancellation: { action: "pressKey", outcome: "uncertain" },
+    });
+    const records = test.diagnostics.query({
+      maxRecords: 128,
+      maxBytes: 49152,
+    }).records;
+    expect(
+      records.some(
+        (record) =>
+          record.source === "invocation" && record.code === "press_key",
+      ),
+    ).toBe(true);
+    expect(records.some((record) => record.code === "caller_cancelled")).toBe(
+      true,
+    );
+    await test.runtime.snapshot(SNAPSHOT_INPUT, context());
+    expect(test.pressKey).toHaveBeenCalledOnce();
+    await test.runtime.close(context());
+    expect(test.managerClose).toHaveBeenCalledOnce();
+  });
+
+  it("retains uncertain action outcome after public SDK ENTER timeout with no redispatch", async () => {
+    const test = harness();
+    const server = createMcpServer(test.runtime);
+    const client = new Client({ name: "action-timeout", version: "1.0.0" });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    try {
+      await client.callTool({
+        name: "tauri_launch",
+        arguments: { mode: "visible" },
+      });
+      let actionSignal: AbortSignal | undefined;
+      test.pressKey.mockImplementationOnce(async (...args: unknown[]) => {
+        actionSignal = args[1] as AbortSignal;
+        return await new Promise<never>((_resolve, reject) => {
+          actionSignal!.addEventListener(
+            "abort",
+            () => reject(actionSignal!.reason),
+            { once: true },
+          );
+        });
+      });
+      await expect(
+        client.callTool(
+          { name: "tauri_press_key", arguments: { key: "ENTER" } },
+          undefined,
+          { timeout: 100 },
+        ),
+      ).rejects.toMatchObject({ code: -32001 });
+      await vi.waitFor(() => expect(actionSignal?.aborted).toBe(true));
+      await expect(
+        client.callTool({ name: "tauri_status", arguments: {} }),
+      ).resolves.toMatchObject({
+        structuredContent: {
+          state: "ready",
+          ownedPid: 71,
+          lastCancellation: { action: "pressKey", outcome: "uncertain" },
+        },
+      });
+      await client.callTool({
+        name: "tauri_snapshot",
+        arguments: { maxDepth: 2 },
+      });
+      expect(test.pressKey).toHaveBeenCalledOnce();
+      expect(test.managerClose).not.toHaveBeenCalled();
+      await client.callTool({ name: "tauri_close", arguments: {} });
+      expect(test.managerClose).toHaveBeenCalledOnce();
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("labels snapshot diagnostics with the current operation after diagnostics", async () => {
+    const test = harness();
+    await test.runtime.launch({ mode: "visible", waitMs: 5000 }, context());
+    await test.runtime.diagnostics(
+      { maxRecords: 16, maxBytes: 8192 },
+      context(),
+    );
+    await test.runtime.snapshot(SNAPSHOT_INPUT, context());
+    const records = test.diagnostics.query({
+      maxRecords: 128,
+      maxBytes: 49152,
+    }).records;
+    expect(
+      records.filter((record) => record.source === "invocation").at(-1)?.code,
+    ).toBe("snapshot");
+  });
+
+  it("reports cleanup failure when caller cancellation races explicit close", async () => {
     const test = harness();
     await test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context());
     test.artifactClose.mockRejectedValueOnce(new Error("artifact close"));
@@ -1151,12 +1420,15 @@ describe("application-scoped MCP runtime", () => {
     );
     await started;
     controller.abort(new DOMException("cancelled", "AbortError"));
+    test.artifactClose.mockRejectedValueOnce(new Error("artifact close retry"));
+    const closing = test.runtime.close(context());
 
     await expect(pending).rejects.toMatchObject({ code: "CLOSE_FAILED" });
+    await expect(closing).rejects.toMatchObject({ code: "CLOSE_FAILED" });
     await expect(test.runtime.status(context())).resolves.toEqual({
       state: "cleanup_failed",
       cleanupPending: ["artifacts"],
-      lastAction: "snapshot",
+      lastAction: "close",
     });
     await expect(test.runtime.close(context())).resolves.toMatchObject({
       state: "idle",

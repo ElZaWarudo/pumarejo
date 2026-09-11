@@ -344,6 +344,44 @@ describe("semantic snapshots", () => {
     expect(fake.execute).toHaveBeenCalledTimes(2);
   });
 
+  it("does not publish refs from a cancelled capture and permits a follow-up snapshot", async () => {
+    const fake = webdriver([rawSnapshot([rawNode(0)])]);
+    const engine = new SnapshotEngine({
+      webdriver: fake.client,
+      windowLabel: "main",
+      script: async () => "return fixtureSnapshot()",
+    });
+    const controller = new AbortController();
+    fake.execute.mockImplementationOnce(
+      async () =>
+        await new Promise((_resolve, reject) => {
+          controller.signal.addEventListener(
+            "abort",
+            () => reject(controller.signal.reason),
+            { once: true },
+          );
+        }),
+    );
+    const pending = engine.snapshot(undefined, controller.signal);
+    await vi.waitFor(() => expect(fake.execute).toHaveBeenCalledOnce());
+    controller.abort(new DOMException("cancelled", "AbortError"));
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(engine.references.generation).toBe(0);
+    expect(engine.currentSnapshot).toBeUndefined();
+    expect(() => engine.references.resolve("e1-1")).toThrow();
+    const fresh = await engine.snapshot({
+      maxDepth: 2,
+      maxNodes: 64,
+      maxTextLength: 2000,
+      visibleOnly: true,
+    });
+    expect(fresh.generation).toBe(1);
+    expect(engine.references.resolve(fresh.nodes[0]!.ref)).toMatchObject({
+      elementId: "element-0",
+    });
+    expect(fake.execute).toHaveBeenCalledTimes(2);
+  });
+
   it("does not coalesce observations owned by different abort signals", async () => {
     const fake = webdriver([
       rawSnapshot([rawNode(0)]),

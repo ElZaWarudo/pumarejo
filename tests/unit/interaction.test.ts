@@ -731,6 +731,40 @@ describe("semantic interactions", () => {
     },
   );
 
+  it("returns native restore evidence without waiting for suspended WebView observation", async () => {
+    const references = referenceTable();
+    const refresh = vi.fn(async () => {
+      throw new Error("suspended WebView");
+    });
+    const windowAction = vi.fn(async () => ({
+      state: "restored" as const,
+      rect: { x: 0, y: 0, width: 800, height: 600 },
+    }));
+    const engine = new InteractionEngine({
+      webdriver: { windowAction } as never,
+      snapshot: snapshotPort(
+        refresh,
+        references,
+        observedSnapshot({ generation: 1 }),
+      ),
+      settle: async () => {
+        throw new Error("must not wait for WebView settlement");
+      },
+    });
+    await expect(
+      engine.window({ action: "restore", snapshotAfter: true } as never),
+    ).resolves.toMatchObject({
+      action: "window",
+      window: { state: "restored" },
+      generation: 2,
+      effect: { kind: "unknown" },
+      focus: { after: { actionable: false, ref: null } },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(windowAction).toHaveBeenCalledOnce();
+    expect(() => references.resolve("e1-1")).toThrow();
+  });
+
   it("confirms effective window state after resize", async () => {
     const before = observedSnapshot({ generation: 1 });
     const after = observedSnapshot({ generation: 2, width: 640 });

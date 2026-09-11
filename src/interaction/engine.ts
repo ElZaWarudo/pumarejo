@@ -658,6 +658,23 @@ export class InteractionEngine {
         effective = await windowAction.call(this.#webdriver, request, signal);
       }, signal);
       if (effective === undefined) throw new PumarejoError("INTERNAL_ERROR");
+      if (input.action === "restore") {
+        // Native recovery is useful even while WebView script completion is stalled.
+        // Invalidate semantic refs and let the caller request a fresh snapshot separately.
+        const startingGeneration = this.#references.generation;
+        const generation = this.invalidateUncertain();
+        return {
+          action: "window",
+          window: effective,
+          generation,
+          dispatch: { method: "webdriver", dispatched: true },
+          focus: {
+            before: focusEvidence(before, startingGeneration, false),
+            after: { generation, ref: null, actionable: false },
+          },
+          effect: { kind: "unknown", settleMs: 0 },
+        };
+      }
       return await this.observe(
         { action: "window", window: effective },
         input,

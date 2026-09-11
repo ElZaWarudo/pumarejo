@@ -84,8 +84,8 @@ pub async fn capabilities<R: Runtime>(
                 "code": format!("provider_maximize_{maximize_suffix}")
             },
             "restore": {
-                "state": resize_state,
-                "code": format!("provider_restore_{resize_suffix}")
+                "state": if cfg!(desktop) { "supported" } else { "unsupported" },
+                "code": if cfg!(desktop) { "provider_restore_supported" } else { "provider_restore_unsupported_on_mobile" }
             },
             "initialSize": {
                 "state": resize_state,
@@ -319,4 +319,59 @@ pub async fn fullscreen<R: Runtime + 'static>(
         "width": rect.width,
         "height": rect.height
     })))
+}
+
+/// Native restoration deliberately bypasses WebView script evaluation.
+pub async fn restore<R: Runtime + 'static>(
+    State(state): State<Arc<AppState<R>>>,
+    Path(session_id): Path<String>,
+) -> WebDriverResult {
+    let sessions = state.sessions.read().await;
+    let session = sessions.get(&session_id)?;
+    let label = session.current_window.clone();
+    drop(sessions);
+    let window = state
+        .app
+        .webview_windows()
+        .get(&label)
+        .cloned()
+        .ok_or_else(WebDriverErrorResponse::no_such_window)?;
+    #[cfg(desktop)]
+    {
+        let failure =
+            |error: tauri::Error| WebDriverErrorResponse::unknown_error(&error.to_string());
+        window.unminimize().map_err(failure)?;
+        window.unmaximize().map_err(failure)?;
+        let started = std::time::Instant::now();
+        loop {
+            if !window.is_minimized().map_err(failure)?
+                && !window.is_maximized().map_err(failure)?
+            {
+                let size = window.outer_size().map_err(failure)?;
+                let position = window.outer_position().map_err(failure)?;
+                if size.width > 0 && size.height > 0 {
+                    tracing::debug!(
+                        elapsed_ms = started.elapsed().as_millis() as u64,
+                        "native restore completed"
+                    );
+                    return Ok(WebDriverResponse::success(json!({
+                        "x": position.x, "y": position.y, "width": size.width, "height": size.height
+                    })));
+                }
+            }
+            if started.elapsed() >= std::time::Duration::from_secs(1) {
+                return Err(WebDriverErrorResponse::unknown_error(
+                    "native restore postcondition was not achieved",
+                ));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    }
+    #[cfg(mobile)]
+    {
+        let _ = window;
+        Err(WebDriverErrorResponse::unknown_error(
+            "native restore unsupported on mobile",
+        ))
+    }
 }

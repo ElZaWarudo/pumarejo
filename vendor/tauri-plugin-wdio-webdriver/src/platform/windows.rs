@@ -254,7 +254,9 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     async fn evaluate_js(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
         let locks = self.window.state::<ScriptExecutionLocks>();
         let lock = locks.get(self.window.label());
+        let lock_started = std::time::Instant::now();
         let _guard = lock.lock().await;
+        tracing::debug!(elapsed_ms = lock_started.elapsed().as_millis() as u64, "WebView script lock acquired");
         self.evaluate_js_inner(script).await
     }
 
@@ -263,10 +265,13 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     // =========================================================================
 
     async fn take_screenshot(&self) -> Result<String, WebDriverErrorResponse> {
+        let started = std::time::Instant::now();
+        tracing::debug!("native screenshot queued");
         // Use WebView2's native CapturePreview API
         let (tx, rx) = oneshot::channel();
 
         let result = self.window.with_webview(move |webview| {
+            tracing::debug!(elapsed_ms = started.elapsed().as_millis() as u64, "native screenshot dispatched");
             unsafe {
                 if let Ok(webview2) = webview.controller().CoreWebView2() {
                     // Create an in-memory stream for the PNG image
@@ -308,6 +313,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         let timeout = std::time::Duration::from_millis(self.timeouts.script_ms);
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(Ok(base64))) => {
+                tracing::debug!(elapsed_ms = started.elapsed().as_millis() as u64, "native screenshot callback");
                 if base64.is_empty() {
                     Err(WebDriverErrorResponse::unknown_error(
                         "Screenshot returned empty data",
@@ -318,7 +324,10 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
             }
             Ok(Ok(Err(error))) => Err(WebDriverErrorResponse::unknown_error(&error)),
             Ok(Err(_)) => Err(WebDriverErrorResponse::unknown_error("Channel closed")),
-            Err(_) => Err(WebDriverErrorResponse::script_timeout()),
+            Err(_) => {
+                tracing::warn!(elapsed_ms = started.elapsed().as_millis() as u64, "native screenshot deadline");
+                Err(WebDriverErrorResponse::script_timeout())
+            },
         }
     }
 
@@ -612,7 +621,9 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         // This prevents another ExecuteScript from preempting the in-flight async JS callback.
         let locks = self.window.state::<ScriptExecutionLocks>();
         let lock = locks.get(self.window.label());
+        let lock_started = std::time::Instant::now();
         let _guard = lock.lock().await;
+        tracing::debug!(elapsed_ms = lock_started.elapsed().as_millis() as u64, "WebView script lock acquired");
 
         // Execute the wrapper using the unlocked inner method (we already hold the lock).
         self.evaluate_js_inner(&wrapper).await?;

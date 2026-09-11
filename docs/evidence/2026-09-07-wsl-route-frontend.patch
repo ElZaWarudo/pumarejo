@@ -1,0 +1,234 @@
+diff --git a/src/panels/RepoCard.tsx b/src/panels/RepoCard.tsx
+index a74eec1..94024b3 100644
+--- a/src/panels/RepoCard.tsx
++++ b/src/panels/RepoCard.tsx
+@@ -109,10 +109,7 @@ export function RepoAgentLauncher({
+     Promise.resolve(onLaunch(agentType, mode))
+       .catch((error) =>
+         setLaunchMessage(
+-          reportActionFailure(
+-            error,
+-            "No se inició el Agent. Comprueba que esté disponible y vuelve a intentarlo.",
+-          ),
++          reportLaunchFailure(error),
+         ),
+       )
+       .finally(() => setLaunching(false));
+@@ -625,3 +622,41 @@ function reportActionFailure(error: unknown, userMessage: string): string {
+   console.error("tinto: repo action failed", error);
+   return userMessage;
+ }
++
++function reportLaunchFailure(error: unknown): string {
++  console.error("tinto: repo action failed", error);
++  const failure =
++    typeof error === "object" && error !== null
++      ? (error as { category?: unknown; message?: unknown })
++      : {};
++  const categories = [
++    "timeout",
++    "child_exit",
++    "binary_not_found",
++    "repository_not_found",
++    "checkpoint_too_large",
++    "checkpoint_git_failed",
++    "checkpoint_home_unavailable",
++    "permission_denied",
++    "spawn_failed",
++    "io",
++    "session_limit_reached",
++  ];
++  const category =
++    typeof failure.category === "string" &&
++    categories.includes(failure.category)
++      ? failure.category
++      : "error";
++  const stage =
++    typeof failure.message === "string"
++      ? /^WSL startup \[(binary_check|checkpoint_create|provider_spawn)\]:/.exec(
++          failure.message,
++        )?.[1]
++      : undefined;
++  const detail = stage ? category + "; " + stage : category;
++  return (
++    "No se pudo confirmar el inicio del Agent (" +
++    detail +
++    "). Comprueba las sesiones antes de volver a intentarlo."
++  );
++}
+diff --git a/src/panels/agentAvailability.ts b/src/panels/agentAvailability.ts
+index 2e7e536..9bfcddb 100644
+--- a/src/panels/agentAvailability.ts
++++ b/src/panels/agentAvailability.ts
+@@ -10,7 +10,10 @@ interface CachedAvailability {
+ 
+ const availabilityCache = new Map<string, CachedAvailability>();
+ 
+-export function agentAvailabilityKey(source?: RepoSource | null, distro?: string | null): string {
++export function agentAvailabilityKey(
++  source?: RepoSource | null,
++  distro?: string | null,
++): string {
+   if (source === "wsl" && distro) return `wsl:${distro}`;
+   return "host";
+ }
+@@ -28,12 +31,22 @@ export function checkAgentAvailabilityForRepo(
+     return cached.promise;
+   }
+ 
+-  const promise = agentProviderReadinessForRepo(repo, agentType).catch((error) => {
+-    availabilityCache.delete(cacheKey);
+-    throw error;
+-  });
++  const promise = agentProviderReadinessForRepo(repo, agentType)
++    .then((readiness) => {
++      const current = availabilityCache.get(cacheKey);
++      if (current?.promise === promise)
++        current.expiresAt = Date.now() + AVAILABILITY_TTL_MS;
++      return readiness;
++    })
++    .catch((error) => {
++      if (availabilityCache.get(cacheKey)?.promise === promise) {
++        availabilityCache.delete(cacheKey);
++      }
++      throw error;
++    });
+   availabilityCache.set(cacheKey, {
+-    expiresAt: now + AVAILABILITY_TTL_MS,
++    // Pending probes remain shared; only a settled result has a TTL.
++    expiresAt: Infinity,
+     promise,
+   });
+   return promise;
+@@ -43,6 +56,9 @@ export function resetAgentAvailabilityCacheForTests(): void {
+   availabilityCache.clear();
+ }
+ 
+-export function invalidateAgentAvailability(environmentKey: string, agentType: string): void {
++export function invalidateAgentAvailability(
++  environmentKey: string,
++  agentType: string,
++): void {
+   availabilityCache.delete(`${environmentKey}:${agentType}`);
+ }
+diff --git a/src/panels/RepoCard.test.tsx b/src/panels/RepoCard.test.tsx
+index aeae9fd..5e7156e 100644
+--- a/src/panels/RepoCard.test.tsx
++++ b/src/panels/RepoCard.test.tsx
+@@ -29,7 +29,7 @@ vi.mock("../bus/client", () => ({
+ }));
+ 
+ import { RepoCard } from "./RepoCard";
+-import { resetAgentAvailabilityCacheForTests } from "./agentAvailability";
++import { checkAgentAvailabilityForRepo, resetAgentAvailabilityCacheForTests } from "./agentAvailability";
+ 
+ function makeDelta(over: Partial<RepoDelta> = {}): RepoDelta {
+   return {
+@@ -494,3 +494,107 @@ describe("RepoCard", () => {
+     expect(clientMocks.agentProviderReadinessForRepo).toHaveBeenCalledWith("/r/api", "codex");
+   });
+ });
++
++describe("WSL launch readiness under slow scans", () => {
++  beforeEach(() => {
++    resetAgentAvailabilityCacheForTests();
++    clientMocks.agentProviderReadinessForRepo.mockReset();
++  });
++  it("shares a pending probe beyond the result TTL", async () => {
++    let resolve!: (value: AgentProviderReadiness) => void;
++    clientMocks.agentProviderReadinessForRepo.mockReturnValue(
++      new Promise<AgentProviderReadiness>((done) => {
++        resolve = done;
++      }),
++    );
++    const clock = vi.spyOn(Date, "now").mockReturnValue(1000);
++    try {
++      const first = checkAgentAvailabilityForRepo(
++        "/r/api",
++        "wsl:Ubuntu",
++        "codex",
++      );
++      clock.mockReturnValue(12000);
++      const second = checkAgentAvailabilityForRepo(
++        "/r/api",
++        "wsl:Ubuntu",
++        "codex",
++      );
++      resolve({
++        agent_type: "codex",
++        source: "wsl",
++        distro: "Ubuntu",
++        state: "binary_available",
++      });
++      await first;
++      expect(second).toBe(first);
++      expect(clientMocks.agentProviderReadinessForRepo).toHaveBeenCalledTimes(
++        1,
++      );
++    } finally {
++      clock.mockRestore();
++    }
++  });
++  it("does not let an older rejected probe evict a forced replacement", async () => {
++    let reject!: (error: Error) => void;
++    clientMocks.agentProviderReadinessForRepo.mockReturnValueOnce(
++      new Promise<AgentProviderReadiness>((_, fail) => {
++        reject = fail;
++      }),
++    );
++    const first = checkAgentAvailabilityForRepo(
++      "/r/api",
++      "wsl:Ubuntu",
++      "codex",
++    ).catch(() => undefined);
++    clientMocks.agentProviderReadinessForRepo.mockResolvedValue({
++      agent_type: "codex",
++      source: "wsl",
++      distro: "Ubuntu",
++      state: "binary_available",
++    });
++    const replacement = checkAgentAvailabilityForRepo(
++      "/r/api",
++      "wsl:Ubuntu",
++      "codex",
++      { force: true },
++    );
++    await replacement;
++    reject(new Error("old probe"));
++    await first;
++    expect(checkAgentAvailabilityForRepo("/r/api", "wsl:Ubuntu", "codex")).toBe(
++      replacement,
++    );
++    expect(clientMocks.agentProviderReadinessForRepo).toHaveBeenCalledTimes(2);
++  });
++  it("shows the backend startup stage without raw error text or claiming no session", async () => {
++    clientMocks.agentProviderReadinessForRepo.mockResolvedValue({
++      agent_type: "codex",
++      source: "wsl",
++      distro: "Ubuntu",
++      state: "binary_available",
++    });
++    const log = vi.spyOn(console, "error").mockImplementation(() => {});
++    const onLaunch = vi
++      .fn()
++      .mockRejectedValue({
++        category: "timeout",
++        message: "WSL startup [binary_check]: synthetic-secret",
++      });
++    try {
++      renderCard({}, { onLaunch });
++      fireEvent.click(
++        await screen.findByRole("button", { name: "Iniciar Codex en api" }),
++      );
++      expect(
++        await screen.findByText(
++          /No se pudo confirmar el inicio del Agent.*timeout.*binary_check/,
++        ),
++      ).toBeInTheDocument();
++      expect(screen.queryByText(/synthetic-secret/)).not.toBeInTheDocument();
++      expect(onLaunch).toHaveBeenCalledTimes(1);
++    } finally {
++      log.mockRestore();
++    }
++  });
++});

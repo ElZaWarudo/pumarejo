@@ -32,7 +32,7 @@ const ALLOWED_COMMANDS = [
   {
     method: "POST",
     route:
-      /^\/session\/[^/]+\/(?:window(?:\/rect|\/maximize|\/minimize|\/fullscreen)?|execute\/sync|element|elements|actions|pumarejo\/tauri-dialog\/decision)$/u,
+      /^\/session\/[^/]+\/(?:window(?:\/rect|\/maximize|\/minimize|\/fullscreen)?|execute\/sync|element|elements|actions|pumarejo\/tauri-dialog\/decision|pumarejo\/window\/restore)$/u,
   },
   {
     method: "GET",

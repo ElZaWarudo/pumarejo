@@ -1085,27 +1085,23 @@ export class WebDriverClient {
           rect: verified,
         };
       }
-      if (input.action === "restore" && this.#windowState === "restored") {
-        const externalRestore = await this.execute<
-          "restored" | "already-restored" | "failed" | "unavailable"
-        >(
-          "const current=globalThis.__TAURI__?.window?.getCurrentWindow?.(); if(!current)return 'unavailable'; return current.isMaximized().then(maximized=>maximized?current.unmaximize().then(()=>'restored').catch(()=>'failed'):'already-restored').catch(()=>'unavailable');",
-          [],
-          signal,
+      if (input.action === "restore") {
+        // Native recovery must not wait for JavaScript in a suspended WebView.
+        const rect = windowRectFrom(
+          responseValue(
+            await this.sessionCommand(
+              "POST",
+              "/pumarejo/window/restore",
+              {},
+              signal,
+            ),
+          ),
         );
-        if (externalRestore === "failed") {
-          throw new PumarejoError("WINDOW_ACTION_FAILED");
+        if (rect === undefined || rect.width <= 0 || rect.height <= 0) {
+          throw new PumarejoError("WINDOW_ACTION_POSTCONDITION_FAILED");
         }
-        if (externalRestore === "restored") {
-          const rect = await this.windowRect(signal);
-          this.#restoreRect = rect;
-          this.#windowState = "restored";
-          return { state: "restored", rect };
-        }
-      }
-      if (input.action === "restore" && this.#windowState === "restored") {
-        const rect = await this.windowRect(signal);
         this.#restoreRect = rect;
+        this.#windowState = "restored";
         return { state: "restored", rect };
       }
       const target =
@@ -1137,6 +1133,9 @@ export class WebDriverClient {
           error instanceof WebDriverTransportError ? error.body : undefined,
         )?.value,
       )?.error;
+      if (providerError === "unknown command" && input.action === "restore") {
+        throw new PumarejoError("WINDOW_ACTION_UNAVAILABLE", { cause: error });
+      }
       if (providerError === "unknown command") {
         const target =
           input.action === "resize"

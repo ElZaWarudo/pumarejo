@@ -253,6 +253,10 @@ interface RuntimeStatus {
     ErrorEnvelope,
     "code" | "phase" | "retryable" | "suggestion" | "diagnostic"
   >;
+  readonly lastCancellation?: {
+    readonly action: string;
+    readonly outcome: "uncertain" | "cancelled";
+  };
   readonly lastAction:
     | "none"
     | "launch"
@@ -610,264 +614,301 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
     input: DialogInput,
     context: DomainCallContext,
   ): Promise<DomainResult> {
-    return this.run(async (signal) => {
-      const active = this.requireActive();
-      const dialogs = active.dialogs;
-      this.#status = { ...this.#status, lastAction: "dialog" };
-      if (dialogs === undefined) {
-        return {
-          state: "unsupported",
-          code: "provider_dialog_boundary_unsupported",
-        };
-      }
-      const current = active.snapshot.currentSnapshot;
-      const currentSurfaceRef =
-        current?.surface?.surfaceRef ??
-        active.snapshot.activeSurface?.surfaceRef ??
-        `window:${this.#status.window ?? "unknown"}`;
-      const currentGeneration = current?.generation ?? this.#status.generation;
-      if (
-        (input.surfaceRef !== undefined &&
-          input.surfaceRef !== currentSurfaceRef) ||
-        (input.generation !== undefined &&
-          input.generation !== currentGeneration)
-      ) {
-        return {
-          state: "denied",
-          code: "dialog_binding_mismatch",
-          action: input.action,
-        };
-      }
-      const surfaceRef = input.surfaceRef ?? currentSurfaceRef;
-      const generation = input.generation ?? currentGeneration;
-      if (
-        typeof generation !== "number" ||
-        !Number.isInteger(generation) ||
-        generation <= 0
-      ) {
-        return {
-          state: "denied",
-          code: "dialog_generation_required",
-          action: input.action,
-        };
-      }
-      const effectiveGeneration = generation as number;
-      const binding = { surfaceRef, generation: effectiveGeneration };
-      if (input.action === "detect") {
+    return this.run(
+      "dialog",
+      async (signal) => {
+        const active = this.requireActive();
+        const dialogs = active.dialogs;
+        this.#status = { ...this.#status, lastAction: "dialog" };
+        if (dialogs === undefined) {
+          return {
+            state: "unsupported",
+            code: "provider_dialog_boundary_unsupported",
+          };
+        }
+        const current = active.snapshot.currentSnapshot;
+        const currentSurfaceRef =
+          current?.surface?.surfaceRef ??
+          active.snapshot.activeSurface?.surfaceRef ??
+          `window:${this.#status.window ?? "unknown"}`;
+        const currentGeneration =
+          current?.generation ?? this.#status.generation;
+        if (
+          (input.surfaceRef !== undefined &&
+            input.surfaceRef !== currentSurfaceRef) ||
+          (input.generation !== undefined &&
+            input.generation !== currentGeneration)
+        ) {
+          return {
+            state: "denied",
+            code: "dialog_binding_mismatch",
+            action: input.action,
+          };
+        }
+        const surfaceRef = input.surfaceRef ?? currentSurfaceRef;
+        const generation = input.generation ?? currentGeneration;
+        if (
+          typeof generation !== "number" ||
+          !Number.isInteger(generation) ||
+          generation <= 0
+        ) {
+          return {
+            state: "denied",
+            code: "dialog_generation_required",
+            action: input.action,
+          };
+        }
+        const effectiveGeneration = generation as number;
+        const binding = { surfaceRef, generation: effectiveGeneration };
+        if (input.action === "detect") {
+          const detected = await dialogs.detect(signal);
+          return {
+            state: detected.state,
+            code: detected.code,
+            ...(detected.dialog === undefined
+              ? {}
+              : { dialog: detected.dialog }),
+            ...(detected.pending === undefined
+              ? {}
+              : { pending: detected.pending }),
+            ...(detected.evidence === undefined
+              ? {}
+              : { evidence: detected.evidence }),
+          };
+        }
+        if (input.authorize !== true) {
+          return {
+            state: "denied",
+            code: "dialog_authorization_required",
+            action: input.action,
+          };
+        }
         const detected = await dialogs.detect(signal);
+        if (detected.state !== "supported" || detected.dialog === undefined) {
+          return {
+            state: "unavailable",
+            code: "provider_dialog_not_detected",
+            action: input.action,
+          };
+        }
+        const grant = dialogs.authorize(input.action, binding);
+        if (grant === undefined) {
+          return {
+            state: "unavailable",
+            code: "provider_dialog_not_detected",
+            action: input.action,
+          };
+        }
+        const result = await dialogs.decide(input.action, binding, signal);
         return {
-          state: detected.state,
-          code: detected.code,
-          ...(detected.dialog === undefined ? {} : { dialog: detected.dialog }),
-          ...(detected.pending === undefined
+          state: result.state,
+          code: result.code,
+          action: result.action,
+          ...(result.dialog === undefined ? {} : { dialog: result.dialog }),
+          ...(result.evidence === undefined
             ? {}
-            : { pending: detected.pending }),
-          ...(detected.evidence === undefined
-            ? {}
-            : { evidence: detected.evidence }),
+            : { evidence: result.evidence }),
         };
-      }
-      if (input.authorize !== true) {
-        return {
-          state: "denied",
-          code: "dialog_authorization_required",
-          action: input.action,
-        };
-      }
-      const detected = await dialogs.detect(signal);
-      if (detected.state !== "supported" || detected.dialog === undefined) {
-        return {
-          state: "unavailable",
-          code: "provider_dialog_not_detected",
-          action: input.action,
-        };
-      }
-      const grant = dialogs.authorize(input.action, binding);
-      if (grant === undefined) {
-        return {
-          state: "unavailable",
-          code: "provider_dialog_not_detected",
-          action: input.action,
-        };
-      }
-      const result = await dialogs.decide(input.action, binding, signal);
-      return {
-        state: result.state,
-        code: result.code,
-        action: result.action,
-        ...(result.dialog === undefined ? {} : { dialog: result.dialog }),
-        ...(result.evidence === undefined ? {} : { evidence: result.evidence }),
-      };
-    }, context.signal);
+      },
+      context.signal,
+    );
   }
 
   snapshot(
     input: SnapshotInput,
     context: DomainCallContext,
   ): Promise<DomainResult> {
-    return this.run(async (signal) => {
-      this.#status = { ...this.#status, lastAction: "snapshot" };
-      const result = await this.requireActive().snapshot.snapshot(
-        input,
-        signal,
-      );
-      this.#status = {
-        ...this.#status,
-        generation: result.generation,
-        lastAction: "snapshot",
-      };
-      return { ...result };
-    }, context.signal);
+    return this.run(
+      "snapshot",
+      async (signal) => {
+        this.#status = { ...this.#status, lastAction: "snapshot" };
+        const result = await this.requireActive().snapshot.snapshot(
+          input,
+          signal,
+        );
+        this.#status = {
+          ...this.#status,
+          generation: result.generation,
+          lastAction: "snapshot",
+        };
+        return { ...result };
+      },
+      context.signal,
+    );
   }
 
   screenshot(
     input: ScreenshotInput,
     context: DomainCallContext,
   ): Promise<ScreenshotDomainResult> {
-    return this.run(async (signal) => {
-      this.#status = { ...this.#status, lastAction: "screenshot" };
-      const result = await this.requireActive().screenshot.capture(
-        input.save,
-        signal,
-      );
-      this.#status = {
-        ...this.#status,
-        generation: result.metadata.generation,
-        lastAction: "screenshot",
-      };
-      return { metadata: { ...result.metadata }, image: result.image };
-    }, context.signal);
+    return this.run(
+      "screenshot",
+      async (signal) => {
+        this.#status = { ...this.#status, lastAction: "screenshot" };
+        const result = await this.requireActive().screenshot.capture(
+          input.save,
+          signal,
+        );
+        this.#status = {
+          ...this.#status,
+          generation: result.metadata.generation,
+          lastAction: "screenshot",
+        };
+        return { metadata: { ...result.metadata }, image: result.image };
+      },
+      context.signal,
+    );
   }
 
   surfaceDiscover(
     input: SurfaceDiscoverInput,
     context: DomainCallContext,
   ): Promise<{ graph: SurfaceGraph }> {
-    return this.run(async (signal) => {
-      const active = this.requireActive();
-      this.#status = { ...this.#status, lastAction: "surfaceDiscover" };
-      const graph =
-        input.refresh || active.surfaces.graph === undefined
-          ? await active.surfaces.discover(signal)
-          : active.surfaces.graph;
-      return { graph };
-    }, context.signal);
+    return this.run(
+      "surfaceDiscover",
+      async (signal) => {
+        const active = this.requireActive();
+        this.#status = { ...this.#status, lastAction: "surfaceDiscover" };
+        const graph =
+          input.refresh || active.surfaces.graph === undefined
+            ? await active.surfaces.discover(signal)
+            : active.surfaces.graph;
+        return { graph };
+      },
+      context.signal,
+    );
   }
 
   surfaceSelect(
     input: SurfaceSelectInput,
     context: DomainCallContext,
   ): Promise<{ graph: SurfaceGraph; snapshot: DomainResult }> {
-    return this.run(async (signal) => {
-      const active = this.requireActive();
-      this.#status = { ...this.#status, lastAction: "surfaceSelect" };
-      const selection = await active.surfaces.select(
-        input.surfaceRef,
-        input.graphGeneration,
-        signal,
-      );
-      active.snapshot.setSurface(selection.selected);
-      const snapshot = await active.snapshot.snapshot(undefined, signal);
-      this.#status = {
-        ...this.#status,
-        generation: snapshot.generation,
-        lastAction: "surfaceSelect",
-      };
-      return { graph: selection.graph, snapshot: { ...snapshot } };
-    }, context.signal);
+    return this.run(
+      "surfaceSelect",
+      async (signal) => {
+        const active = this.requireActive();
+        this.#status = { ...this.#status, lastAction: "surfaceSelect" };
+        const selection = await active.surfaces.select(
+          input.surfaceRef,
+          input.graphGeneration,
+          signal,
+        );
+        active.snapshot.setSurface(selection.selected);
+        const snapshot = await active.snapshot.snapshot(undefined, signal);
+        this.#status = {
+          ...this.#status,
+          generation: snapshot.generation,
+          lastAction: "surfaceSelect",
+        };
+        return { graph: selection.graph, snapshot: { ...snapshot } };
+      },
+      context.signal,
+    );
   }
 
   surfaceCoverage(
     _input: SurfaceCoverageInput,
     context: DomainCallContext,
   ): Promise<DomainResult> {
-    return this.run(async (signal) => {
-      const active = this.requireActive();
-      this.#status = { ...this.#status, lastAction: "surfaceCoverage" };
-      const graph =
-        active.surfaces.graph ?? (await active.surfaces.discover(signal));
-      const screenshot = await active.screenshot.capture(false, signal);
-      const regions = graph.surfaces.flatMap((surface) =>
-        surface.kind === "window" || surface.bounds === undefined
-          ? []
-          : [
-              {
-                surfaceRef: surface.surfaceRef,
-                bounds: surface.bounds,
-                supported:
-                  surface.capabilities.observation.state === "supported",
-                code: surface.capabilities.observation.code,
-              },
-            ],
-      );
-      return {
-        graphGeneration: graph.generation,
-        activeSurfaceRef: graph.activeSurfaceRef,
-        screenshotGeneration: screenshot.metadata.generation,
-        diagnostic: diagnoseCoverage({
-          screenshot: {
-            width: screenshot.metadata.width,
-            height: screenshot.metadata.height,
-          },
-          regions,
-          semanticBounds:
-            active.snapshot.currentSnapshot?.nodes.map((node) => ({
-              surfaceRef: graph.activeSurfaceRef,
-              bounds: node.bounds,
-            })) ?? [],
-        }),
-      };
-    }, context.signal);
+    return this.run(
+      "surfaceCoverage",
+      async (signal) => {
+        const active = this.requireActive();
+        this.#status = { ...this.#status, lastAction: "surfaceCoverage" };
+        const graph =
+          active.surfaces.graph ?? (await active.surfaces.discover(signal));
+        const screenshot = await active.screenshot.capture(false, signal);
+        const regions = graph.surfaces.flatMap((surface) =>
+          surface.kind === "window" || surface.bounds === undefined
+            ? []
+            : [
+                {
+                  surfaceRef: surface.surfaceRef,
+                  bounds: surface.bounds,
+                  supported:
+                    surface.capabilities.observation.state === "supported",
+                  code: surface.capabilities.observation.code,
+                },
+              ],
+        );
+        return {
+          graphGeneration: graph.generation,
+          activeSurfaceRef: graph.activeSurfaceRef,
+          screenshotGeneration: screenshot.metadata.generation,
+          diagnostic: diagnoseCoverage({
+            screenshot: {
+              width: screenshot.metadata.width,
+              height: screenshot.metadata.height,
+            },
+            regions,
+            semanticBounds:
+              active.snapshot.currentSnapshot?.nodes.map((node) => ({
+                surfaceRef: graph.activeSurfaceRef,
+                bounds: node.bounds,
+              })) ?? [],
+          }),
+        };
+      },
+      context.signal,
+    );
   }
 
   diagnostics(
     input: DiagnosticsInput,
     context: DomainCallContext,
   ): Promise<DomainResult> {
-    return this.run(async (signal) => {
-      signal.throwIfAborted();
-      const active = this.#active;
-      const diagnostics =
-        active?.diagnostics ??
-        ((this.#status.state === "idle" ||
-          this.#status.state === "cleanup_failed") &&
-        this.#launchOperation === undefined
-          ? this.#diagnostics
-          : undefined);
-      if (diagnostics === undefined) this.requireActive();
-      this.#status = { ...this.#status, lastAction: "diagnostics" };
-      const surfaceOwned =
-        input.surfaceRef === undefined ||
-        (active !== undefined &&
-          (active.surfaces.graph?.surfaces.some(
-            (surface) => surface.surfaceRef === input.surfaceRef,
-          ) === true ||
-            active.snapshot.activeSurface?.surfaceRef === input.surfaceRef));
-      const projection = diagnostics!.query({
-        sources: input.sources,
-        surfaceRef: input.surfaceRef,
-        maxRecords: input.maxRecords,
-        maxBytes: input.maxBytes,
-      });
-      if (surfaceOwned) return { ...projection } as DomainResult;
-      const deniedCapabilities = Object.fromEntries(
-        Object.entries(projection.capabilities).map(([source]) => [
-          source,
-          {
-            state: "denied",
-            code: "diagnostics_surface_denied",
-            evidence: "The requested surface is not owned by this session.",
+    return this.run(
+      "diagnostics",
+      async (signal) => {
+        signal.throwIfAborted();
+        const active = this.#active;
+        const diagnostics =
+          active?.diagnostics ??
+          ((this.#status.state === "idle" ||
+            this.#status.state === "cleanup_failed") &&
+          this.#launchOperation === undefined
+            ? this.#diagnostics
+            : undefined);
+        if (diagnostics === undefined) this.requireActive();
+        this.#status = { ...this.#status, lastAction: "diagnostics" };
+        const surfaceOwned =
+          input.surfaceRef === undefined ||
+          (active !== undefined &&
+            (active.surfaces.graph?.surfaces.some(
+              (surface) => surface.surfaceRef === input.surfaceRef,
+            ) === true ||
+              active.snapshot.activeSurface?.surfaceRef === input.surfaceRef));
+        const projection = diagnostics!.query({
+          sources: input.sources,
+          surfaceRef: input.surfaceRef,
+          maxRecords: input.maxRecords,
+          maxBytes: input.maxBytes,
+        });
+        if (surfaceOwned) return { ...projection } as DomainResult;
+        const deniedCapabilities = Object.fromEntries(
+          Object.entries(projection.capabilities).map(([source]) => [
+            source,
+            {
+              state: "denied",
+              code: "diagnostics_surface_denied",
+              evidence: "The requested surface is not owned by this session.",
+            },
+          ]),
+        );
+        return {
+          ...projection,
+          capabilities: deniedCapabilities,
+          records: [],
+          lastErrors: [],
+          truncation: {
+            ...projection.truncation,
+            truncated: false,
+            returned: 0,
           },
-        ]),
-      );
-      return {
-        ...projection,
-        capabilities: deniedCapabilities,
-        records: [],
-        lastErrors: [],
-        truncation: { ...projection.truncation, truncated: false, returned: 0 },
-      } as DomainResult;
-    }, context.signal);
+        } as DomainResult;
+      },
+      context.signal,
+    );
   }
 
   click(input: ClickInput, context: DomainCallContext): Promise<DomainResult> {
@@ -933,20 +974,24 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
     input: SequenceInput,
     context: DomainCallContext,
   ): Promise<DomainResult> {
-    return this.run(async (signal) => {
-      this.#status = { ...this.#status, lastAction: "sequence" };
-      const interactions = this.requireActive().interactions;
-      const result = await new SequenceExecutor({ interactions }).execute(
-        input,
-        signal,
-      );
-      this.#status = {
-        ...this.#status,
-        generation: result.endingGeneration,
-        lastAction: "sequence",
-      };
-      return { ...result };
-    }, context.signal);
+    return this.run(
+      "sequence",
+      async (signal) => {
+        this.#status = { ...this.#status, lastAction: "sequence" };
+        const interactions = this.requireActive().interactions;
+        const result = await new SequenceExecutor({ interactions }).execute(
+          input,
+          signal,
+        );
+        this.#status = {
+          ...this.#status,
+          generation: result.endingGeneration,
+          lastAction: "sequence",
+        };
+        return { ...result };
+      },
+      context.signal,
+    );
   }
 
   close(_context: DomainCallContext): Promise<DomainResult> {
@@ -999,16 +1044,23 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
       signal: AbortSignal,
     ) => Promise<InteractionResult>,
   ): Promise<DomainResult> {
-    return this.run(async (signal) => {
-      this.#status = { ...this.#status, lastAction: action };
-      const result = await dispatch(this.requireActive().interactions, signal);
-      this.#status = {
-        ...this.#status,
-        generation: result.generation,
-        lastAction: action,
-      };
-      return { ...result };
-    }, context.signal);
+    return this.run(
+      action,
+      async (signal) => {
+        this.#status = { ...this.#status, lastAction: action };
+        const result = await dispatch(
+          this.requireActive().interactions,
+          signal,
+        );
+        this.#status = {
+          ...this.#status,
+          generation: result.generation,
+          lastAction: action,
+        };
+        return { ...result };
+      },
+      context.signal,
+    );
   }
 
   private requireActive(): ActiveRuntime {
@@ -1269,24 +1321,37 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
   }
 
   private run<T>(
+    action: RuntimeStatus["lastAction"],
     operation: (signal: AbortSignal) => Promise<T>,
     callerSignal: AbortSignal,
   ): Promise<T> {
+    const queuedAt = Date.now();
     return this.enqueue(async () => {
       callerSignal.throwIfAborted();
       const controller = new AbortController();
       this.#activeAbort = controller;
       const signal = AbortSignal.any([callerSignal, controller.signal]);
       const startedAt = Date.now();
-      const action = this.#status.lastAction;
+      this.#status = { ...this.#status, lastAction: action };
+      const diagnosticAction = action.replace(
+        /[A-Z]/gu,
+        (letter) => `_${letter.toLowerCase()}`,
+      );
       this.#diagnostics?.recordInvocation({
-        code: action,
+        code: "request_queue_wait",
+        owner: "session",
+        durationMs: Math.max(0, startedAt - queuedAt),
+        suggestion: `Operation: ${diagnosticAction}`,
+      });
+      this.#diagnostics?.recordInvocation({
+        code: diagnosticAction,
         owner: "session",
       });
       try {
         const result = await operation(signal);
+        signal.throwIfAborted();
         this.#diagnostics?.recordInvocation({
-          code: action,
+          code: diagnosticAction,
           owner: "session",
           durationMs: Math.max(0, Date.now() - startedAt),
           retryable: false,
@@ -1302,12 +1367,41 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
           suggestion: failure?.suggestion,
         });
         this.#diagnostics?.recordInvocation({
-          code: action,
+          code: diagnosticAction,
           owner: "session",
           durationMs: Math.max(0, Date.now() - startedAt),
           retryable: failure?.retryable,
         });
-        if (signal.aborted && this.#active !== undefined) {
+        // Caller cancellation ends this request without replaying it or closing its host.
+        // Only explicit close/shutdown owns session teardown, including races.
+        const retainSession =
+          callerSignal.aborted && !controller.signal.aborted;
+        if (retainSession) {
+          const uncertain = ![
+            "snapshot",
+            "screenshot",
+            "diagnostics",
+            "surfaceDiscover",
+            "surfaceCoverage",
+          ].includes(action);
+          this.#status = {
+            ...this.#status,
+            lastCancellation: {
+              action,
+              outcome: uncertain ? "uncertain" : "cancelled",
+            },
+          };
+          this.#diagnostics?.recordInvocation({
+            code: "caller_cancelled",
+            owner: "session",
+            retryable: false,
+            durationMs: Math.max(0, Date.now() - startedAt),
+            suggestion: uncertain
+              ? "Action outcome is uncertain. Observe current state; do not automatically repeat the action."
+              : "Request cancelled; session retained. A fresh observation may be requested.",
+          });
+        }
+        if (signal.aborted && this.#active !== undefined && !retainSession) {
           const lastAction = this.#status.lastAction;
           try {
             await this.closeNow();

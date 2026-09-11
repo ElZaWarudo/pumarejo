@@ -316,6 +316,10 @@ describe("WebDriverClient", () => {
         if (path.endsWith("/displayed") || path.endsWith("/enabled")) {
           return jsonResponse({ value: true });
         }
+        if (path.endsWith("/pumarejo/window/restore")) {
+          rect = { x: 0, y: 0, width: 640, height: 480 };
+          return jsonResponse({ value: rect });
+        }
         if (path.endsWith("/window/maximize")) {
           rect = { x: 0, y: 0, width: 1920, height: 1032 };
           return jsonResponse({ value: rect });
@@ -395,74 +399,47 @@ describe("WebDriverClient", () => {
     });
   });
 
-  it("reports a fresh-session window as restored without mutating its rect", async () => {
+  it("restores an externally minimized window through native provider without JavaScript", async () => {
     const routes: string[] = [];
     const rect = { x: 12, y: 24, width: 800, height: 600 };
-    const fetchImplementation = vi.fn(
-      async (input: string | URL | Request, init?: RequestInit) => {
-        const path = new URL(String(input)).pathname;
-        const method = init?.method ?? "GET";
-        routes.push(`${method} ${path}`);
-        if (path === "/session") {
-          return jsonResponse({ value: { sessionId: "session-1" } });
-        }
-        if (path.endsWith("/execute/sync")) {
-          return jsonResponse({ value: "unavailable" });
-        }
-        if (path.endsWith("/window/rect") && method === "GET") {
-          return jsonResponse({ value: rect });
-        }
-        throw new Error(`unexpected route: ${method} ${path}`);
-      },
-    ) as unknown as typeof fetch;
+    const fetchImplementation = vi.fn(async (input: string | URL | Request) => {
+      const path = new URL(String(input)).pathname;
+      routes.push(path);
+      if (path === "/session")
+        return jsonResponse({ value: { sessionId: "session-1" } });
+      if (path.endsWith("/pumarejo/window/restore"))
+        return jsonResponse({ value: rect });
+      throw new Error("WebView evaluation must not be needed to restore");
+    }) as unknown as typeof fetch;
     const webdriver = client(fetchImplementation);
     await webdriver.createSession();
-
-    await expect(
-      webdriver.windowAction({ action: "restore" }),
-    ).resolves.toEqual({
-      state: "restored",
-      rect,
-    });
-    expect(routes).toEqual([
-      "POST /session",
-      "POST /session/session-1/execute/sync",
-      "GET /session/session-1/window/rect",
-    ]);
-  });
-
-  it("unmaximizes a window that was already maximized before the session", async () => {
-    const routes: string[] = [];
-    const rect = { x: 12, y: 24, width: 800, height: 600 };
-    const fetchImplementation = vi.fn(
-      async (input: string | URL | Request, init?: RequestInit) => {
-        const path = new URL(String(input)).pathname;
-        const method = init?.method ?? "GET";
-        routes.push(`${method} ${path}`);
-        if (path === "/session") {
-          return jsonResponse({ value: { sessionId: "session-1" } });
-        }
-        if (path.endsWith("/execute/sync")) {
-          const payload = JSON.parse(String(init?.body)) as { script: string };
-          if (payload.script.includes("current.isMaximized")) {
-            return jsonResponse({ value: "restored" });
-          }
-        }
-        if (path.endsWith("/window/rect")) {
-          return jsonResponse({ value: rect });
-        }
-        throw new Error(`unexpected route: ${method} ${path}`);
-      },
-    ) as unknown as typeof fetch;
-    const webdriver = client(fetchImplementation);
-    await webdriver.createSession();
-
     await expect(
       webdriver.windowAction({ action: "restore" }),
     ).resolves.toEqual({ state: "restored", rect });
-    expect(
-      routes.filter((route) => route.endsWith("/execute/sync")),
-    ).toHaveLength(1);
+    expect(routes).toEqual([
+      "/session",
+      "/session/session-1/pumarejo/window/restore",
+    ]);
+  });
+
+  it("does not fall back to WebView JavaScript when native restore is unavailable", async () => {
+    const fetchImplementation = vi.fn(async (input: string | URL | Request) => {
+      const path = new URL(String(input)).pathname;
+      if (path === "/session")
+        return jsonResponse({ value: { sessionId: "session-1" } });
+      if (path.endsWith("/pumarejo/window/restore"))
+        return jsonResponse(
+          { value: { error: "unknown command", message: "unsupported" } },
+          404,
+        );
+      throw new Error("Unexpected fallback");
+    }) as unknown as typeof fetch;
+    const webdriver = client(fetchImplementation);
+    await webdriver.createSession();
+    await expect(
+      webdriver.windowAction({ action: "restore" }),
+    ).rejects.toMatchObject({ code: "WINDOW_ACTION_UNAVAILABLE" });
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
   });
 
   it("bounds action cleanup after caller cancellation", async () => {

@@ -1,0 +1,175 @@
+--- a/src-tauri/src/agent_console/commands.rs
++++ b/src-tauri/src/agent_console/commands.rs
+@@ -425,12 +425,13 @@
+                 .map_err(CommandError::from)?;
+         }
+     }
++    if let Err(error) = restore_archived_timeline(app.clone(), started.id.clone(), resumed_timeline).await {
++        let error = cleanup_failed_resume_session(&registry, &started.id, error);
++        refresh_and_emit_sessions(&app);
++        return Err(error);
++    }
+     if let Some(output_reader) = started.output_reader.take() {
+         spawn_output_reader(app.clone(), started.id.clone(), output_reader);
+-    }
+-    for item in resumed_timeline {
+-        record_timeline_item(&app, item.clone());
+-        let _ = app.emit(EVENT_AGENT_SESSION_TIMELINE, item);
+     }
+ 
+     if let Some(resume_result) = started.resume_result.take() {
+@@ -522,6 +523,31 @@
+ fn should_restore_archived_goal(agent_type: &str, mode: AgentSessionResumeMode) -> bool {
+     matches!(agent_type, "kimi" | "opencode")
+         || (agent_type == "codex" && mode == AgentSessionResumeMode::ContextBridge)
++}
++
++// Archived items are already history, not live provider output. Persist them in one
++// transaction off the async executor and publish only the existing final session refresh.
++async fn restore_archived_timeline(
++    app: AppHandle,
++    session_id: String,
++    items: Vec<AgentSessionTimelineItem>,
++) -> Result<(), CommandError> {
++    tokio::task::spawn_blocking(move || {
++        let snapshot = {
++            let registry = app.state::<Mutex<AgentSessionRegistry>>();
++            let mut registry = lock_registry(&registry)?;
++            for item in &items {
++                registry.record_session_timeline_item(item.clone()).map_err(CommandError::from)?;
++            }
++            registry.get_session(&session_id).ok_or_else(|| {
++                CommandError::new("session_not_found", "la sesion reanudada ya no existe")
++            })?
++        };
++        let journal = app.state::<Mutex<AgentJournal>>();
++        let journal = lock_journal(&journal)?;
++        journal.record_resumed_timeline(&snapshot, &items)
++            .map_err(|error| CommandError::new("agent_journal_failed", error.to_string()))
++    }).await.map_err(|error| CommandError::new("agent_journal_failed", error.to_string()))?
+ }
+ 
+ fn remap_archived_timeline(
+@@ -676,12 +702,15 @@
+             )
+             .map_err(CommandError::from)?;
+     }
++    if let Err(error) = restore_archived_timeline(
++        app.clone(), started.id.clone(), remap_archived_timeline(&previous_timeline, &started.id),
++    ).await {
++        let error = cleanup_failed_resume_session(&registry, &started.id, error);
++        refresh_and_emit_sessions(&app);
++        return Err(error);
++    }
+     if let Some(output_reader) = started.output_reader {
+         spawn_output_reader(app.clone(), started.id.clone(), output_reader);
+-    }
+-    for item in remap_archived_timeline(&previous_timeline, &started.id) {
+-        record_timeline_item(&app, item.clone());
+-        let _ = app.emit(EVENT_AGENT_SESSION_TIMELINE, item);
+     }
+     emit_timeline_text(
+         &app,
+@@ -3628,11 +3657,6 @@
+     let _ = app.emit(EVENT_AGENT_SESSION_TIMELINE, payload);
+ }
+ 
+-fn record_timeline_item(app: &AppHandle, item: AgentSessionTimelineItem) {
+-    let session_id = item.session_id.clone();
+-    record_timeline_item_for_thread(app, &session_id, None, item);
+-}
+-
+ fn record_timeline_item_for_thread(
+     app: &AppHandle,
+     root_session_id: &str,
+--- a/src-tauri/src/agent_console/journal.rs
++++ b/src-tauri/src/agent_console/journal.rs
+@@ -25,6 +25,8 @@
+     CreateDir(#[source] std::io::Error),
+     #[error("sqlite fallo: {0}")]
+     Sqlite(#[from] rusqlite::Error),
++    #[error("el historial no pertenece a la sesion reanudada")]
++    ReplaySessionMismatch,
+     #[error("json fallo: {0}")]
+     Json(#[from] serde_json::Error),
+ }
+@@ -296,6 +298,25 @@
+                 session.exit_code,
+             ],
+         )?;
++        Ok(())
++    }
++
++    /// Restore the complete archived history atomically, without one commit per event.
++    /// The session snapshot may retain only the bounded live tail; the journal keeps all items.
++    pub fn record_resumed_timeline(
++        &self,
++        session: &AgentSession,
++        items: &[AgentSessionTimelineItem],
++    ) -> Result<(), AgentJournalError> {
++        let transaction = self.conn.unchecked_transaction()?;
++        self.record_session(session)?;
++        for item in items {
++            if item.session_id != session.id {
++                return Err(AgentJournalError::ReplaySessionMismatch);
++            }
++            self.record_timeline_item(item)?;
++        }
++        transaction.commit()?;
+         Ok(())
+     }
+ 
+@@ -1355,4 +1376,53 @@
+         assert_eq!(archived_acp.permission_mode, None);
+         assert!(!archived_acp.permission_mode_change_supported);
+     }
++    #[test]
++    #[ignore = "controller recorded-history measurement; requires TINTO_REPLAY_FIXTURE"]
++    fn recorded_history_replay_budget() {
++        let fixture = std::env::var("TINTO_REPLAY_FIXTURE").unwrap();
++        let items: Vec<AgentSessionTimelineItem> = serde_json::from_slice(&std::fs::read(fixture).unwrap()).unwrap();
++        assert_eq!(items.len(), 10208);
++        let dir = tempfile::tempdir().unwrap();
++        let journal = AgentJournal::open(dir.path().join("replay.sqlite")).unwrap();
++        let mut snapshot = session("replay-test");
++        journal.record_session(&snapshot).unwrap();
++        let items: Vec<_> = items.into_iter().enumerate().map(|(index, mut item)| {
++            item.id = format!("replay-test:resumed:{index}");
++            item.session_id = snapshot.id.clone();
++            item
++        }).collect();
++        snapshot.timeline = items.iter().rev().take(2000).cloned().collect();
++        snapshot.timeline.reverse();
++        let started = std::time::Instant::now();
++        journal.record_resumed_timeline(&snapshot, &items).unwrap();
++        let elapsed = started.elapsed();
++        let restored = journal.timeline_for_session(&snapshot.id).unwrap();
++        assert_eq!(serde_json::to_value(&restored).unwrap(), serde_json::to_value(&items).unwrap());
++        eprintln!("REPLAY_BATCH count={} elapsed_ms={}", items.len(), elapsed.as_millis());
++        assert!(elapsed.as_secs() < 2, "recorded replay blocks resume longer than two seconds");
++    }
++
++    #[test]
++    fn resumed_history_transaction_preserves_order_and_rolls_back_mixed_sessions() {
++        let journal = AgentJournal::open_in_memory().unwrap();
++        let snapshot = session("resumed");
++        let items: Vec<_> = (0..10208).map(|index| AgentSessionTimelineItem {
++            id: format!("resumed:{index}"), session_id: snapshot.id.clone(),
++            kind: AgentSessionTimelineKind::CommandOutput,
++            text: format!("chunk {index}"), timestamp_ms: index + 100, attachments: Vec::new(),
++        }).collect();
++        journal.record_resumed_timeline(&snapshot, &items).unwrap();
++        let restored = journal.timeline_for_session(&snapshot.id).unwrap();
++        assert_eq!(serde_json::to_value(&restored).unwrap(), serde_json::to_value(&items).unwrap());
++        // Repeated persistence does not duplicate events.
++        journal.record_resumed_timeline(&snapshot, &items).unwrap();
++        assert_eq!(journal.timeline_for_session(&snapshot.id).unwrap().len(), items.len());
++        let other = session("failed");
++        let mut valid = items[0].clone();
++        valid.id = "failed:0".into(); valid.session_id = other.id.clone();
++        assert!(matches!(journal.record_resumed_timeline(&other, &[valid, items[1].clone()]), Err(AgentJournalError::ReplaySessionMismatch)));
++        assert!(journal.session_from_journal(&other.id).unwrap().is_none());
++        assert!(journal.timeline_for_session(&other.id).unwrap().is_empty());
++    }
++
+ }

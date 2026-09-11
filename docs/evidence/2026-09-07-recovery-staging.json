@@ -1,0 +1,313 @@
+{
+  "status": "STAGING_READY_OFFLINE",
+  "createdUtc": "2026-09-07T13:22:01.871112+00:00",
+  "nativeAcceptance": "not-run; existing owning Pum stdin handle unavailable to this fresh tool session",
+  "preservation": {
+    "baselineFiles": 637,
+    "unchangedOutsideFourAuthorizedFiles": 633,
+    "unexpectedChanges": [],
+    "authorizedChangedFiles": [
+      "C:\\Users\\User\\Documents\\personal\\pumarejo\\docs\\evidence\\2026-09-07-cancellation-acceptance.mjs",
+      "C:\\Users\\User\\Documents\\personal\\pumarejo\\docs\\evidence\\2026-09-07-cancellation-fix.md",
+      "C:\\Users\\User\\Documents\\personal\\tinto\\docs\\orchestration\\2026-09-07-daily-use-bounded-diagnosis.md",
+      "C:\\Users\\User\\Documents\\personal\\tinto\\docs\\orchestration\\2026-09-07-native-hardening-reconciliation.md"
+    ],
+    "baseline": "C:\\Users\\User\\AppData\\Local\\Temp\\tinto-fresh-recovery-20260907\\preservation-baseline.json",
+    "dirtyEntriesBeforeReceipt": {
+      "C:\\Users\\User\\Documents\\personal\\pumarejo": 17,
+      "C:\\Users\\User\\Documents\\personal\\tinto": 42,
+      "C:\\Users\\User\\Documents\\personal\\ICook": 580
+    },
+    "all46LiveProviderSourcesMatchOldManifest": true
+  },
+  "patchSources": [
+    {
+      "path": "src-tauri/src/agent_console/commands.rs",
+      "beforeSha256": "590b6222e042f98f25e51926b176ea97c0c5809ac1108c1bface6dce7c7aa8b1",
+      "testedSourceSha256": "d2204a087cd1e8bcb185a21a195a5f5b6fe4fa16d1deeaca8ba20cdc549bbf17"
+    },
+    {
+      "path": "src-tauri/src/agent_console/journal.rs",
+      "beforeSha256": "c43db62ff02614c02038e4a1f4ce0eedcacd63011feeef131dafa2f5c073b82b",
+      "testedSourceSha256": "7f602777375ee532d1fa22bf63514ff5b04ef200ef914d649e4358edfa2c6bd6"
+    }
+  ],
+  "tests": {
+    "recordedBefore": {
+      "eventsProcessed": 4762,
+      "totalEvents": 10208,
+      "elapsedMs": 10000,
+      "result": "failed ten-second cap"
+    },
+    "recordedAfterMs": [
+      779,
+      1237
+    ],
+    "journalTests": 18,
+    "commandTests": 36,
+    "acceptanceParserChecks": 5,
+    "acceptanceWireChecks": 4,
+    "nativeFlow": "not-run",
+    "liveUiReplay": "not-run",
+    "fixtureIntegrationChecks": "four ready; only external probes stubbed",
+    "scope": "temporary source copy; --lib test build with existing target cache; command tests create only disposable Git fixture commits"
+  },
+  "liveHost": {
+    "pid": 18500,
+    "createdUtc": "2026-09-07T12:47:15.7118480Z",
+    "tauriPid": 26124,
+    "noWatch": true,
+    "executableSha256": "a31aaf14129e38f638f53f2ff681c20e15ceed8e43ec7fcbc35267af3a3fd0d0",
+    "executableLastWriteUtc": "2026-09-07T12:40:39.4533987Z"
+  },
+  "artifacts": [
+    {
+      "path": "C:\\Users\\User\\Documents\\personal\\pumarejo\\docs\\evidence\\2026-09-07-cancellation-acceptance.mjs",
+      "bytes": 21801,
+      "sha256": "6f9c99f560b718c1f9620b9742e657a168360ab624d5b9399098d456b3adbc91"
+    },
+    {
+      "path": "C:\\Users\\User\\Documents\\personal\\pumarejo\\docs\\evidence\\2026-09-07-stage-tinto-provider.mjs",
+      "bytes": 5454,
+      "sha256": "848e4d9777a5818f44712bd82a116a0e6fa61b34807a0b4ac4dd27ef725368c3"
+    },
+    {
+      "path": "C:\\Users\\User\\Documents\\personal\\pumarejo\\docs\\evidence\\2026-09-07-tinto-replay.patch",
+      "bytes": 7895,
+      "sha256": "5e871efd82db5194fc090db75c07076f7e1274e55af48438f90fc581024d5e68"
+    },
+    {
+      "path": "C:\\Users\\User\\Documents\\personal\\pumarejo\\docs\\evidence\\2026-09-07-cancellation-fix.md",
+      "bytes": 40617,
+      "sha256": "8595938cd8bf992c93f92bd29d791a53a5c2aea7bf5fb9c08fea55382477d0fc"
+    },
+    {
+      "path": "C:\\Users\\User\\Documents\\personal\\tinto\\docs\\orchestration\\2026-09-07-daily-use-bounded-diagnosis.md",
+      "bytes": 50704,
+      "sha256": "4014ba02b128eb2f0d04f38abb420eedf18bb4a7eda543176f7f8c7b874bb011"
+    },
+    {
+      "path": "C:\\Users\\User\\Documents\\personal\\tinto\\docs\\orchestration\\2026-09-07-native-hardening-reconciliation.md",
+      "bytes": 23318,
+      "sha256": "f67048000e9262d037be1c6a265fb588be3179267398a6fe8f13d8ed40feeee8"
+    },
+    {
+      "path": "C:\\Users\\User\\Documents\\personal\\pumarejo\\dist\\mcp\\runtime.js",
+      "bytes": 39721,
+      "sha256": "385e8b1c309b9ad2083049e5e53f51f2fab12a084837c06dc234758c23b3cb05"
+    },
+    {
+      "path": "C:\\Users\\User\\Documents\\personal\\pumarejo\\dist\\observation\\snapshot-browser.js",
+      "bytes": 24616,
+      "sha256": "71e1851330d3ca912ffaeb964146e86d27d71b349f7dfdd34f1041e4bfe5b31d"
+    },
+    {
+      "path": "C:\\Users\\User\\AppData\\Local\\Temp\\tinto-fresh-recovery-20260907\\recorded-timeline.json",
+      "bytes": 2453723,
+      "sha256": "fb94d52327c921668863c06786b0be5fe8ab120e96909682475d6f4a6aa397ca"
+    },
+    {
+      "path": "C:\\Users\\User\\AppData\\Local\\Temp\\tinto-fresh-recovery-20260907\\final-journal-tests.log",
+      "bytes": 2615,
+      "sha256": "4875e28866c5221824f5a34a5e8b14f147a0dd3992b79321ae213cd8d9cc0288"
+    },
+    {
+      "path": "C:\\Users\\User\\AppData\\Local\\Temp\\tinto-fresh-recovery-20260907\\staging-fixture-doctor-complete.json",
+      "bytes": 1059,
+      "sha256": "b4085ad6b86177efadd3a5bbceedfe88db78c7c39bc80eb8ac0677c55fc92ef2"
+    }
+  ],
+  "limits": [
+    "No native restore/ENTER/task completion acceptance claimed.",
+    "No full UI blank/lock attribution; isolated journal replay bottleneck confirmed.",
+    "No WSL Linux PID/creation cleanup proof.",
+    "Active cancellation dispatch requires matching provider receipt.",
+    "Native/full-access/sky setup and submission remain fallback.",
+    "No config fingerprint rewritten; ordinary init still rejects deliberate config hash drift."
+  ],
+  "wslRoute": {
+    "status": "native-workspace-write-startup-task-cleanup-passed",
+    "stage": "C:\\Users\\User\\AppData\\Local\\Temp\\tinto-wsl-route-frontend-20260907",
+    "patch": {
+      "path": "docs/evidence/2026-09-07-wsl-route-frontend.patch",
+      "sha256": "6499ab7db4d76a621c37a2aec3062738a9ad86139e35e18c911f506528b57778"
+    },
+    "sources": [
+      {
+        "path": "src/panels/RepoCard.tsx",
+        "beforeSha256": "5b71a87b8352b88968db29679ac67b523cb4f461236d5b34a56d1112ad69efe3",
+        "afterSha256": "617755954a8ae5978ea33b7e152a32cc6189c0a8c2d3816a187c3ae54dbb20e4"
+      },
+      {
+        "path": "src/panels/agentAvailability.ts",
+        "beforeSha256": "5a04fd7324976b6172789751f2a6bf3db8a83f7d472dc0bbfd817e59cdbe3890",
+        "afterSha256": "5c42ee11dadfb558433c8c3a7e90a5f20e22e5089a30ec3d787fcb7d85652fad"
+      },
+      {
+        "path": "src/panels/RepoCard.test.tsx",
+        "beforeSha256": "f7fd0ee11a4472d6322071d24b3f668b64071c5c4a32bc2d736ec235f00dd391",
+        "afterSha256": "bc466cad2af9925ade4244c037d5c1fb7f92629391add37228be2822fe289067"
+      }
+    ],
+    "backend": {
+      "path": "src-tauri/src/wsl_agent/launcher.rs",
+      "sha256": "f6ad6f23e872906380ccf413434ca98776e7000a8e1b66dc0bd985df5b919b85"
+    },
+    "tests": {
+      "rustWsl": 99,
+      "offlineUi": 64,
+      "offlineViteBuild": "passed",
+      "typecheck": "passed after adding the unchanged tauri.conf.json to the isolated fixture",
+      "retiredCheckpointRegression": {
+        "before": "15 passed, 1 failed with the exact recovered retired/not-sent error; lost-response no-retry test passed",
+        "after": "96 WSL tests passed, including both wrapper-level checkpoint regressions"
+      }
+    },
+    "limits": [
+      "Native click006 exception recovered: checkpoint rejected on a retired helper before dispatch; no live retry performed.",
+      "The recovered exception proves the retired-before-dispatch checkpoint path. Which earlier request retired that helper is not identified.",
+      "Unrelated 05:43 Linux Codex/headroom processes must remain untouched."
+    ],
+    "preservation": {
+      "preserved": 637,
+      "unexpectedChanges": [],
+      "dirty": {
+        "pumarejo": 19,
+        "tinto": 44,
+        "ICook": 580
+      },
+      "baseline": "%TEMP%/tinto-wsl-route-baseline-20260907.json"
+    },
+    "recoveredCheckpointFailure": {
+      "receipt": "%TEMP%/tinto-wsl-native-20260907/native-console-fallback.json",
+      "sha256": "f081344f9f74367fd7985673dd21187e49b5121cf64fcb2a7077469b6632b34d",
+      "category": "child_exit",
+      "message": "WSL startup [checkpoint_create]: agente WSL retirado tras fallo de transporte; solicitud no enviada",
+      "source": "Controller read-only native DevTools Computer Use fallback; no code execution or launch retry; not Pum capability proof",
+      "resolution": "One replacement attempt only for internally proven retired-before-dispatch, within the same deadline. Never replay a possibly dispatched checkpoint mutation.",
+      "supersededBy": "startupContention: checkpoint creation now bypasses the scan pool entirely; the owned exchange has no retry."
+    },
+    "recoveredCheckpointPreservation": {
+      "baseline": "%TEMP%/tinto-retired-checkpoint-baseline-20260907.json",
+      "preserved": 638,
+      "unexpectedChanges": [],
+      "dirty": {
+        "pumarejo": 19,
+        "tinto": 44,
+        "ICook": 580
+      }
+    },
+    "frontendApplied": {
+      "verified": true,
+      "allLiveHashesMatch": "sources[].afterSha256",
+      "note": "Controller applied after preimage checks; agentAvailability.ts copied as exact staged LF bytes after git apply produced normalized-equivalent CRLF. Do not reapply the frontend patch."
+    },
+    "binaryCheckContention": {
+      "previousBackendSha256": "0c79d0eb4a65d09473222f200dc59dd6d4ac8512d7fdc298d37588c23d19e96d",
+      "receiptRoot": "%TEMP%/tinto-wsl-acceptance-20260907",
+      "nativeFailure": "timeout; binary_check after one click006; no new journal Agent/Linux Codex",
+      "rootCause": "AgentBinaryAvailable shared a serialized helper with long repo scans; held-lock regression reproduces a queue timeout despite independent managed probe availability.",
+      "fix": "Only AgentBinaryAvailable uses one owned short-lived helper through existing bounded exchange; no generic pool/cache, increased timeout or mutation retry.",
+      "probe": "%TEMP%/tinto-binary-contention-probe-20260907.json",
+      "probeSha256": "74133763e129bd678639d896ae15a6103ee717e4820edd00ab155e71bc6397fb",
+      "probeMs": 1445,
+      "red": "1 failed with timeout en cola del agente WSL; solicitud no enviada",
+      "green": "97 WSL tests passed",
+      "limit": "Native visible category identifies binary_check timeout but does not reveal queue-vs-helper substage for that individual request; supplied console detail was requested without retry. Native success remains pending.",
+      "supersededBy": "startupContention extends the owned exchange to checkpoint create and scan for the full start/status path."
+    },
+    "build": {
+      "cwd": "C:/Users/User/Documents/personal/tinto",
+      "toolchain": "stable-x86_64-pc-windows-msvc",
+      "command": "cargo build --offline --locked --manifest-path src-tauri/Cargo.toml --features pumarejo --bin tinto",
+      "warning": "Do not use the former Pum-root manifest-only build command: without RUSTUP_TOOLCHAIN, Pum selects default GNU while Tinto has the existing MSVC directory override.",
+      "currentEnvironment": "This Agent has RUSTUP_TOOLCHAIN=stable-x86_64-pc-windows-msvc; isolated child checks without it confirmed the different directory selections."
+    },
+    "binaryContentionPreservation": {
+      "baseline": "%TEMP%/tinto-binary-contention-baseline-20260907.json",
+      "preserved": 641,
+      "unexpectedChanges": [],
+      "dirty": {
+        "pumarejo": 19,
+        "tinto": 47,
+        "ICook": 580
+      }
+    },
+    "startupContention": {
+      "receipt": "%TEMP%/tinto-wsl-binary-acceptance-20260907/native-console-fallback.json",
+      "receiptSha256": "1e4e787b9305d6f6f3a132fae2efd223c8bee82f8032ecd1451e14ac8233b22d",
+      "category": "timeout",
+      "message": "WSL startup [checkpoint_create]: timeout en cola del agente WSL; solicitud no enviada",
+      "source": "Computer Use native DevTools read-only fallback; no code executed/retry; not Pum capability proof",
+      "ownedRequests": [
+        "AgentBinaryAvailable",
+        "AgentCheckpointCreate",
+        "AgentCheckpointScan"
+      ],
+      "reason": "Start preflight, checkpoint creation and existing-session status/checkpoint scans do not require helper-local watcher state; each must progress independently of repository scan queue.",
+      "providerPath": "Codex app-server and PTY fallback directly spawn wsl.exe/bash with agent_console_script; session insertion has no helper call.",
+      "policy": "One owned helper exchange per selected operation; no retries, unchanged deadline, no pool/framework/cache additions. Creation is a mutation; write/response uncertainty remains non-retryable.",
+      "tests": "Two held-pool-lock regressions failed with the exact not-sent queue timeout, then full WSL suite passed 99 tests including provider argv and checkpoint lost-response no-replay.",
+      "providerProbe": "%TEMP%/tinto-startup-provider-preflight-20260907.json",
+      "providerProbeSha256": "2ee44cf31d7c8ac8d75a72fe8e3d844b07b490a645e1d6e48b4369c23b72c5d1",
+      "providerProbeResult": "Exact console script in ICook cwd with --version only: 1505ms exit0, codex-cli 0.153.2, empty stderr; no app-server/task launch.",
+      "nativeLimit": "Native ICook checkpoint execution/provider session/task completion still requires controller acceptance; direct process spawn does not inherit the shared scan pool but other runtime failures are not ruled out."
+    },
+    "startupContentionPreservation": {
+      "baseline": "%TEMP%/tinto-startup-contention-baseline-20260907.json",
+      "preserved": 641,
+      "unexpectedChanges": [],
+      "dirty": {
+        "pumarejo": 19,
+        "tinto": 47,
+        "ICook": 580
+      }
+    },
+    "nativeSuccess": {
+      "status": "passed-bounded-native-wsl-startup-task-and-owned-cleanup",
+      "receipt": "../tinto/docs/orchestration/evidence/2026-09-07-wsl-startup-native-success.json",
+      "sha256": "bb6c6552ee60fb203af8bf1b4346a1a8b20d744a6e951092067959dcf3a3f594",
+      "countsUnchanged": {
+        "pass": 17,
+        "passWithLimits": 1,
+        "blocked": 3
+      },
+      "limits": [
+        "Background repository scan timeouts remain.",
+        "Long-history action latency remains; bounded 418ms/1890ms observations do not prove full maturity.",
+        "WSL full-access acceptance remains untested.",
+        "No ICook 21-case rerun: retain 17 pass + 1 limited + 3 blocked; original Windows app readiness is separate."
+      ]
+    },
+    "finalDocsPreservation": {
+      "baseline": "%TEMP%/tinto-wsl-final-reconciliation-baseline-20260907.json",
+      "baselineSha256": "5b317f6872d91cfdf1e46839e5357cd075d8ad55841349dc2bcbd1b960631865",
+      "preservedOtherDirtyFiles": 637,
+      "unexpectedChanges": [],
+      "dirty": {
+        "pumarejo": 19,
+        "tinto": 49,
+        "ICook": 580
+      },
+      "authorizedDocs": {
+        "pumarejo": [
+          "docs/evidence/2026-09-07-cancellation-fix.md",
+          "docs/evidence/2026-09-07-recovery-staging.json"
+        ],
+        "tinto": [
+          "docs/orchestration/2026-09-07-native-hardening-reconciliation.md",
+          "docs/orchestration/2026-09-07-daily-use-bounded-diagnosis.md"
+        ],
+        "ICook": [
+          "docs/tinto-pumarejo-repair-handoff.md",
+          "docs/tinto-pumarejo-dogfood-report.md",
+          "docs/orchestration/seneschal/evidence/pumarejo-campaign.json",
+          "docs/orchestration/seneschal/reconciliation-state.yaml",
+          "docs/swarm/queue-state.yaml"
+        ]
+      },
+      "sourceChanges": 0,
+      "testsBuildsInstallsDispatchLifecycle": 0
+    }
+  }
+}

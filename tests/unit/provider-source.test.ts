@@ -64,6 +64,10 @@ describe("curated provider source", () => {
       '"/session/{session_id}/pumarejo/window-capabilities"',
     );
     expect(windowHandler).toContain("pub async fn capabilities");
+    expect(router).toContain('"/session/{session_id}/pumarejo/window/restore"');
+    expect(windowHandler).toContain("window.unminimize()");
+    expect(windowHandler).toContain("window.unmaximize()");
+    expect(windowHandler).toContain("window.is_minimized()");
     expect(windowHandler).toContain("window.is_resizable()");
     expect(windowHandler).toContain("window.is_maximizable()");
     expect(windowHandler).toContain('Ok(false) => ("unsupported"');
