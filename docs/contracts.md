@@ -154,6 +154,35 @@ permissions, and extra keys are rejected.
 
 ## MCP tools
 
+### Tool set and context budget
+
+`pumarejo mcp` exposes ten tools by default: `tauri_launch`, `tauri_status`,
+`tauri_snapshot`, `tauri_screenshot`, `tauri_diagnostics`, `tauri_click`,
+`tauri_type`, `tauri_press_key`, `tauri_select_option`, and `tauri_close`.
+`--tools all` adds `tauri_surface_discover`, `tauri_surface_select`,
+`tauri_surface_coverage`, `tauri_dialog`, `tauri_window`, `tauri_pointer`,
+`tauri_scroll`, and `tauri_sequence`. The server sends usage instructions in
+the MCP `initialize` result and marks observation tools `readOnlyHint: true`.
+
+Results are sized for an agent's context. The text content of
+`tauri_snapshot` and `tauri_launch` is an indented outline; the text content
+of click, type, key, and option actions lists what changed. Their
+`structuredContent` carries metadata (generation, window, truncation, node and
+change counts) but not the node list. `format: "json"` on `tauri_snapshot`
+returns the full node data described below.
+
+### Reference stability
+
+Each snapshot offers the current table's element handles back to the browser
+collector, which reports which elements are the same DOM objects. Those
+elements keep their public ref (for example `e3-7` stays `e3-7` at generation
+5); new elements receive refs named after the generation that created them.
+Matching uses object identity only, never labels, selectors, or geometry, and
+every action still re-checks the element's semantic identity before
+dispatch. A ref whose element is gone fails with `STALE_ELEMENT_REF`. After a
+full page reload, previous handles no longer exist and every element receives
+a new ref.
+
 ### Truthful native control (RDM-014)
 
 The runtime probes the authenticated provider's dedicated
@@ -335,6 +364,16 @@ Input:
 }
 ```
 
+`format` (`"outline"` or `"json"`, default `"outline"`) and `maxChars`
+(`500` through `60000`, default `8000`) control presentation only. The outline
+renders one line per node, such as
+`- textbox "Message" [e3-2] (focused, required): "Hello"`, shows only states
+that differ from the default, omits bounds, and drops text spans that repeat
+their parent's label. When it exceeds `maxChars`, subtrees collapse from the
+leaves upward into one line:
+`- list "History" [e1-9] … 120 items, 0 controls hidden (expand: rootRef "e1-9")`.
+Dialogs, alerts, and status regions collapse last.
+
 Every field is optional. Defaults are `maxNodes: 500`, `maxDepth: 32`,
 `maxTextLength: 4096`, `visibleOnly: true`, `includeNames: true`,
 `includeText: true`, and `includeValues: true`. The three `include*` controls
@@ -473,16 +512,18 @@ The MCP result contains an image content block and structured metadata:
 ```json
 {
   "ref": "e3-1",
-  "snapshotAfter": true,
+  "snapshotAfter": false,
   "settleMs": 250
 }
 ```
 
-All action tools accept `snapshotAfter` (default `true`) and `settleMs`
+All action tools accept `snapshotAfter` (default `false`) and `settleMs`
 (default `250`, range `0` through `2000`). Mutation, settling, effect
 classification, and the post-action snapshot share the serialized observation
-boundary. `snapshotAfter` controls only whether the already captured bounded
-snapshot is included in the result.
+boundary. The result always includes `changes` when both observations are
+comparable: added and removed node lines plus changed fields per surviving
+ref, capped at 40 lines with a count of the rest. Redacted values never appear
+in changes. `snapshotAfter: true` also returns the full post-action outline.
 
 ```json
 {
@@ -525,9 +566,9 @@ comparable default full-snapshot scopes before and after the action; a refined
 semantic extraction produces `unknown`. Within comparable scopes, precedence is
 `window_change`, `semantic_change`, `focus_only`, then
 `no_observable_change`. `no_observable_change` applies only to the bounded
-semantic observation taken after `settleMs`. Before-action refs are historical
-and explicitly non-actionable. Only refs in the returned post-action snapshot
-and focus-after evidence belong to the current generation.
+semantic observation taken after `settleMs`. Refs of elements that survive the
+action keep their names and remain actionable in the new generation; refs of
+removed elements fail with `STALE_ELEMENT_REF`.
 
 ### `tauri_type`
 

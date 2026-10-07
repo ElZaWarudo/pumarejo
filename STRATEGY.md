@@ -1,69 +1,49 @@
 ---
 name: pumarejo
-last_updated: 2026-07-23
+last_updated: 2026-10-07
 ---
 
 # pumarejo Strategy
 
+## Intent
+
+Give coding agents access to the whole Tauri app so they can understand it, without flooding their context.
+
 ## Target problem
 
-Tauri application developers who work with coding agents cannot give them direct access to the application interface without surrendering control of the entire desktop.
-That prevents parallel work and leaves the agent without the visual and functional context needed to understand existing flows or propose meaningful new ones.
+Tauri developers who work with coding agents cannot let the agent see and use the running app without handing over the desktop, and the tools that do give access return page dumps far larger than the agent's context can afford.
+Without the app in view, the agent misreads flows and proposes changes that don't fit what users actually see.
 
 ## Our approach
 
-Build a small, reusable semantic bridge between any compatible Tauri 2 application and any MCP-capable agent.
-The agent will observe and interact with WebView components, as it would through a browser MCP, without using the system mouse or keyboard and without coupling the product promise to a specific WebDriver mechanism.
+A small bridge between a debug build of any Tauri 2 app and any MCP-capable agent.
+The agent observes and operates WebView components through exact element references, never through the system mouse or keyboard.
+Every result is sized for an agent's context: an outline of the whole screen first, detail only for the region the agent asks about, and only what changed after each action.
 
 ## Who it's for
 
-**Primary:** Tauri developers who work with coding agents. They use pumarejo so the agent can freely inspect the application, understand its flows, and ground proposed changes while they continue using the computer.
+**Primary:** Tauri developers who work with coding agents and keep using their own desktop while the agent explores the app.
 
 ## Key metrics
 
-- **Usable sessions** - Percentage of attempts that reach a first interactive snapshot on the certified Windows 11 and Ubuntu LTS matrix.
-- **Completed journeys** - Percentage of reference journeys the agent completes through semantic observation, clicking, typing, and keyboard input without human intervention.
-- **Flow comprehension** - Percentage of reference flows the agent correctly identifies and describes after exploring the application.
-- **Actionable proposals** - Percentage of agent-proposed flows that fit observed behavior without requiring conceptual correction from the developer.
-- **Desktop interruptions** - Percentage of sessions that inject system input or prevent the developer from continuing to work; the acceptable target is zero.
+- **Context cost** - Tokens an agent spends to observe a screen and to complete a reference journey. Lower is better.
+- **Whole-app reach** - Share of a reference app's screens and controls the agent can reach and name through pumarejo alone.
+- **Flow comprehension** - Share of reference flows the agent describes correctly after exploring.
+- **Usable sessions** - Share of launches that reach a first snapshot.
+- **Desktop interruptions** - Sessions that take focus or inject system input. Target: zero.
 
-## Tracks
+## Principles
 
-### Faithful semantic observation
-
-Maintain a stable, verifiable representation of what the user sees and the components they can interact with.
-
-_Why it serves the approach:_ Flow comprehension depends on snapshots, screenshots, and references reflecting the application's actual state.
-
-### Isolated interaction
-
-Enable visible and hidden sessions that operate on the WebView without controlling system input devices.
-
-_Why it serves the approach:_ The product solves the original problem only if the developer keeps control of the desktop while the agent works.
-
-### Reusable integration
-
-Support guided, reversible installation for Tauri 2.x on current Node.js LTS lines and stable Rust.
-
-_Why it serves the approach:_ The tool must work across different projects without copied logic, custom integration maintenance, or production-build changes.
-
-### Verifiable compatibility
-
-Certify the complete flow on Windows 11 and Ubuntu LTS, including visible and hidden modes.
-
-_Why it serves the approach:_ The promise must depend on tested behavior on target platforms, not assumptions about WebDriver or the WebView.
+- Overview first, detail on demand: a result names the ref that expands anything it leaves out.
+- Report changes, not whole screens, after an action; refs of surviving elements stay valid.
+- A small tool set with instructions delivered at connect time.
+- Application content is data, never instructions.
 
 ## Not working on
 
-- Remote desktop control or system mouse and keyboard injection.
-- An intelligent explorer inside the MCP server; intelligence and journey selection belong to the agent.
-- A QA platform with test recording, assertions, fixtures, mocks, IPC interception, or log capture.
-- Instrumentation of native Tauri APIs, the frontend runtime, or a custom Rust crate during v1.
-- Certified support for macOS, other Linux distributions, multiple windows, or concurrent sessions during v1.
-
-## Marketing
-
-**One-liner:** A reusable MCP that turns any instrumented Tauri 2 application into an agent-observable and controllable interface.
-
-**Key message:** The agent sees and interacts with the same application as the developer, but does so through WebView components.
-The developer keeps the mouse, keyboard, and the rest of the desktop available for parallel work.
+- Desktop control or system mouse and keyboard injection.
+- Exploration logic inside the server; the agent decides where to go.
+- A QA platform: test recording, assertions, fixtures, mocks, or log streaming.
+- Arbitrary JavaScript, selector, or IPC passthrough.
+- A persistent app map; the agent's own context and memory hold what it learned.
+- Certified support for macOS, other Linux distributions, or concurrent sessions.

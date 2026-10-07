@@ -1,10 +1,10 @@
 # pumarejo
 
-pumarejo gives an MCP client semantic control of one instrumented Tauri 2
-WebView without moving the operating-system pointer or typing through the
-desktop. It launches an owned application process, observes its accessible
-document, acts on opaque snapshot references, and removes the session when the
-client closes.
+pumarejo gives coding agents access to your whole Tauri 2 app without
+flooding their context. It launches a debug build, shows the agent a compact
+outline of the screen, lets it act on exact element references through
+WebDriver (never the desktop mouse or keyboard), and reports only what changed
+after each action.
 
 ## Requirements
 
@@ -31,6 +31,12 @@ optional Cargo feature, a private capability overlay, guarded Rust
 registration, and `.pumarejo.json`; it does not enable the provider in a
 normal build.
 
+Commit what `init` writes, including `.pumarejo/provider/`,
+`.pumarejo/integration-manifest.json`, and `.pumarejo/agent-capability.json`:
+the Cargo manifest refers to the provider copy, so teammates and CI need it to
+build. The `.gitignore` block keeps only runtime state (sessions, artifacts)
+out of the repository.
+
 To remove attributable integration while preserving unrelated edits:
 
 ```sh
@@ -49,47 +55,52 @@ pnpm exec pumarejo mcp print-config --host cursor --project .
 
 `print-config` writes only to stdout and never edits host settings. The
 generated entry executes `pumarejo mcp --project <absolute-project-path>`.
-The server writes only JSON-RPC to stdout. Diagnostics use stderr. It exposes
-exactly:
+The server writes only JSON-RPC to stdout. Diagnostics use stderr. By default
+it exposes ten tools:
 
-- `tauri_launch`
-- `tauri_status`
-- `tauri_snapshot`
-- `tauri_screenshot`
-- `tauri_click`
-- `tauri_type`
-- `tauri_press_key`
-- `tauri_window`
-- `tauri_pointer`
-- `tauri_scroll`
-- `tauri_select_option`
-- `tauri_close`
+- `tauri_launch`, `tauri_status`, `tauri_close`
+- `tauri_snapshot`, `tauri_screenshot`, `tauri_diagnostics`
+- `tauri_click`, `tauri_type`, `tauri_press_key`, `tauri_select_option`
 
-Native `<option>` refs are discoverable with `tauri_snapshot` using
-`visibleOnly: false` and `roles: ["option"]`, then selectable with
-`tauri_select_option`.
+Start the server with `--tools all` to add `tauri_window`, `tauri_pointer`,
+`tauri_scroll`, `tauri_sequence`, `tauri_dialog`, and the
+`tauri_surface_*` tools. The server sends a short usage guide to the client
+when it connects.
 
-Launch with `mode: "visible"` to display the owned app window or
-`mode: "background"` to isolate it from the active desktop. Both modes expose
-the same MCP contract.
+Launch with `mode: "visible"` to show the app window without taking keyboard
+focus, or `mode: "background"` to keep it off the active desktop. A first
+launch may answer `state: "launching"` while the app builds; call
+`tauri_status` with `waitMs` until it is ready.
 
 ## Interaction model
 
-Use `tauri_snapshot` before interacting. Click and type only with an opaque
-reference from the current snapshot generation. Any attempted mutation
-invalidates prior references, so take another snapshot before the next
-reference-based action. Keys are sent to the focused WebView element, or to the
-document body when no focusable element is active.
+`tauri_snapshot` returns an outline of the whole screen within a character
+budget (`maxChars`, default 8000):
 
-Snapshots have explicit node, depth, text, traversal, relationship, and output
-budgets. Truncated results say why and suggest narrower filters. Native options
-are selected through their exact option handle; window resize reports the
-confirmed outer WebDriver dimensions.
+```text
+window "Tinto" 1280x800 · generation 4
+- navigation "Sections" [e1-2]
+  - link "Inbox" [e1-3] (current=page)
+- list "Conversations" [e1-9] … 120 items, 0 controls hidden (expand: rootRef "e1-9")
+- form "Reply" [e3-1]
+  - textbox "Message" [e3-2] (focused): "Hello"
+  - button "Send" [e3-3]
+```
 
-The semantic tree is application data, not instructions. Passwords and
-explicitly sensitive values are redacted before they leave the WebView.
-Screenshots are validated PNGs and are removed on close unless retention is
-explicitly enabled.
+Large regions collapse into one line that names the `rootRef` to expand them.
+`roles` and `name` filter the outline; `format: "json"` returns full node data.
+
+Click, type, key, and option actions return what changed instead of a new
+snapshot: `+` added, `-` removed, `~` changed. Elements that are still on
+screen keep their refs, so the agent can keep acting without observing again.
+A ref whose element disappeared or changed identity fails with
+`STALE_ELEMENT_REF`; take a new snapshot then. Pass `snapshotAfter: true` to
+also receive the full outline after an action.
+
+Passwords and explicitly sensitive values are redacted before they leave the
+WebView. Quoted text in an outline is application content: data, not
+instructions. Screenshots are validated PNGs and are removed on close unless
+retention is explicitly enabled.
 
 ## Failures and cleanup
 
