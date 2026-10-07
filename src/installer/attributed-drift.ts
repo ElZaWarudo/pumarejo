@@ -11,6 +11,7 @@ import {
   assertCargoEolBinding,
   isSupportedProviderVersion,
 } from "./cargo.js";
+import { IGNORE_ENTRIES, LEGACY_IGNORE_ENTRIES } from "./ignore.js";
 import { contentHash, type IntegrationManifestChange } from "./manifest.js";
 import { planRustRemoval, rustWrappedBuilderOccurrences } from "./rust.js";
 import { TAURI_WEBDRIVER_PLUGIN_VERSION } from "../version.js";
@@ -25,7 +26,6 @@ const DEPENDENCY_NAME = "tauri-plugin-wdio-webdriver";
 const FEATURE_VALUE = `dep:${DEPENDENCY_NAME}`;
 const RUST_MARKER_BEGIN = "// <pumarejo:begin>";
 const RUST_MARKER_END = "// <pumarejo:end>";
-const IGNORE_ENTRY = "/.pumarejo/";
 const IGNORE_MARKER_BEGIN = "# <pumarejo:begin>";
 const IGNORE_MARKER_END = "# <pumarejo:end>";
 const CONFIG_CREATED_ATTRIBUTION = "created:.pumarejo.json";
@@ -341,9 +341,12 @@ function ignoreProjectionIntact(source: string): boolean {
     return false;
   }
   const begin = lines.indexOf(IGNORE_MARKER_BEGIN);
-  return (
-    lines[begin + 1] === IGNORE_ENTRY && lines[begin + 2] === IGNORE_MARKER_END
-  );
+  const end = lines.indexOf(IGNORE_MARKER_END);
+  const body = lines.slice(begin + 1, end);
+  const matches = (expected: readonly string[]): boolean =>
+    body.length === expected.length &&
+    body.every((line, index) => line === expected[index]);
+  return matches(IGNORE_ENTRIES) || matches(LEGACY_IGNORE_ENTRIES);
 }
 
 function capabilityProjectionIntact(

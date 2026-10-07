@@ -177,7 +177,7 @@ describe("mode-specific platform launch", () => {
       });
 
       await expect(readRuntimeOverlay(overlay.path)).resolves.toEqual({
-        app: { windows: [{ label: "primary", visible }] },
+        app: { windows: [{ label: "primary", visible, focus: false }] },
       });
       expect(resolve(overlay.path).startsWith(loaded.projectRoot)).toBe(true);
       await overlay.cleanup();
@@ -376,12 +376,14 @@ describe("mode-specific platform launch", () => {
             url: "platform.html",
             width: 902,
             visible: false,
+            focus: false,
           },
           {
             label: "secondary",
             title: "Platform secondary",
             height: 603,
             visible: false,
+            focus: false,
           },
         ],
       },
@@ -417,7 +419,14 @@ describe("mode-specific platform launch", () => {
     expect(overlay.windowLabel).toBe("platform-main");
     await expect(readRuntimeOverlay(overlay.path)).resolves.toEqual({
       app: {
-        windows: [{ label: "platform-main", title: "Platform", visible: true }],
+        windows: [
+          {
+            label: "platform-main",
+            title: "Platform",
+            visible: true,
+            focus: false,
+          },
+        ],
       },
     });
     await overlay.cleanup();

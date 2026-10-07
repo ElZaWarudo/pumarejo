@@ -11,7 +11,8 @@ import {
   type IntegrationManifestChange,
 } from "./manifest.js";
 import { IntegrationPlanError } from "./plan-error.js";
-import { IGNORE_BLOCK, readSafeFile, validateAppliedManifest } from "./plan.js";
+import { IGNORE_BLOCK, LEGACY_IGNORE_BLOCK } from "./ignore.js";
+import { readSafeFile, validateAppliedManifest } from "./plan.js";
 import {
   PROVIDER_KIND,
   PROVIDER_STAGED_ROOT,
@@ -57,10 +58,12 @@ function removalChange(
 }
 
 function removeIgnoreBlock(source: string): string {
-  if (source.split(IGNORE_BLOCK).length - 1 !== 1) {
+  const current = source.split(IGNORE_BLOCK).length - 1;
+  const legacy = source.split(LEGACY_IGNORE_BLOCK).length - 1;
+  if (current + legacy !== 1) {
     throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
   }
-  return source.replace(IGNORE_BLOCK, "");
+  return source.replace(current === 1 ? IGNORE_BLOCK : LEGACY_IGNORE_BLOCK, "");
 }
 
 async function planConsumerRemoval(

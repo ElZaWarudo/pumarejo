@@ -20,6 +20,7 @@ import {
   contentHash,
   type IntegrationManifestChange,
 } from "../../src/installer/manifest.js";
+import { IGNORE_BLOCK } from "../../src/installer/ignore.js";
 import { planRustEdit, planRustRemoval } from "../../src/installer/rust.js";
 import { describe, expect, it } from "vitest";
 
@@ -477,6 +478,25 @@ describe("attributed integration drift", () => {
         { expectedWindow: "main" },
       ),
     ).toMatchObject({ owned: "drifted", hashMatched: true });
+  });
+
+  it("accepts the current block that commits the provider copy", () => {
+    const generated = `dist/\n${IGNORE_BLOCK}`;
+    const manifestEntry = entry("ignore", ".gitignore", generated, [
+      "marker:<pumarejo:begin>",
+      "ignore:/.pumarejo/",
+    ]);
+    expectIntact(
+      evaluateAttributedEntry(manifestEntry, `${generated}coverage/\n`),
+      false,
+    );
+    const edited = generated.replace("!/.pumarejo/provider/\n", "");
+    expect(
+      evaluateAttributedEntry(
+        { ...manifestEntry, afterHash: contentHash(edited) },
+        edited,
+      ),
+    ).toMatchObject({ owned: "drifted" });
   });
 
   it("fails closed for missing files, unsafe identities, and forged attribution", () => {

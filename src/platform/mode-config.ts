@@ -58,7 +58,11 @@ export function modeOverlay(
   if (configuredWindows.length === 0) {
     return {
       app: {
-        windows: [{ label: windowLabel, visible: mode === "visible" }],
+        // focus:false keeps launch from taking keyboard focus away from the
+        // developer; WebDriver input does not depend on OS window focus.
+        windows: [
+          { label: windowLabel, visible: mode === "visible", focus: false },
+        ],
         ...(agentCapability === undefined
           ? {}
           : {
@@ -81,9 +85,11 @@ export function modeOverlay(
     const isSelected = effectiveLabel === windowLabel;
     selected ||= isSelected;
     if (mode === "background") {
-      return { ...window, visible: false };
+      return { ...window, visible: false, focus: false };
     }
-    return isSelected ? { ...window, visible: true } : { ...window };
+    return isSelected
+      ? { ...window, visible: true, focus: false }
+      : { ...window, focus: false };
   });
   if (!selected) {
     throw new PumarejoError("CONFIG_INVALID");

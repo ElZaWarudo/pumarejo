@@ -39,6 +39,7 @@ import {
   readProviderBundle,
   validateProviderStaging,
 } from "./provider-source.js";
+import { IGNORE_BLOCK } from "./ignore.js";
 import { IntegrationPlanError } from "./plan-error.js";
 import { TAURI_WEBDRIVER_PLUGIN_VERSION, VERSION } from "../version.js";
 import { detectTauriProject } from "./project.js";
@@ -51,10 +52,7 @@ import {
 } from "./write.js";
 
 const MAX_EDITABLE_BYTES = 1024 * 1024;
-export const IGNORE_BLOCK = `# <pumarejo:begin>
-/.pumarejo/
-# <pumarejo:end>
-`;
+export { IGNORE_BLOCK, LEGACY_IGNORE_BLOCK } from "./ignore.js";
 
 export { IntegrationPlanError } from "./plan-error.js";
 

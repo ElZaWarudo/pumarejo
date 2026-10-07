@@ -250,6 +250,44 @@ function expandValue(
     : { value: expanded };
 }
 
+/**
+ * Expand PATH one entry at a time. Installers such as nvm-windows leave
+ * entries like `%NVM_HOME%` that only resolve in an interactive profile;
+ * dropping just those entries keeps the rest of PATH usable.
+ */
+function expandPathValue(
+  value: string,
+  environment: ReadonlyMap<string, string>,
+  limits: Required<WindowsExpansionLimits>,
+): {
+  readonly value?: string;
+  readonly code?: WindowsEnvironmentRejectionCode;
+} {
+  if (value.includes("\0")) return { code: "portable-expansion-nul" };
+  if (value.length > limits.maxValueLength) {
+    return { code: "portable-expansion-too-large" };
+  }
+  const entries = splitWindowsPath(value);
+  const kept: string[] = [];
+  let firstFailure: WindowsEnvironmentRejectionCode | undefined;
+  for (const entry of entries) {
+    const result = expandValue(entry, environment, limits);
+    if (result.value === undefined) {
+      if (result.code !== "portable-expansion-unresolved") return result;
+      firstFailure ??= result.code;
+      continue;
+    }
+    kept.push(result.value);
+  }
+  if (kept.length === 0 && entries.length > 0) {
+    return { code: firstFailure ?? "portable-expansion-unresolved" };
+  }
+  const joined = kept.join(";");
+  return joined.length > limits.maxValueLength
+    ? { code: "portable-expansion-too-large" }
+    : { value: joined };
+}
+
 export function expandWindowsPortableEnvironment(
   source: NodeJS.ProcessEnv,
   limits: WindowsExpansionLimits = {},
@@ -285,7 +323,10 @@ export function expandWindowsPortableEnvironment(
       rejected.push({ key, code: "environment-value-secret" });
       continue;
     }
-    const result = expandValue(value, normalized, bounded);
+    const result =
+      normalizedWindowsKey(key) === "PATH"
+        ? expandPathValue(value, normalized, bounded)
+        : expandValue(value, normalized, bounded);
     if (result.value === undefined) {
       rejected.push({
         key,
