@@ -16,6 +16,7 @@ import { readSafeFile, validateAppliedManifest } from "./plan.js";
 import {
   PROVIDER_KIND,
   PROVIDER_STAGED_ROOT,
+  providerContentMatches,
   validateProviderStaging,
 } from "./provider-source.js";
 import { detectTauriProject } from "./project.js";
@@ -105,7 +106,10 @@ async function planConsumerRemoval(
       }
       return removalChange(projectRoot, entry, current, null);
     case PROVIDER_KIND:
-      if (contentHash(current) !== entry.afterHash) {
+      if (
+        entry.afterHash === null ||
+        !providerContentMatches(current, entry.afterHash)
+      ) {
         throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
       }
       return removalChange(projectRoot, entry, current, null);

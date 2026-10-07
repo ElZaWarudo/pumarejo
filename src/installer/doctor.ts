@@ -10,6 +10,7 @@ import {
   type LoadedProjectConfig,
 } from "../config/load.js";
 import { resolvedLaunchEnvironment } from "../platform/launch-environment.js";
+import { PumarejoError } from "../shared/errors.js";
 import { executableBasename } from "../shared/executable.js";
 import {
   readWindowsBootIdentifier,
@@ -37,7 +38,8 @@ import { readLaunchVerification } from "./launch-verification.js";
 import {
   PROVIDER_CARGO_PATH,
   PROVIDER_KIND,
-  readProviderBundle,
+  providerContentMatches,
+  ProviderDriftError,
   validateProviderStaging,
 } from "./provider-source.js";
 
@@ -49,6 +51,7 @@ export interface DoctorDiagnostic {
     | "config.valid"
     | "integration.manifest"
     | "integration.debug-registration"
+    | "integration.provider"
     | "integration.capability-permission"
     | "integration.version-alignment"
     | "toolchain.node"
@@ -337,30 +340,32 @@ async function integrationDiagnostics(
     (entry) => entry.kind === PROVIDER_KIND,
   );
   let providerStagingIntact = true;
+  let driftedProviderFiles: readonly string[] = [];
   if (providerEntries.length > 0) {
     try {
       await validateProviderStaging(projectRoot, providerEntries);
-      const bundle = await readProviderBundle();
-      const expectedHashes = new Map(
-        bundle.map((entry) => [entry.sourceRelativePath, entry.afterHash]),
-      );
-      providerStagingIntact = providerEntries.every((entry) => {
-        const sourceRelativePath = entry.relativePath.slice(
-          ".pumarejo/provider/tauri-plugin-wdio-webdriver/".length,
-        );
+      // Git may rewrite line endings in a committed provider copy; only
+      // content differences count as drift.
+      const unmatched = providerEntries.filter((entry) => {
         const source = entrySources.get(entry.relativePath);
-        const expectedBundleHash = expectedHashes.get(sourceRelativePath);
-        const sourceHash =
-          source === undefined || source === null ? null : contentHash(source);
         return (
-          source !== undefined &&
-          source !== null &&
-          expectedBundleHash === entry.afterHash &&
-          expectedBundleHash === sourceHash
+          source === undefined ||
+          source === null ||
+          entry.afterHash === null ||
+          !providerContentMatches(source, entry.afterHash)
         );
       });
-    } catch {
+      driftedProviderFiles = unmatched.map((entry) =>
+        entry.relativePath.slice(".pumarejo/provider/".length),
+      );
+      providerStagingIntact = unmatched.length === 0;
+    } catch (error) {
       providerStagingIntact = false;
+      if (error instanceof ProviderDriftError) {
+        driftedProviderFiles = error.files.map(
+          (file) => `tauri-plugin-wdio-webdriver/${file}`,
+        );
+      }
     }
   }
   const manifestDrift =
@@ -389,7 +394,6 @@ async function integrationDiagnostics(
   try {
     const rustProjection = projections[manifest.changes.indexOf(rust!)];
     registrationReady &&= rustProjection?.owned === "intact";
-    registrationReady &&= providerStagingIntact;
     const cargoSource =
       cargo === undefined
         ? await readSafeFile(
@@ -444,6 +448,18 @@ async function integrationDiagnostics(
       registrationReady ? undefined : "Restore the owned values or rerun init.",
     ),
     diagnostic(
+      "integration.provider",
+      providerStagingIntact ? "ready" : "error",
+      providerStagingIntact
+        ? "The staged provider copy matches the integration manifest (line endings ignored)."
+        : driftedProviderFiles.length === 0
+          ? "The staged provider copy under .pumarejo/provider is missing or has unexpected files."
+          : `The staged provider copy differs in ${driftedProviderFiles.length} file(s): ${driftedProviderFiles.slice(0, 5).join(", ")}${driftedProviderFiles.length > 5 ? ", …" : ""}.`,
+      providerStagingIntact
+        ? undefined
+        : "Restore these files from the installed pumarejo package (dist/provider), then rerun doctor.",
+    ),
+    diagnostic(
       "integration.capability-permission",
       capabilityReady ? "ready" : "error",
       capabilityReady
@@ -483,6 +499,31 @@ function safeLaunchArguments(arguments_: readonly string[]): readonly string[] {
   );
 }
 
+/** Count `.quarantine-*` folders left in the default artifacts directory. */
+async function quarantineResidue(
+  projectRoot: string,
+): Promise<{ readonly count: number; readonly oldest?: string }> {
+  const root = resolve(projectRoot, ".pumarejo", "artifacts");
+  try {
+    const entries = await readdir(root, { withFileTypes: true });
+    let count = 0;
+    let oldest: number | undefined;
+    for (const entry of entries) {
+      if (!entry.name.startsWith(".quarantine-") || !entry.isDirectory()) {
+        continue;
+      }
+      count += 1;
+      const { mtimeMs } = await lstat(resolve(root, entry.name));
+      oldest = oldest === undefined ? mtimeMs : Math.min(oldest, mtimeMs);
+    }
+    return oldest === undefined
+      ? { count }
+      : { count, oldest: new Date(oldest).toISOString().slice(0, 10) };
+  } catch {
+    return { count: 0 };
+  }
+}
+
 async function residueDiagnostic(
   projectRoot: string | undefined,
   dependencies: DoctorDependencies,
@@ -511,6 +552,21 @@ async function residueDiagnostic(
   }
   let artifactResidue = 0;
   let unsafeArtifactResidue = 0;
+  const quarantines = await quarantineResidue(projectRoot);
+  const quarantineDiagnostic = () =>
+    diagnostic(
+      "residue.owned",
+      "warn",
+      `${quarantines.count} quarantined artifact folders remain under .pumarejo/artifacts (oldest ${quarantines.oldest}).`,
+      "They are removed at the next pumarejo mcp start; folders with unexpected content are kept for review.",
+      {
+        classification: "artifact_residue",
+        evidence: {
+          provenance: "artifact-root-inspection",
+          confidence: "verified",
+        },
+      },
+    );
   for (const name of ["qa-project", "regression-artifacts"] as const) {
     const artifactRoot = resolve(projectRoot, ".pumarejo", name);
     try {
@@ -661,6 +717,7 @@ async function residueDiagnostic(
         },
       );
     }
+    if (quarantines.count > 0) return quarantineDiagnostic();
     return verifiedClosed > 0
       ? diagnostic(
           "residue.owned",
@@ -699,6 +756,9 @@ async function residueDiagnostic(
             },
           },
         );
+      }
+      if (!interruptedManifest && quarantines.count > 0) {
+        return quarantineDiagnostic();
       }
       return interruptedManifest
         ? diagnostic(
@@ -769,12 +829,13 @@ export async function doctorProject(
         "The v1 project configuration is valid.",
       ),
     );
-  } catch {
+  } catch (error) {
+    const detail = error instanceof PumarejoError ? error.detail : undefined;
     diagnostics.push(
       diagnostic(
         "config.valid",
         "error",
-        "The v1 project configuration is missing or invalid.",
+        detail ?? "The v1 project configuration is missing or invalid.",
         "Run init or fix .pumarejo.json.",
       ),
     );

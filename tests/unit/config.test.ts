@@ -181,6 +181,41 @@ describe("loadProjectConfig", () => {
     expect(loaded.config.retainArtifacts).toBe(false);
   });
 
+  it("locates a JSON syntax error such as an unescaped Windows path", async () => {
+    const project = await createProject();
+    await writeFile(
+      join(project, ".pumarejo.json"),
+      [
+        "{",
+        '  "version": 1,',
+        '  "launch": {',
+        '    "command": "pnpm",',
+        '    "args": ["tauri", "dev", "--config", "{tauriConfig}"],',
+        '    "pathPrepend": ["C:\\Users\\me\\bin"]',
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+
+    const error = await loadProjectConfig(project).catch((caught) => caught);
+    expect(error).toMatchObject({ code: "CONFIG_INVALID" });
+    expect(error.detail).toMatch(
+      /^\.pumarejo\.json is not valid JSON at line 6, column \d+: /u,
+    );
+    expect(error.detail).toContain("Escape each backslash in Windows paths");
+    expect(error.toJSON().detail).toBe(error.detail);
+  });
+
+  it("names the field that breaks the schema", async () => {
+    const project = await createProject();
+    await writeConfig(project, { window: "" });
+
+    const error = await loadProjectConfig(project).catch((caught) => caught);
+    expect(error.detail).toMatch(
+      /^\.pumarejo\.json does not match the v1 schema: window: /u,
+    );
+  });
+
   it("rejects artifact traversal", async () => {
     const project = await createProject();
     await writeConfig(project, { artifactsDirectory: "../outside" });

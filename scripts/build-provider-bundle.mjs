@@ -1,10 +1,4 @@
-import {
-  lstat,
-  mkdir,
-  readFile,
-  realpath,
-  writeFile,
-} from "node:fs/promises";
+import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 
 const workspaceRoot = resolve(import.meta.dirname, "..");
@@ -97,11 +91,15 @@ function sameCanonicalPath(left, right) {
 async function validateSourceRoot() {
   const metadata = await lstat(sourceRoot);
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
-    throw new Error("Provider bundle source root is not a canonical directory.");
+    throw new Error(
+      "Provider bundle source root is not a canonical directory.",
+    );
   }
   const canonicalRoot = await realpath(sourceRoot);
   if (!sameCanonicalPath(canonicalRoot, sourceRoot)) {
-    throw new Error("Provider bundle source root must not use a linked ancestor.");
+    throw new Error(
+      "Provider bundle source root must not use a linked ancestor.",
+    );
   }
   return canonicalRoot;
 }
@@ -110,7 +108,9 @@ async function validateSourceFile(canonicalRoot, sourceRelativePath) {
   const sourcePath = safeTarget(canonicalRoot, sourceRelativePath);
   const metadata = await lstat(sourcePath);
   if (metadata.isSymbolicLink() || !metadata.isFile()) {
-    throw new Error(`Provider bundle entry is not a regular file: ${sourceRelativePath}`);
+    throw new Error(
+      `Provider bundle entry is not a regular file: ${sourceRelativePath}`,
+    );
   }
   const canonicalPath = await realpath(sourcePath);
   if (!sameCanonicalPath(canonicalPath, sourcePath)) {
@@ -125,14 +125,18 @@ const canonicalSourceRoot = await validateSourceRoot();
 const validatedSources = await Promise.all(
   PROVIDER_SOURCE_ALLOWLIST.map(async (sourceRelativePath) => ({
     sourceRelativePath,
-    sourcePath: await validateSourceFile(canonicalSourceRoot, sourceRelativePath),
+    sourcePath: await validateSourceFile(
+      canonicalSourceRoot,
+      sourceRelativePath,
+    ),
   })),
 );
 
 await mkdir(outputRoot, { recursive: true });
 for (const { sourceRelativePath, sourcePath } of validatedSources) {
   const outputPath = safeTarget(outputRoot, sourceRelativePath);
-  const content = await readFile(sourcePath);
+  // Ship LF, the form Git stores, whatever the build checkout uses.
+  const content = (await readFile(sourcePath, "utf8")).replaceAll("\r\n", "\n");
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, content);
 }

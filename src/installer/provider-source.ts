@@ -164,7 +164,10 @@ export async function readProviderBundle(): Promise<
     const path = safePath(root, sourceRelativePath);
     try {
       await regularFile(path);
-      const content = await readFile(path, "utf8");
+      // The provider is text. Git stores it with LF; a Windows checkout may
+      // turn it into CRLF. LF is canonical so the bundle never depends on the
+      // building machine's checkout.
+      const content = (await readFile(path, "utf8")).replaceAll("\r\n", "\n");
       entries.push({
         sourceRelativePath,
         content,
@@ -176,6 +179,22 @@ export async function readProviderBundle(): Promise<
     }
   }
   return entries;
+}
+
+/**
+ * Whether staged provider text matches a recorded hash, ignoring only line
+ * endings. Consumers may commit the provider and let Git rewrite CRLF/LF.
+ */
+export function providerContentMatches(
+  content: string,
+  expectedHash: string,
+): boolean {
+  const lf = content.replaceAll("\r\n", "\n");
+  return (
+    hash(content) === expectedHash ||
+    hash(lf) === expectedHash ||
+    hash(lf.replaceAll("\n", "\r\n")) === expectedHash
+  );
 }
 
 export function providerAttribution(sourceRelativePath: string): string {
@@ -227,7 +246,8 @@ async function listStagedFiles(root: string): Promise<{
 export async function validateProviderStaging(
   projectRoot: string,
   expectedEntries: readonly { readonly relativePath: string }[],
-  options: { readonly reconcileLineEndings?: boolean } = {},
+  // Line endings are always reconciled; the option is kept for callers.
+  _options: { readonly reconcileLineEndings?: boolean } = {},
 ): Promise<void> {
   const stageRoot = safePath(resolve(projectRoot), PROVIDER_STAGED_ROOT);
   try {
@@ -278,19 +298,27 @@ export async function validateProviderStaging(
   const expectedSources = new Map(
     bundle.map((entry) => [entry.sourceRelativePath, entry.content]),
   );
+  const drifted: string[] = [];
   for (const sourceRelativePath of actual) {
     const stagedPath = safePath(stageRoot, sourceRelativePath);
     const source = await readFile(stagedPath, "utf8");
     const expected = expectedSources.get(sourceRelativePath);
     if (
       expected === undefined ||
-      (source !== expected &&
-        !(
-          options.reconcileLineEndings === true &&
-          source.replaceAll("\r\n", "\n") === expected.replaceAll("\r\n", "\n")
-        ))
+      source.replaceAll("\r\n", "\n") !== expected.replaceAll("\r\n", "\n")
     ) {
-      throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
+      drifted.push(sourceRelativePath);
     }
+  }
+  if (drifted.length > 0) throw new ProviderDriftError(drifted);
+}
+
+/** Staged provider files whose content differs beyond line endings. */
+export class ProviderDriftError extends IntegrationPlanError {
+  readonly files: readonly string[];
+
+  constructor(files: readonly string[]) {
+    super("ALREADY_INTEGRATED_MODIFIED");
+    this.files = [...files];
   }
 }

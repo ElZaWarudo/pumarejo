@@ -36,6 +36,7 @@ import {
   PROVIDER_KIND,
   PROVIDER_STAGED_ROOT,
   providerAttribution,
+  providerContentMatches,
   readProviderBundle,
   validateProviderStaging,
 } from "./provider-source.js";
@@ -200,6 +201,11 @@ async function existingIntegration(
         current === null ||
         hashSource === null ||
         (contentHash(hashSource) !== entry.afterHash &&
+          !(
+            entry.kind === PROVIDER_KIND &&
+            entry.afterHash !== null &&
+            providerContentMatches(hashSource, entry.afterHash)
+          ) &&
           !(
             currentVersion &&
             ["rust", "cargo", "ignore"].includes(entry.kind) &&
