@@ -352,7 +352,7 @@ Input:
 {
   "rootRef": "e3-7",
   "maxNodes": 500,
-  "maxDepth": 32,
+  "maxDepth": 128,
   "maxTextLength": 4096,
   "visibleOnly": true,
   "includeNames": true,
@@ -374,7 +374,7 @@ leaves upward into one line:
 `- list "History" [e1-9] … 120 items, 0 controls hidden (expand: rootRef "e1-9")`.
 Dialogs, alerts, and status regions collapse last.
 
-Every field is optional. Defaults are `maxNodes: 500`, `maxDepth: 32`,
+Every field is optional. Defaults are `maxNodes: 500`, `maxDepth: 128`,
 `maxTextLength: 4096`, `visibleOnly: true`, `includeNames: true`,
 `includeText: true`, and `includeValues: true`. The three `include*` controls
 may omit public names, rendered text, or values to reduce disclosure and
@@ -699,10 +699,32 @@ Input is an empty object.
 Closing an already-closed or absent session succeeds with `alreadyClosed: true`.
 
 For non-retained artifacts, `tauri_close` first moves the owned session
-manifest and bytes into a private quarantine. It may preserve those bytes when
-identity-bound deletion is unavailable; cleanup is retryable and the operation
-does not guarantee deletion. Only an injected native adapter with a matching
-identity attestation and an absent quarantine path can complete deletion.
+manifest and bytes into a private quarantine, then deletes exactly the files the
+quarantined manifest names, one at a time, after re-checking each identity. It
+never deletes recursively. A quarantine holding anything unexpected (extra
+entries, links, unmanifested files) is preserved and reported as residue:
+
+```json
+{
+  "alreadyClosed": false,
+  "state": "idle",
+  "residue": [
+    {
+      "resource": "artifacts",
+      "path": ".pumarejo/artifacts/.quarantine-AbC123",
+      "reason": "Quarantined artifacts contain unexpected content and were preserved."
+    }
+  ]
+}
+```
+
+Artifact residue never blocks close or the next launch; the next MCP start
+retries it, and `doctor` reports any quarantine that remains. A process,
+listener, proxy, or WebDriver session that cannot be released fails with
+`CLOSE_FAILED` and a `pending` list naming each held resource; the reason is
+recorded in `tauri_diagnostics` (`session_cleanup_failed`). `tauri_launch`
+retries that cleanup before starting and fails with the same `CLOSE_FAILED`
+while it is still pending.
 
 ## Self-diagnostic CLI
 

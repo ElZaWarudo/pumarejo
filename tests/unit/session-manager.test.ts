@@ -68,8 +68,10 @@ function harness(
   let reservationReleased = false;
   let preparedCleaned = false;
   let selectedWindow: string | undefined;
+  const readyDeadlines: (number | undefined)[] = [];
   const webdriver = {
-    async waitUntilReady() {
+    async waitUntilReady(ready?: { readonly deadlineMs?: number }) {
+      readyDeadlines.push(ready?.deadlineMs);
       events.push("webdriver-ready");
       if (options.failure === "webdriver-ready") {
         throw new PumarejoError("WEBDRIVER_NOT_READY");
@@ -225,6 +227,7 @@ function harness(
     get selectedWindow() {
       return selectedWindow;
     },
+    readyDeadlines,
   };
 }
 
@@ -535,6 +538,16 @@ describe("SessionManager", () => {
       );
     },
   );
+
+  it("names the failing launch phase, elapsed time, and budget", async () => {
+    const runtime = harness({ failure: "webdriver-ready" });
+    const error = await runtime.manager.launch(launchOptions).catch((e) => e);
+    expect(error).toMatchObject({ code: "WEBDRIVER_NOT_READY" });
+    expect(error.toJSON().diagnostic.check).toMatch(
+      /^Failed during creating_session after \d+s; launch budget \d+s \(PUMAREJO_PROVIDER_READY_TIMEOUT_MS\)$/u,
+    );
+    expect(runtime.readyDeadlines[0]).toBeGreaterThanOrEqual(15_000);
+  });
 
   it("keeps failed cleanup retryable and rejects launch until close succeeds", async () => {
     let deleteAttempts = 0;

@@ -21,7 +21,7 @@ import type { SnapshotInput } from "../../src/mcp/schemas.js";
 const SESSION_ID = "0123456789abcdef0123456789abcdef";
 const SNAPSHOT_INPUT = {
   maxNodes: 500,
-  maxDepth: 32,
+  maxDepth: 128,
   maxTextLength: 4096,
   visibleOnly: true,
   includeNames: true,
@@ -686,7 +686,7 @@ describe("application-scoped MCP runtime", () => {
     ).rejects.toMatchObject({ code: "SESSION_NOT_ACTIVE" });
   });
 
-  it("records retryable artifact cleanup before diagnostics teardown without a deletion claim", async () => {
+  it("reports preserved artifacts as residue without blocking close or the next launch", async () => {
     const test = harness();
     const recordCleanup = vi.spyOn(
       test.diagnostics,
@@ -701,23 +701,68 @@ describe("application-scoped MCP runtime", () => {
       retained: 1,
       retryable: true,
       reason: "identity_bound_quarantine_deletion_unavailable",
+      path: ".pumarejo/artifacts/.quarantine-AbC123",
     });
 
-    await expect(test.runtime.close(context())).rejects.toMatchObject({
-      code: "CLOSE_FAILED",
+    await expect(test.runtime.close(context())).resolves.toEqual({
+      alreadyClosed: false,
+      state: "idle",
+      residue: [
+        {
+          resource: "artifacts",
+          path: ".pumarejo/artifacts/.quarantine-AbC123",
+          reason:
+            "Quarantined artifacts contain unexpected content and were preserved.",
+        },
+      ],
     });
     expect(recordCleanup).toHaveBeenCalledWith({
       removed: 0,
       retained: 1,
       retryable: true,
+      path: ".pumarejo/artifacts/.quarantine-AbC123",
     });
     expect(recordCleanup.mock.invocationCallOrder[0]).toBeLessThan(
       diagnosticsClose.mock.invocationCallOrder[0]!,
     );
     await expect(test.runtime.status(context())).resolves.toEqual({
-      state: "cleanup_failed",
-      cleanupPending: ["artifacts"],
+      state: "idle",
       lastAction: "close",
+    });
+    await expect(
+      test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context()),
+    ).resolves.toMatchObject({ snapshot: expect.anything() });
+  });
+
+  it("names held resources and keeps diagnostics when process cleanup fails", async () => {
+    const test = harness();
+    const diagnosticsClose = vi.spyOn(test.diagnostics, "close");
+    await test.runtime.launch({ mode: "visible", waitMs: 5_000 }, context());
+    test.managerClose.mockImplementationOnce(async () => {
+      test.setManagerState({
+        state: "failed",
+        cleanupPending: ["application-process"],
+      });
+      throw new Error("Owned process cleanup remains retryable.");
+    });
+
+    await expect(test.runtime.close(context())).rejects.toMatchObject({
+      code: "CLOSE_FAILED",
+      pending: ["application-process"],
+    });
+    expect(diagnosticsClose).not.toHaveBeenCalled();
+    await expect(
+      test.runtime.diagnostics!(
+        { maxRecords: 128, maxBytes: 48 * 1024 },
+        context(),
+      ),
+    ).resolves.toMatchObject({
+      records: expect.arrayContaining([
+        expect.objectContaining({
+          code: "session_cleanup_failed",
+          message: expect.stringContaining("application-process"),
+        }),
+      ]),
     });
   });
 

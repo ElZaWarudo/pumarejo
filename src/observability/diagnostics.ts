@@ -162,9 +162,15 @@ export interface ArtifactCleanupDiagnosticInput {
   readonly retryable: unknown;
   /** Accepted for callers that have a local cause; it is never stored. */
   readonly cause?: unknown;
-  /** Accepted for callers that have a local path; it is never stored. */
+  /**
+   * Only a project-relative quarantine path is stored; absolute or unusual
+   * paths are dropped so no user directory leaves the machine.
+   */
   readonly path?: unknown;
 }
+
+const PROJECT_RELATIVE_QUARANTINE =
+  /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+){0,8}\/\.quarantine-[A-Za-z0-9_-]{1,32}$/u;
 
 export interface DiagnosticStoreOptions {
   readonly sessionId: string;
@@ -515,11 +521,18 @@ export class DiagnosticStore {
   ): DiagnosticAppendResult {
     const retained = sanitizeBoundedInteger(fields.retained, 0, 4_096) ?? 0;
     const removed = sanitizeBoundedInteger(fields.removed, 0, 4_096) ?? 0;
+    const path =
+      typeof fields.path === "string" &&
+      PROJECT_RELATIVE_QUARANTINE.test(fields.path) &&
+      !fields.path.split("/").includes("..")
+        ? fields.path
+        : undefined;
     return this.recordLastError({
       owner: "session",
       code: "artifact_cleanup_unavailable",
       retryable: fields.retryable === true,
       count: Math.min(4_096, retained + removed),
+      ...(path === undefined ? {} : { message: `Preserved: ${path}` }),
       suggestion:
         "Identity-bound artifact cleanup is unavailable; preserved bytes remain for a bounded retry.",
     });

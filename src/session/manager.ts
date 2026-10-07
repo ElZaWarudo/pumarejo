@@ -321,8 +321,15 @@ export class SessionManager {
     }
 
     let lease: ProcessLease | undefined;
+    const startedAt = Date.now();
+    let phase: LaunchPhase = "preparing_runtime";
+    let budgetMs: number | undefined;
+    const enter = (next: LaunchPhase): void => {
+      phase = next;
+      options.onPhase?.(next);
+    };
     try {
-      options.onPhase?.("preparing_runtime");
+      enter("preparing_runtime");
       const requestedFamily =
         options.loopbackFamily ??
         (options.devUrl?.ok === true ? options.devUrl.value.family : "ipv4");
@@ -389,7 +396,7 @@ export class SessionManager {
         throw new PumarejoError("PORT_UNAVAILABLE");
       }
       this.#cleanup.complete("provider-port-reservation");
-      options.onPhase?.("starting_process");
+      enter("starting_process");
       const request: SpawnRequest = {
         ...prepared.request,
         env: {
@@ -477,15 +484,17 @@ export class SessionManager {
       }
       this.setState("starting", { ownedPid: spawned.pid });
 
-      options.onPhase?.("waiting_provider");
+      enter("waiting_provider");
       const familyAwareReadiness =
         reservation.endpoint !== undefined ||
         options.loopbackFamily !== undefined ||
         prepared.loopbackFamily !== undefined ||
         options.devUrl !== undefined;
       let providerPid: number | undefined;
+      budgetMs = providerReadinessTimeout(request);
+      const launchDeadline = Date.now() + budgetMs;
       if (familyAwareReadiness) {
-        const deadline = Date.now() + providerReadinessTimeout(request);
+        const deadline = launchDeadline;
         let observation: Awaited<ReturnType<typeof observeLoopback>>;
         do {
           options.signal?.throwIfAborted();
@@ -585,7 +594,7 @@ export class SessionManager {
         return await authorizationPending;
       };
 
-      options.onPhase?.("starting_proxy");
+      enter("starting_proxy");
       const proxy = await this.#dependencies.startProxy({
         providerPort: reservation.port,
         family,
@@ -630,9 +639,17 @@ export class SessionManager {
         port: proxy.port,
         nonce: sessionNonce,
       });
-      options.onPhase?.("creating_session");
+      enter("creating_session");
       try {
-        await webdriver.waitUntilReady({ signal: options.signal });
+        // A cold first run can still be loading the frontend when the
+        // provider starts listening; keep waiting within the launch budget.
+        await webdriver.waitUntilReady({
+          signal: options.signal,
+          deadlineMs: Math.min(
+            600_000,
+            Math.max(15_000, launchDeadline - Date.now()),
+          ),
+        });
         await webdriver.createSession(options.signal);
       } catch (error) {
         throw proxy.takeAuthorizationFailure?.() ?? error;
@@ -640,7 +657,7 @@ export class SessionManager {
       this.#cleanup.add("webdriver-session", async () => {
         await webdriver.deleteSession();
       });
-      options.onPhase?.("selecting_window");
+      enter("selecting_window");
       await webdriver.selectWindow(window, options.signal);
 
       let windowCapabilities: WindowCapabilities | undefined;
@@ -722,7 +739,11 @@ export class SessionManager {
       });
       return ready;
     } catch (error) {
-      return await this.failLaunch(launchError(error), cleanupOutcome);
+      return await this.failLaunch(launchError(error), cleanupOutcome, {
+        phase,
+        elapsedMs: Date.now() - startedAt,
+        budgetMs,
+      });
     }
   }
 
@@ -731,6 +752,11 @@ export class SessionManager {
     cleanupOutcome: {
       readonly application?: "terminated" | "already-exited";
     } = {},
+    progress?: {
+      readonly phase: LaunchPhase;
+      readonly elapsedMs: number;
+      readonly budgetMs: number | undefined;
+    },
   ): Promise<never> {
     const applicationStarted =
       this.#snapshot.ownedPid !== undefined ||
@@ -760,6 +786,32 @@ export class SessionManager {
             ? "survived"
             : (cleanupOutcome.application ?? "already-exited"),
           webdriverSessionCreated: false,
+        },
+      });
+    }
+    if (
+      progress !== undefined &&
+      error instanceof PumarejoError &&
+      error.diagnostic === undefined
+    ) {
+      const seconds = Math.round(progress.elapsedMs / 1_000);
+      const limit =
+        progress.budgetMs === undefined
+          ? ""
+          : `; launch budget ${Math.round(progress.budgetMs / 1_000)}s (PUMAREJO_PROVIDER_READY_TIMEOUT_MS)`;
+      throw new PumarejoError(error.code, {
+        cause: error.cause ?? error,
+        diagnostic: {
+          check: `Failed during ${progress.phase} after ${seconds}s${limit}`,
+          applicationStarted,
+          cleanup: this.#cleanup.pendingLabels.includes("application-process")
+            ? "survived"
+            : (cleanupOutcome.application ??
+              (applicationStarted ? "already-exited" : "not-required")),
+          webdriverSessionCreated: [
+            "selecting_window",
+            "capturing_first_snapshot",
+          ].includes(progress.phase),
         },
       });
     }
@@ -950,6 +1002,47 @@ export class SessionManager {
         claimed = await store.claimForRecovery(lease);
         if (claimed === undefined) continue;
         const identity = identityForLease(claimed);
+        // A dead controller's Job closed with it (kill-on-close). When the
+        // exact owned identity is gone and nothing owned holds the provider
+        // port, there is nothing to terminate: close the lease instead of
+        // leaving it ambiguous forever. Inspection failures keep the old path.
+        const observed = await this.#dependencies.process
+          .inspect(claimed.pid)
+          .then(
+            (value) => ({ known: true as const, value }),
+            () => ({ known: false as const }),
+          );
+        if (
+          claimed.mechanism === "windows_job_object" &&
+          observed.known &&
+          !processIdentityMatches(identity, observed.value)
+        ) {
+          const listener =
+            claimed.providerPort === undefined ||
+            claimed.providerFamily === undefined
+              ? undefined
+              : await this.#dependencies.process.providerOwner(
+                  claimed.pid,
+                  claimed.providerPort,
+                  claimed.providerFamily,
+                );
+          if (listener === undefined) {
+            const closed = await store.transition(claimed, "closed");
+            await store.remove(closed);
+            claimed = undefined;
+            await this.emitCustodyEvidence(
+              sanitizeCustodyEvidence({
+                phase: "recover",
+                code: "custody_orphan_already_exited",
+                mechanism: lease.mechanism,
+                state: "supported",
+                retryable: false,
+                resourcePresent: false,
+              }),
+            );
+            continue;
+          }
+        }
         attachment = await custody.attach(identity);
         const before = await custody.inspect(identity, attachment);
         const proof = proveCustodyOwnership(claimed, before);

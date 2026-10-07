@@ -325,7 +325,31 @@ function recordUnavailableArtifactCleanup(
     removed: outcome.removed,
     retained: outcome.retained,
     retryable: outcome.retryable,
+    ...(outcome.path === undefined ? {} : { path: outcome.path }),
   });
+}
+
+/** Bounded internal reasons from a cleanup failure, for sanitized diagnostics. */
+function causeMessages(error: unknown): string {
+  const messages: string[] = [];
+  const visit = (value: unknown, depth: number): void => {
+    if (depth > 4 || messages.length >= 6) return;
+    if (value instanceof AggregateError) {
+      for (const item of value.errors) visit(item, depth + 1);
+    }
+    if (value instanceof Error) {
+      if (!(value instanceof AggregateError)) messages.push(value.message);
+      if (value.cause !== undefined) visit(value.cause, depth + 1);
+    }
+  };
+  visit(error, 0);
+  return [...new Set(messages)].join(" ").slice(0, 600);
+}
+
+export interface CleanupResidue {
+  readonly resource: "artifacts";
+  readonly path?: string;
+  readonly reason: string;
 }
 
 const PENDING_LAUNCH_RESULT = {
@@ -528,11 +552,13 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
     context: DomainCallContext,
   ): Promise<DomainResult> {
     context.signal.throwIfAborted();
+    const managerState = this.#dependencies.manager.snapshot.state;
     if (
       this.#active !== undefined ||
       this.#launchOperation !== undefined ||
       this.#closeOperation !== undefined ||
-      this.#dependencies.manager.snapshot.state !== "idle"
+      // A failed cleanup is not an active session: launch retries it first.
+      (managerState !== "idle" && managerState !== "failed")
     ) {
       throw new PumarejoError("SESSION_ALREADY_ACTIVE");
     }
@@ -1012,9 +1038,11 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
         this.#pendingArtifactClose === undefined &&
         this.#dependencies.manager.snapshot.state === "idle";
       try {
-        await this.closeNow();
+        const residue = await this.closeNow();
         this.#status = { state: "idle", lastAction: "close" };
-        return { alreadyClosed, state: "idle" };
+        return residue.length === 0
+          ? { alreadyClosed, state: "idle" }
+          : { alreadyClosed, state: "idle", residue };
       } catch (error) {
         this.#status = { state: "cleanup_failed", lastAction: "close" };
         throw error;
@@ -1093,7 +1121,10 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
     input: LaunchInput,
     signal: AbortSignal,
   ): Promise<DomainResult> {
-    if (this.#pendingArtifactClose !== undefined) {
+    if (
+      this.#pendingArtifactClose !== undefined ||
+      this.#dependencies.manager.snapshot.state === "failed"
+    ) {
       try {
         await this.closeNow();
       } catch (error) {
@@ -1432,40 +1463,72 @@ export class PumarejoRuntime implements PumarejoDomainPorts {
 
   private async closeNow(
     options: { retainDiagnostics?: boolean } = {},
-  ): Promise<void> {
+  ): Promise<readonly CleanupResidue[]> {
     const active = this.#active;
     this.#active = undefined;
     const diagnostics = active?.diagnostics ?? this.#diagnostics;
     const failures: unknown[] = [];
+    const residue: CleanupResidue[] = [];
+    const pending: string[] = [];
     const artifacts = active?.artifacts ?? this.#pendingArtifactClose;
     if (artifacts !== undefined) {
       this.#pendingArtifactClose = artifacts;
       try {
         const outcome = await artifacts.close();
         if (isUnavailableArtifactCleanup(outcome)) {
+          // Preserved artifact bytes hold no process, port, or session, so
+          // they are reported as residue (recovered at the next MCP start)
+          // instead of blocking close and every later launch.
           recordUnavailableArtifactCleanup(diagnostics, outcome);
-          failures.push(new PumarejoError("CLOSE_FAILED"));
-        } else {
-          this.#pendingArtifactClose = undefined;
+          residue.push({
+            resource: "artifacts",
+            ...(outcome.path === undefined ? {} : { path: outcome.path }),
+            reason:
+              "Quarantined artifacts contain unexpected content and were preserved.",
+          });
         }
+        this.#pendingArtifactClose = undefined;
       } catch (error) {
         failures.push(error);
+        pending.push("artifacts");
+        diagnostics?.recordLastError({
+          owner: "session",
+          code: "artifact_cleanup_failed",
+          retryable: true,
+          message: error instanceof Error ? error.message : undefined,
+          suggestion: "Retry tauri_close; artifact files remain on disk.",
+        });
       }
     }
     try {
       await this.#dependencies.manager.close();
     } catch (error) {
       failures.push(error);
+      const labels = this.#dependencies.manager.snapshot.cleanupPending ?? [];
+      pending.push(...labels);
+      diagnostics?.recordLastError({
+        owner: "process",
+        code: "session_cleanup_failed",
+        retryable: true,
+        message: `Still held: ${labels.join(", ") || "unknown"}. ${causeMessages(error)}`,
+        suggestion:
+          "Retry tauri_close. If the application process already exited, the next retry converges.",
+      });
     }
-    if (options.retainDiagnostics !== true) {
+    // Keep diagnostics when cleanup failed so the failure can be queried.
+    if (options.retainDiagnostics !== true && failures.length === 0) {
       diagnostics?.close();
       if (this.#diagnostics === diagnostics) this.#diagnostics = undefined;
+    } else if (this.#diagnostics === undefined && diagnostics !== undefined) {
+      this.#diagnostics = diagnostics;
     }
     if (failures.length > 0) {
       throw new PumarejoError("CLOSE_FAILED", {
         cause: new AggregateError(failures),
+        pending: [...new Set(pending)],
       });
     }
+    return residue;
   }
 }
 

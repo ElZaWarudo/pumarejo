@@ -164,6 +164,82 @@ describe("startup custody recovery", () => {
     }
   });
 
+  it("closes a Windows Job lease whose controller and owned process are both gone", async () => {
+    const root = await mkdtemp(join(tmpdir(), "pumarejo-recovery-"));
+    try {
+      const old = new CustodyLeaseStore({
+        root,
+        controllerId: "d".repeat(64),
+        controllerPid: 999_999,
+        now: () => 1_000,
+      });
+      const seeded = await old.create({
+        controllerId: "d".repeat(64),
+        controllerPid: 999_999,
+        identity,
+        mechanism: "windows_job_object",
+        providerPort: 50_001,
+        providerFamily: "ipv4",
+      });
+      let attached = 0;
+      const fake = fakeProcess({ proveOwnership: true });
+      const process: ProcessAdapter = {
+        ...fake.process,
+        custody: {
+          ...fake.process.custody!,
+          async attach() {
+            attached += 1;
+            throw new Error("Cannot attach custody to an unowned process.");
+          },
+        },
+        // The kill-on-close Job ended the tree with its controller.
+        async inspect() {
+          return undefined;
+        },
+      };
+      const manager = new SessionManager({
+        process,
+        leaseRoot: root,
+        leaseStore: new CustodyLeaseStore({
+          root,
+          controllerId: "e".repeat(64),
+        }),
+        async reservePort() {
+          return { port: 50_001, async release() {} };
+        },
+        async prepareLaunch() {
+          throw new Error("stop after recovery");
+        },
+        async startProxy() {
+          throw new Error("not reached");
+        },
+        createWebDriver() {
+          throw new Error("not reached");
+        },
+        nonce: (() => {
+          let count = 0;
+          return () => (++count % 2 === 1 ? "a" : "b").repeat(64);
+        })(),
+      });
+      await expect(
+        manager.launch({
+          mode: "background",
+          platform: "windows",
+          window: "main",
+        }),
+      ).rejects.toMatchObject({ code: "APP_START_FAILED" });
+      expect(attached).toBe(0);
+      expect(fake.terminated).toBe(0);
+      await expect(
+        new CustodyLeaseStore({ root, controllerId: "e".repeat(64) }).read(
+          seeded.launchId,
+        ),
+      ).resolves.toBeUndefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("keeps a provider listener orphan retryable without a persisted provider pid", async () => {
     const root = await mkdtemp(join(tmpdir(), "pumarejo-recovery-"));
     try {

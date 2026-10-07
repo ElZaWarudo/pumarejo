@@ -229,4 +229,101 @@ describe("tracked process custody", () => {
       if (helper !== undefined && helper.exitCode === null) helper.kill();
     }
   });
+  it("converges when the managed helper and its identity-bound target are both gone", async () => {
+    let targetPid = 0;
+    let targetGone = false;
+    let helper: ReturnType<typeof spawnChild> | undefined;
+    const custody: NativeProcessCustodyOperations = {
+      async capability() {
+        return {
+          mechanism: "windows_job_object",
+          state: "supported",
+          code: "windows_job_object_available",
+          killOnClose: true,
+        };
+      },
+      async attach(pid) {
+        return { mechanism: "windows_job_object", opaqueHandle: pid };
+      },
+      async inspect() {
+        return { descendantsComplete: true };
+      },
+      async terminate() {
+        throw new Error("target termination must not follow helper loss");
+      },
+      async waitForTermination() {
+        return false;
+      },
+      async release() {},
+    };
+    const adapter = createTrackedProcessAdapter({
+      async managedLaunch() {
+        const target = spawnChild(
+          process.execPath,
+          ["-e", "setInterval(() => {}, 60_000)"],
+          {
+            stdio: "ignore",
+          },
+        );
+        await new Promise<void>((resolve, reject) => {
+          target.once("spawn", () => resolve());
+          target.once("error", reject);
+        });
+        targetPid = target.pid!;
+        helper = spawnChild(
+          process.execPath,
+          ["-e", "setTimeout(() => process.exit(0), 10)"],
+          {
+            stdio: "ignore",
+          },
+        );
+        await new Promise<void>((resolve, reject) => {
+          helper!.once("spawn", () => resolve());
+          helper!.once("error", reject);
+        });
+        return {
+          child: helper,
+          pid: targetPid,
+          identity: { startedAt: 1_000, commandLine: "managed target" },
+          attachment: {
+            mechanism: "windows_job_object",
+            opaqueHandle: targetPid,
+          },
+        };
+      },
+      inspectSystem: async () =>
+        targetGone
+          ? { status: "not-found" as const }
+          : {
+              status: "found" as const,
+              identity: { startedAt: 1_000, commandLine: "managed target" },
+            },
+      terminateTree: async () => undefined,
+      providerOwner: async () => ({ status: "not-found" as const }),
+      custody,
+    });
+    try {
+      const spawned = await adapter.spawn(request());
+      if (helper !== undefined && helper.exitCode === null) {
+        await once(helper, "exit", { signal: AbortSignal.timeout(5_000) });
+      }
+      // Kill-on-close ended the target together with its helper.
+      targetGone = true;
+      await expect(
+        adapter.custody!.terminate(spawned, spawned.custodyAttachment!),
+      ).resolves.toEqual({
+        state: "already-exited",
+        escalated: false,
+      });
+    } finally {
+      if (targetPid > 0) {
+        try {
+          kill(targetPid, "SIGKILL");
+        } catch {
+          // Target may have exited while the helper was being observed.
+        }
+      }
+      if (helper !== undefined && helper.exitCode === null) helper.kill();
+    }
+  });
 });

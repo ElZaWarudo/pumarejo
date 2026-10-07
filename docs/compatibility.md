@@ -101,8 +101,8 @@ The explicit retention evaluator is supported when supplied a valid
 RDM-016-backed proof that the candidate is owned and inactive. Missing,
 malformed, active, conflicting, or failing proof preserves the candidate.
 
-The default Node runtime has no portable handle-relative recursive deletion
-adapter. It therefore preserves quarantined and retained bytes and reports a
-bounded retryable `unavailable` cleanup result. An identity-bound native
-deletion adapter remains a release/platform gap; this profile does not claim
-full artifact cleanup.
+Without a native deletion adapter, non-retained quarantines are removed file by
+file: only paths named by the quarantined manifest, each re-checked as a
+regular file, never a recursive delete. A quarantine with unexpected content is
+preserved and reported as residue; retained artifacts are never deleted
+implicitly.

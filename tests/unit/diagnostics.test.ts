@@ -151,6 +151,22 @@ describe("bounded runtime diagnostics", () => {
     });
   });
 
+  it("names a project-relative quarantine that was preserved", () => {
+    const store = new DiagnosticStore({ sessionId: SESSION_ID });
+
+    store.recordArtifactCleanupUnavailable({
+      retained: 1,
+      removed: 0,
+      retryable: true,
+      path: ".pumarejo/artifacts/.quarantine-AbC123",
+    });
+
+    expect(store.query().records[0]).toMatchObject({
+      code: "artifact_cleanup_unavailable",
+      message: "Preserved: .pumarejo/artifacts/.quarantine-AbC123",
+    });
+  });
+
   it("reports bounded cleanup unavailability without path or cause data", () => {
     const store = new DiagnosticStore({ sessionId: SESSION_ID });
 

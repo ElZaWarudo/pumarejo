@@ -97,6 +97,10 @@ export interface ErrorEnvelope {
   readonly retryable: boolean;
   readonly suggestion: string;
   readonly diagnostic?: ErrorDiagnostic;
+  /** Owned resources still held after a failed cleanup. */
+  readonly pending?: readonly string[];
+  /** Bounded, locally derived explanation, e.g. where a config file is invalid. */
+  readonly detail?: string;
 }
 
 export interface ErrorDiagnostic {
@@ -409,10 +413,16 @@ export class PumarejoError extends Error {
   readonly retryable: boolean;
   readonly suggestion: string;
   readonly diagnostic: ErrorDiagnostic | undefined;
+  readonly pending: readonly string[] | undefined;
+  readonly detail: string | undefined;
 
   constructor(
     code: PumarejoErrorCode,
-    options?: ErrorOptions & { readonly diagnostic?: ErrorDiagnostic },
+    options?: ErrorOptions & {
+      readonly diagnostic?: ErrorDiagnostic;
+      readonly pending?: readonly string[];
+      readonly detail?: string;
+    },
   ) {
     const envelope = ERROR_DEFINITIONS[code];
     super(envelope.message, options);
@@ -422,6 +432,11 @@ export class PumarejoError extends Error {
     this.retryable = envelope.retryable;
     this.suggestion = envelope.suggestion;
     this.diagnostic = options?.diagnostic;
+    this.pending =
+      options?.pending === undefined || options.pending.length === 0
+        ? undefined
+        : [...options.pending];
+    this.detail = options?.detail?.slice(0, 500);
   }
 
   toJSON(): ErrorEnvelope {
@@ -436,6 +451,8 @@ export class PumarejoError extends Error {
       retryable: this.retryable,
       suggestion: this.suggestion,
       ...(this.diagnostic === undefined ? {} : { diagnostic: this.diagnostic }),
+      ...(this.pending === undefined ? {} : { pending: this.pending }),
+      ...(this.detail === undefined ? {} : { detail: this.detail }),
     };
   }
 }

@@ -536,7 +536,24 @@ function createTrackedCustodyAdapter(
     attachment: ProcessCustodyAttachment,
   ): Promise<ProcessCustodyInspection | undefined> => {
     const entry = tracked.get(identity.pid);
-    if (entry?.managed === true && entry.helperExited) return undefined;
+    if (entry?.managed === true && entry.helperExited) {
+      // The helper holds the only handle to a kill-on-close Job, so its exit
+      // ends the target tree. Once the identity-bound target is also absent
+      // from the system, record the exit so cleanup can converge instead of
+      // retrying forever. A still-matching process stays retryable.
+      if (identity.systemHash !== undefined) {
+        const system = observedIdentity(
+          await operations.inspectSystem(identity.pid),
+        );
+        if (
+          system === undefined ||
+          systemHash(system) !== identity.systemHash
+        ) {
+          exited.add(identity.pid);
+        }
+      }
+      return undefined;
+    }
     if (entry !== undefined && !entry.managed && entry.child.exitCode !== null)
       return undefined;
     const system = observedIdentity(

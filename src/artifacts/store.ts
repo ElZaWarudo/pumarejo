@@ -88,6 +88,8 @@ export interface ArtifactCleanupOutcome {
   readonly retained: number;
   readonly retryable: boolean;
   readonly reason?: "identity_bound_quarantine_deletion_unavailable";
+  /** Project-relative quarantine directory preserved for review or retry. */
+  readonly path?: string;
 }
 
 export interface ArtifactOrphanProof {
@@ -397,12 +399,12 @@ async function isQuarantineGone(path: string): Promise<boolean> {
 }
 
 /**
- * An empty session contains no captured bytes, so it can be removed with the
- * portable directory/file primitives after the quarantine identity has been
- * revalidated. Non-empty quarantines still require the identity-bound native
- * deleter because Node has no handle-relative recursive delete operation.
+ * Remove a quarantine without recursive deletion: every path is named by the
+ * quarantined manifest, revalidated as a regular file or the recorded
+ * directory, and removed one at a time. Anything unexpected (extra entries,
+ * links, unmanifested files) leaves the quarantine intact.
  */
-async function deleteEmptyQuarantine(
+async function deleteManifestedQuarantine(
   request: ArtifactQuarantineDeletionRequest,
 ): Promise<"removed" | "unavailable"> {
   try {
@@ -416,12 +418,35 @@ async function deleteEmptyQuarantine(
     if (rootEntries.some((entry) => !expected.has(entry.name))) {
       return "unavailable";
     }
+    const manifest = await readManifest(
+      join(request.quarantineRoot, "manifest.json"),
+    );
+    if (manifest.retainArtifacts) return "unavailable";
+    const capturedNames = new Set(
+      manifest.entries.flatMap((entry) => [entry.path, entry.tempPath]),
+    );
     for (const entry of request.entries) {
       if (entry.kind !== "directory") continue;
-      const contents = await readdir(
-        join(request.quarantineRoot, entry.relativePath),
-      );
-      if (contents.length > 0) return "unavailable";
+      if (entry.relativePath !== manifest.sessionDirectory) {
+        return "unavailable";
+      }
+      const directory = join(request.quarantineRoot, entry.relativePath);
+      const contents = await readdir(directory, { withFileTypes: true });
+      if (
+        contents.some(
+          (child) =>
+            !capturedNames.has(child.name) ||
+            !child.isFile() ||
+            child.isSymbolicLink(),
+        )
+      ) {
+        return "unavailable";
+      }
+      for (const child of contents) {
+        const path = join(directory, child.name);
+        await assertRegularFile(path, path);
+        await unlink(path);
+      }
     }
 
     for (const entry of request.entries) {
@@ -431,7 +456,15 @@ async function deleteEmptyQuarantine(
         entry.relativePath,
         entry.kind,
       );
-      if (!sameQuarantineIdentity(current, entry)) return "unavailable";
+      // Removing the session's files updates the directory's times, so a
+      // directory is re-checked as the same object (device and inode) only.
+      const unchanged =
+        entry.kind === "directory"
+          ? current.dev === entry.dev &&
+            current.ino === entry.ino &&
+            current.kind === entry.kind
+          : sameQuarantineIdentity(current, entry);
+      if (!unchanged) return "unavailable";
       if (entry.kind === "directory") {
         await rmdir(path);
       } else {
@@ -451,9 +484,9 @@ async function deleteQuarantine(
   request: ArtifactQuarantineDeletionRequest,
   deleter: ArtifactQuarantineDeleter | undefined,
 ): Promise<"removed" | "unavailable"> {
-  // Node's portable fs API has no handle-relative recursive directory delete.
-  // Without an identity-bound native adapter, leave the quarantine intact.
-  if (deleter === undefined) return await deleteEmptyQuarantine(request);
+  // Without an identity-bound native adapter, delete only manifest-named
+  // files one by one; never recurse through unknown content.
+  if (deleter === undefined) return await deleteManifestedQuarantine(request);
   try {
     await validateQuarantineIdentities(request);
     const attestation = await deleter(request);
@@ -984,12 +1017,11 @@ async function recoverWithExplicitRetention(
 }
 
 /**
- * A failed cleanup can leave an empty quarantine when no native recursive
- * deleter is available. Empty quarantines contain no retained bytes, so a
- * subsequent recovery can safely converge them with the same identity checks
- * used by close; non-empty quarantines remain preserved for the native retry.
+ * Earlier releases left non-retained quarantines behind when no native
+ * deleter was available. Recovery converges them with the same manifest-bound
+ * checks used by close; retained or unexpected content stays preserved.
  */
-async function recoverEmptyQuarantines(
+async function recoverQuarantines(
   artifactsRoot: string,
 ): Promise<{ readonly removed: number; readonly retained: number }> {
   let removed = 0;
@@ -1019,7 +1051,7 @@ async function recoverEmptyQuarantines(
       }
       const manifestPath = join(quarantineRoot, "manifest.json");
       const manifest = await readManifest(manifestPath);
-      if (manifest.retainArtifacts || manifest.entries.length !== 0) continue;
+      if (manifest.retainArtifacts) continue;
       const expectedNames = new Set([
         "manifest.json",
         manifest.sessionDirectory,
@@ -1035,10 +1067,6 @@ async function recoverEmptyQuarantines(
         (!sessionEntry.isDirectory() || sessionEntry.isSymbolicLink())
       ) {
         continue;
-      }
-      if (sessionEntry !== undefined) {
-        const sessionPath = join(quarantineRoot, manifest.sessionDirectory);
-        if ((await readdir(sessionPath)).length > 0) continue;
       }
       const request = {
         quarantineRoot,
@@ -1056,8 +1084,9 @@ async function recoverEmptyQuarantines(
               ]),
         ],
       } satisfies ArtifactQuarantineDeletionRequest;
-      if ((await deleteEmptyQuarantine(request)) === "removed") removed += 1;
-      else retained += 1;
+      if ((await deleteManifestedQuarantine(request)) === "removed") {
+        removed += 1;
+      } else retained += 1;
     } catch {
       retained += 1;
     }
@@ -1290,6 +1319,7 @@ export class ArtifactStore {
         retained: 1,
         retryable: true,
         reason: QUARANTINE_DELETION_UNAVAILABLE,
+        path: this.projectRelative(this.#pendingCleanup.quarantineRoot),
       };
     }
     if (
@@ -1345,6 +1375,7 @@ export class ArtifactStore {
           retained: 1,
           retryable: true,
           reason: QUARANTINE_DELETION_UNAVAILABLE,
+          path: this.projectRelative(result.retry.quarantineRoot),
         };
       }
       this.#closing = false;
@@ -1359,6 +1390,10 @@ export class ArtifactStore {
       this.#closing = false;
       throw screenshotError(error);
     }
+  }
+
+  private projectRelative(path: string): string {
+    return relative(this.#projectRoot, path).split(sep).join("/");
   }
 
   static async recover(options: {
@@ -1386,7 +1421,7 @@ export class ArtifactStore {
       ).filter((entry) =>
         /^session-[a-f0-9]{32,64}\.manifest\.json$/u.test(entry.name),
       );
-      const emptyQuarantines = await recoverEmptyQuarantines(artifactsRoot);
+      const recoveredQuarantines = await recoverQuarantines(artifactsRoot);
       if (options.retentionPolicy !== undefined) {
         const result = await recoverWithExplicitRetention(
           artifactsRoot,
@@ -1399,8 +1434,8 @@ export class ArtifactStore {
         );
         return {
           ...result,
-          removed: result.removed + emptyQuarantines.removed,
-          retained: result.retained + emptyQuarantines.retained,
+          removed: result.removed + recoveredQuarantines.removed,
+          retained: result.retained + recoveredQuarantines.retained,
         };
       }
       const manifests = await Promise.all(
@@ -1475,8 +1510,8 @@ export class ArtifactStore {
           retained += 1;
         }
       }
-      const totalRemoved = removed + emptyQuarantines.removed;
-      const totalRetained = retained + emptyQuarantines.retained;
+      const totalRemoved = removed + recoveredQuarantines.removed;
+      const totalRetained = retained + recoveredQuarantines.retained;
       return unavailable
         ? unavailableRecoveryResult(totalRemoved, totalRetained)
         : { removed: totalRemoved, retained: totalRetained };

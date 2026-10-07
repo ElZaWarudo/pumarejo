@@ -154,7 +154,7 @@ describe("ArtifactStore", () => {
     expect(await readdir(artifactsRoot)).toEqual([]);
   });
 
-  it("quarantines bytes and retains a bounded retry when native deletion is unavailable", async () => {
+  it("removes captured screenshots on close without a native deleter", async () => {
     const root = await project();
     const artifactsRoot = join(root, ".pumarejo", "artifacts");
     const store = new ArtifactStore({
@@ -167,37 +167,80 @@ describe("ArtifactStore", () => {
 
     await store.open();
     await store.writePng(PNG);
+    await store.writePng(PNG);
 
-    const outcome = await store.close();
-    expect(outcome).toEqual({
+    await expect(store.close()).resolves.toEqual({
+      state: "removed",
+      status: "complete",
+      removed: 1,
+      retained: 0,
+      retryable: false,
+    });
+    expect(await readdir(artifactsRoot)).toEqual([]);
+    await expect(store.close()).resolves.toMatchObject({ state: "removed" });
+  });
+
+  async function leaveQuarantine(root: string): Promise<string> {
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
+    const store = new ArtifactStore({
+      projectRoot: root,
+      artifactsRoot,
+      retainArtifacts: false,
+      sessionId: SESSION_ID,
+      permissions: noOpPermissions(),
+      // Simulates an earlier release whose deleter could not finish.
+      quarantineDeleter: async () => {
+        throw new Error("unavailable");
+      },
+    });
+    await store.open();
+    await store.writePng(PNG);
+    await expect(store.close()).resolves.toMatchObject({
       state: "quarantined",
-      status: "unavailable",
-      removed: 0,
-      retained: 1,
       retryable: true,
-      reason: "identity_bound_quarantine_deletion_unavailable",
     });
     const quarantine = (await readdir(artifactsRoot)).find((entry) =>
       entry.startsWith(".quarantine-"),
     );
     expect(quarantine).toBeDefined();
-    expect(
-      await readFile(
-        join(
-          artifactsRoot,
-          quarantine!,
-          `session-${SESSION_ID}`,
-          "screenshot-0001.png",
-        ),
-      ),
-    ).toEqual(PNG);
+    return join(artifactsRoot, quarantine!);
+  }
 
-    await expect(store.close()).resolves.toEqual(outcome);
-    expect(
-      (await readdir(artifactsRoot)).filter((entry) =>
-        entry.startsWith(".quarantine-"),
+  it("recovers quarantines left with screenshots by earlier releases", async () => {
+    const root = await project();
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
+    await leaveQuarantine(root);
+
+    await expect(
+      ArtifactStore.recover({
+        projectRoot: root,
+        artifactsRoot,
+        permissions: noOpPermissions(),
+      }),
+    ).resolves.toEqual({ removed: 1, retained: 0 });
+    expect(await readdir(artifactsRoot)).toEqual([]);
+  });
+
+  it("preserves a quarantine whose session holds unmanifested content", async () => {
+    const root = await project();
+    const artifactsRoot = join(root, ".pumarejo", "artifacts");
+    const quarantine = await leaveQuarantine(root);
+    const foreign = join(quarantine, `session-${SESSION_ID}`, "notes.txt");
+    await writeFile(foreign, "keep me");
+
+    await expect(
+      ArtifactStore.recover({
+        projectRoot: root,
+        artifactsRoot,
+        permissions: noOpPermissions(),
+      }),
+    ).resolves.toEqual({ removed: 0, retained: 1 });
+    await expect(readFile(foreign, "utf8")).resolves.toBe("keep me");
+    await expect(
+      readFile(
+        join(quarantine, `session-${SESSION_ID}`, "screenshot-0001.png"),
       ),
-    ).toHaveLength(1);
+    ).resolves.toEqual(PNG);
   });
 
   it("preserves interrupted non-retained sessions without orphan proof", async () => {
