@@ -27,7 +27,7 @@ Usage:
   pumarejo recover-leases [--project <path>] --execute [--bind-legacy | --upgrade-binding] [--json]
   pumarejo cleanup-artifacts --project <path> --manifest <path> --workflow <id> [--session <id>] [--dry-run] [--json]
   pumarejo cleanup-artifacts --project <path> --manifest <path> --workflow <id> [--session <id>] --execute [--json]
-  pumarejo mcp --project <path>
+  pumarejo mcp --project <path> [--tools core|all]
   pumarejo mcp print-config --host <codex|claude-code|cursor> --project <path>
   pumarejo --version
   pumarejo --help`;
@@ -58,7 +58,9 @@ async function defaultHandler(
       );
       return;
     }
-    await serveMcpOverStdio(invocation.project);
+    await serveMcpOverStdio(invocation.project, {
+      tools: invocation.tools ?? "core",
+    });
     return;
   }
   if (invocation.command === "init") {

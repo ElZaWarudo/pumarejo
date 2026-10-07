@@ -6,9 +6,13 @@ export {
   type PumarejoDomainPorts,
 } from "./domain-ports.js";
 export {
+  CORE_TOOL_NAMES,
   createMcpServer,
   isExpectedMcpError,
   serveMcpOverStdio,
+  SERVER_INSTRUCTIONS,
+  type McpServerOptions,
+  type ToolSet,
 } from "./server.js";
 export * from "./schemas.js";
 export {

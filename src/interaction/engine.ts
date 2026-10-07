@@ -11,6 +11,7 @@ import type {
 } from "../mcp/schemas.js";
 import type { SnapshotEngine } from "../observation/snapshot.js";
 import type { ReferenceTable, SemanticReference } from "../observation/refs.js";
+import { diffSnapshots, type SnapshotChanges } from "../observation/outline.js";
 import type { SemanticNode, SemanticSnapshot } from "../observation/schema.js";
 import { loadIdentityScript } from "../observation/snapshot-script.js";
 import { isPreDispatchFailure, PumarejoError } from "../shared/errors.js";
@@ -174,6 +175,8 @@ export interface InteractionResult {
     readonly kind: ObservableEffect;
     readonly settleMs: number;
   };
+  /** What changed, by stable ref, when both observations are comparable. */
+  readonly changes?: SnapshotChanges;
   readonly snapshotAfter?: SemanticSnapshot;
 }
 
@@ -863,7 +866,14 @@ export class InteractionEngine {
         kind: effect,
         settleMs,
       },
-      ...((input.snapshotAfter ?? true) ? { snapshotAfter: after } : {}),
+      ...(before !== undefined &&
+      beforeComparable &&
+      before.partial !== true &&
+      after.partial !== true &&
+      effect !== "unknown"
+        ? { changes: diffSnapshots(before, after) }
+        : {}),
+      ...((input.snapshotAfter ?? false) ? { snapshotAfter: after } : {}),
     };
   }
 }

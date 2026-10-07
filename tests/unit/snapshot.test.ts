@@ -65,9 +65,11 @@ function rawSnapshot(
 
 function webdriver(values: readonly unknown[]) {
   let index = 0;
-  const execute = vi.fn(
-    async (_script: string, _args?: readonly unknown[]) => values[index++],
-  );
+  const execute = vi.fn(async (_script: string, _args?: readonly unknown[]) => {
+    const value = values[index++];
+    if (value instanceof Error) throw value;
+    return value;
+  });
   const title = vi.fn(async () => "Fixture");
   const windowRect = vi.fn(async () => ({
     x: 0,
@@ -246,7 +248,31 @@ describe("semantic snapshots", () => {
         includeValues: true,
       },
       { [W3C_ELEMENT_KEY]: "child-handle" },
+      // Current refs are offered so surviving elements can keep their refs.
+      [
+        { [W3C_ELEMENT_KEY]: "root-handle" },
+        { [W3C_ELEMENT_KEY]: "child-handle" },
+      ],
     ]);
+  });
+
+  it("observes again without previous handles when they went stale", async () => {
+    const fake = webdriver([
+      rawSnapshot([rawNode(0)], ["first-handle"]),
+      new PumarejoError("STALE_ELEMENT_REF"),
+      rawSnapshot([rawNode(0)], ["reloaded-handle"]),
+    ]);
+    const engine = new SnapshotEngine({
+      webdriver: fake.client,
+      windowLabel: "main",
+      script: async () => "return fixtureSnapshot()",
+    });
+
+    await engine.snapshot();
+    const reloaded = await engine.snapshot();
+
+    expect(reloaded.nodes.map((node) => node.ref)).toEqual(["e2-1"]);
+    expect(fake.execute.mock.calls[2]?.[1]).toHaveLength(1);
   });
 
   it("tracks filtered snapshots as non-comparable with the default full scope", async () => {

@@ -5,24 +5,85 @@ import {
   type DiagnosticSource,
 } from "../observability/diagnostics.js";
 
-const referenceSchema = z.string().min(1).max(128);
+const referenceSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .describe('Element ref from the latest outline, e.g. "e3-12".');
 const actionObservationFields = {
-  snapshotAfter: z.boolean().default(true),
-  settleMs: z.number().int().min(0).max(2_000).default(250),
+  snapshotAfter: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Also return the full outline after the action. The result always lists what changed.",
+    ),
+  settleMs: z
+    .number()
+    .int()
+    .min(0)
+    .max(2_000)
+    .default(250)
+    .describe("Milliseconds to wait for the UI to settle before observing."),
 } as const;
 
 export const launchInputSchema = z
   .object({
-    mode: z.enum(["visible", "background"]).default("visible"),
-    waitMs: z.number().int().min(0).max(30_000).default(5_000),
+    mode: z
+      .enum(["visible", "background"])
+      .default("visible")
+      .describe(
+        "background keeps the window off the desktop; visible shows it without taking focus.",
+      ),
+    waitMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(30_000)
+      .default(5_000)
+      .describe(
+        'How long to wait before returning state "launching" while the app still builds.',
+      ),
   })
   .strict();
 
 export const emptyInputSchema = z.object({}).strict();
 
+export const statusInputSchema = z
+  .object({
+    waitMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(60_000)
+      .default(0)
+      .describe(
+        'While state is "launching", wait up to this long for it to change before answering.',
+      ),
+  })
+  .strict();
+
 export const snapshotInputSchema = z
   .object({
-    rootRef: referenceSchema.optional(),
+    format: z
+      .enum(["outline", "json"])
+      .default("outline")
+      .describe(
+        "outline: compact indented text sized by maxChars. json: full node data (large).",
+      ),
+    maxChars: z
+      .number()
+      .int()
+      .min(500)
+      .max(60_000)
+      .default(8_000)
+      .describe(
+        "Outline size budget. Larger regions collapse into one line naming the rootRef that expands them.",
+      ),
+    rootRef: referenceSchema
+      .optional()
+      .describe(
+        "Observe only this element's subtree, e.g. a collapsed region.",
+      ),
     maxNodes: z.number().int().min(1).max(500).default(500),
     maxDepth: z.number().int().min(0).max(256).default(32),
     maxTextLength: z.number().int().min(1).max(65_536).default(4096),
@@ -30,8 +91,18 @@ export const snapshotInputSchema = z
     includeNames: z.boolean().default(true),
     includeText: z.boolean().default(true),
     includeValues: z.boolean().default(true),
-    roles: z.array(z.string().min(1).max(128)).min(1).max(32).optional(),
-    name: z.string().min(1).max(256).optional(),
+    roles: z
+      .array(z.string().min(1).max(128))
+      .min(1)
+      .max(32)
+      .optional()
+      .describe('Keep only these roles, e.g. ["button","link"].'),
+    name: z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe("Keep only nodes whose accessible name contains this text."),
     types: z.array(z.string().min(1).max(128)).min(1).max(32).optional(),
   })
   .strict();
@@ -347,7 +418,12 @@ export const sequenceInputSchema = z
   });
 
 export type LaunchInput = z.infer<typeof launchInputSchema>;
-export type SnapshotInput = z.infer<typeof snapshotInputSchema>;
+export type StatusInput = z.infer<typeof statusInputSchema>;
+// Presentation options (format, maxChars) are applied by the MCP adapter only.
+export type SnapshotInput = Omit<
+  z.infer<typeof snapshotInputSchema>,
+  "format" | "maxChars"
+>;
 export type ScreenshotInput = z.infer<typeof screenshotInputSchema>;
 export type SurfaceDiscoverInput = z.infer<typeof surfaceDiscoverInputSchema>;
 export type SurfaceSelectInput = z.infer<typeof surfaceSelectInputSchema>;

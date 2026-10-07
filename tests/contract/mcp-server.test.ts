@@ -8,7 +8,10 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  CORE_TOOL_NAMES,
   createMcpServer,
+  SERVER_INSTRUCTIONS,
+  type McpServerOptions,
   createStubDomainPorts,
   SUPPORTED_KEYS,
   type PumarejoDomainPorts,
@@ -124,8 +127,11 @@ function createPorts(): PumarejoDomainPorts {
   };
 }
 
-async function connectInMemory(ports: PumarejoDomainPorts) {
-  const server = createMcpServer(ports);
+async function connectInMemory(
+  ports: PumarejoDomainPorts,
+  options: McpServerOptions = { tools: "all" },
+) {
+  const server = createMcpServer(ports, options);
   const client = new Client({ name: "contract-client", version: "1.0.0" });
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();
@@ -235,7 +241,7 @@ describe("MCP server contract", () => {
       expect(byName.tauri_click).toMatchObject({
         required: ["ref"],
         properties: {
-          snapshotAfter: { type: "boolean", default: true },
+          snapshotAfter: { type: "boolean", default: false },
           settleMs: {
             type: "integer",
             minimum: 0,
@@ -382,7 +388,7 @@ describe("MCP server contract", () => {
           ref: "e1-2",
           text: "Product Pass",
           clear: true,
-          snapshotAfter: true,
+          snapshotAfter: false,
           settleMs: 250,
         },
         expect.objectContaining({ signal: expect.anything() }),
@@ -690,7 +696,8 @@ describe("MCP server contract", () => {
         });
       });
       const { tools } = await client.listTools();
-      expect(tools.map((tool) => tool.name)).toEqual(EXPECTED_TOOLS);
+      expect(tools.map((tool) => tool.name)).toEqual([...CORE_TOOL_NAMES]);
+      expect(client.getInstructions()).toBe(SERVER_INSTRUCTIONS);
       const result = await client.callTool({
         name: "tauri_close",
         arguments: {},

@@ -67,9 +67,24 @@ export class ReferenceTable {
     generation = this.#generation + 1,
   ): StagedReferenceTable {
     const elementIds = snapshot.handles.map(elementIdFrom);
-    const refs = snapshot.nodes.map(
-      (_node, index) => `e${generation}-${index + 1}`,
-    );
+    // A node the collector matched to a previous handle keeps that public ref;
+    // everything else receives a ref scoped to the generation that created it.
+    const reused = new Set<string>();
+    const refs = snapshot.nodes.map((node, index) => {
+      const previous =
+        node.previousIndex === undefined
+          ? undefined
+          : snapshot.previousRefs?.[node.previousIndex];
+      if (previous !== undefined && !reused.has(previous)) {
+        reused.add(previous);
+        return previous;
+      }
+      return `e${generation}-${index + 1}`;
+    });
+    const fresh = new Set(refs.filter((ref) => !reused.has(ref)));
+    if (fresh.size + reused.size !== refs.length) {
+      throw new PumarejoError("INTERNAL_ERROR");
+    }
     const next = new Map<string, SemanticReference>();
     const nodes = snapshot.nodes.map(({ descriptor, handleIndex }, index) => {
       const ref = refs[index]!;
@@ -156,6 +171,16 @@ export class ReferenceTable {
       throw new PumarejoError("INTERNAL_ERROR");
     }
     this.#reservation = undefined;
+  }
+
+  /** Current refs with their provider handles, in snapshot order. */
+  survivalCandidates(): readonly {
+    readonly ref: string;
+    readonly elementId: string;
+  }[] {
+    return [...this.#references.values()]
+      .slice(0, 500)
+      .map(({ ref, elementId }) => ({ ref, elementId }));
   }
 
   resolve(ref: string): SemanticReference {

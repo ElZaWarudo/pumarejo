@@ -112,6 +112,7 @@ export const rawSnapshotSchema = z
         z
           .object({
             handleIndex: referenceIndexSchema,
+            previousIndex: referenceIndexSchema.optional(),
             descriptor: rawSemanticDescriptorSchema,
           })
           .strict(),
@@ -153,6 +154,9 @@ export const rawSnapshotSchema = z
           .max(5),
       })
       .strict(),
+    // Node-side only: refs of the previous table, in the order their handles
+    // were offered to the collector as surviving-element candidates.
+    previousRefs: z.array(z.string().min(1).max(128)).max(500).optional(),
   })
   .strict()
   .superRefine((snapshot, context) => {

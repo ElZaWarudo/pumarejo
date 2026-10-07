@@ -19,6 +19,7 @@ export type CliInvocation =
       readonly self?: boolean;
       readonly subcommand?: "print-config";
       readonly host?: McpHost;
+      readonly tools?: "core" | "all";
       readonly execute?: boolean;
       readonly bindLegacy?: boolean;
       readonly upgradeBinding?: boolean;
@@ -83,6 +84,7 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
   let expectedSessionId: string | undefined;
   let subcommand: "print-config" | undefined;
   let host: McpHost | undefined;
+  let tools: "core" | "all" | undefined;
 
   let optionStart = 1;
   if (command === "mcp" && arguments_[1] === "print-config") {
@@ -212,6 +214,18 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
         index += 1;
         break;
       }
+      case "--tools": {
+        if (command !== "mcp") {
+          throw new CliUsageError(`Unknown option ${option} for ${command}.`);
+        }
+        const value = arguments_[index + 1];
+        if (value !== "core" && value !== "all") {
+          throw new CliUsageError("--tools requires core or all.");
+        }
+        tools = value;
+        index += 1;
+        break;
+      }
       default:
         throw new CliUsageError(`Unknown option ${String(option)}.`);
     }
@@ -250,6 +264,7 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
     ...(self ? { self: true } : {}),
     ...(subcommand === undefined ? {} : { subcommand }),
     ...(host === undefined ? {} : { host }),
+    ...(tools === undefined ? {} : { tools }),
     ...(execute ? { execute: true } : {}),
     ...(bindLegacy ? { bindLegacy: true } : {}),
     ...(upgradeBinding ? { upgradeBinding: true } : {}),

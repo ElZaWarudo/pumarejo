@@ -256,7 +256,8 @@ const ERROR_DEFINITIONS: Record<
     message: "A pumarejo session is already active.",
     phase: "session",
     retryable: false,
-    suggestion: "Close the active session before launching another.",
+    suggestion:
+      'Call tauri_status: while state is "launching" the app is still building, so wait with waitMs instead of closing. Close only to start over.',
   },
   WINDOW_NOT_FOUND: {
     message: "The configured primary window was not found.",

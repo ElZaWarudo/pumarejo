@@ -513,7 +513,8 @@ function ownershipContextFor(chain: readonly SemanticIdentityItem[]): string {
 
 export function collectSnapshot(
   options: BrowserSnapshotOptions = {},
-  rootElement?: Element,
+  rootElement?: Element | null,
+  previousElements?: readonly unknown[] | null,
 ): {
   readonly scriptVersion: typeof SNAPSHOT_SCRIPT_VERSION;
   readonly viewport: { readonly width: number; readonly height: number };
@@ -521,6 +522,7 @@ export function collectSnapshot(
   readonly nodes: readonly {
     readonly handleIndex: number;
     readonly providerHandleIndex: number;
+    readonly previousIndex?: number;
     readonly descriptor: CollectedNode["descriptor"];
   }[];
   readonly truncation: {
@@ -830,7 +832,7 @@ export function collectSnapshot(
     }
   };
 
-  if (rootElement !== undefined) {
+  if (rootElement !== undefined && rootElement !== null) {
     visit(rootElement, null, 0);
   } else {
     for (const child of [...document.documentElement.children]) {
@@ -862,6 +864,15 @@ export function collectSnapshot(
   const providerIndices = providerHandleIndices(
     new Set(collected.map(({ element }) => element)),
   );
+  // Elements from the previous reference table arrive as exact provider
+  // handles. Matching by object identity lets surviving elements keep their
+  // public refs without labels, selectors, or markers in application state.
+  const previousIndices = new Map<Element, number>();
+  (previousElements ?? []).slice(0, 500).forEach((candidate, index) => {
+    if (candidate instanceof Element && !previousIndices.has(candidate)) {
+      previousIndices.set(candidate, index);
+    }
+  });
   return {
     scriptVersion: SNAPSHOT_SCRIPT_VERSION,
     viewport: { width: window.innerWidth, height: window.innerHeight },
@@ -871,7 +882,10 @@ export function collectSnapshot(
       if (providerHandleIndex === undefined) {
         throw new Error("snapshot element is outside provider handle order");
       }
-      return { handleIndex, providerHandleIndex, descriptor };
+      const previousIndex = previousIndices.get(element);
+      return previousIndex === undefined
+        ? { handleIndex, providerHandleIndex, descriptor }
+        : { handleIndex, providerHandleIndex, previousIndex, descriptor };
     }),
     truncation: {
       truncated: reasons.size > 0,

@@ -315,11 +315,44 @@ export class SnapshotEngine {
         ...(request?.types === undefined ? {} : { types: request.types }),
       };
       stage = "execute_script";
-      let rawValue = await this.#webdriver.execute<unknown>(
+      const candidates = this.references.survivalCandidates();
+      const rootArgument =
+        root === undefined ? null : { [W3C_ELEMENT_KEY]: root.elementId };
+      const baseArguments =
+        root === undefined ? [browserOptions] : [browserOptions, rootArgument];
+      let previousRefs: readonly string[] | undefined;
+      let rawValue: unknown;
+      if (candidates.length > 0) {
+        try {
+          rawValue = await this.#webdriver.execute<unknown>(
+            script,
+            [
+              browserOptions,
+              rootArgument,
+              candidates.map(({ elementId }) => ({
+                [W3C_ELEMENT_KEY]: elementId,
+              })),
+            ],
+            signal,
+          );
+          previousRefs = candidates.map(({ ref }) => ref);
+        } catch (error) {
+          // A reload drops the provider's handle variables, which surfaces as
+          // a stale element. Survival matching is an optimization, so only
+          // that case observes again without previous handles.
+          if (
+            signal?.aborted ||
+            !(error instanceof PumarejoError) ||
+            error.code !== "STALE_ELEMENT_REF"
+          ) {
+            throw error;
+          }
+          rawValue = undefined;
+        }
+      }
+      rawValue ??= await this.#webdriver.execute<unknown>(
         script,
-        root === undefined
-          ? [browserOptions]
-          : [browserOptions, { [W3C_ELEMENT_KEY]: root.elementId }],
+        baseArguments,
         signal,
       );
       if (
@@ -370,7 +403,13 @@ export class SnapshotEngine {
       const rawTitle = await this.#webdriver.title(signal);
       const { title, truncated: titleTruncated } = boundedWindowTitle(rawTitle);
       stage = "validate_schema";
-      const raw: RawSnapshot = rawSnapshotSchema.parse(rawValue);
+      const raw: RawSnapshot = rawSnapshotSchema.parse(
+        previousRefs === undefined ||
+          typeof rawValue !== "object" ||
+          rawValue === null
+          ? rawValue
+          : { ...rawValue, previousRefs },
+      );
       stage = "validate_redaction";
       for (const { descriptor } of raw.nodes) {
         assertRedactionBoundary(descriptor);

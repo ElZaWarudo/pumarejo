@@ -42,6 +42,32 @@ afterEach(() => {
   document.documentElement.innerHTML = "<head></head><body></body>";
 });
 
+describe("surviving element matching", () => {
+  it("reports the previous index of each element that is still attached", () => {
+    document.body.innerHTML = `
+      <button id="keep">Keep</button>
+      <button id="drop">Drop</button>
+    `;
+    const keep = document.querySelector("#keep")!;
+    const drop = document.querySelector("#drop")!;
+    drop.remove();
+    document.body.insertAdjacentHTML("afterbegin", "<button>New</button>");
+
+    const snapshot = collectSnapshot({}, null, [drop, keep]);
+    const byName = Object.fromEntries(
+      snapshot.nodes.map((node) => [node.descriptor.name, node.previousIndex]),
+    );
+
+    expect(byName).toEqual({ New: undefined, Keep: 1 });
+  });
+
+  it("ignores previous candidates that are not elements", () => {
+    document.body.innerHTML = `<button>Only</button>`;
+    const snapshot = collectSnapshot({}, undefined, [null, "x", 3]);
+    expect(snapshot.nodes[0]).not.toHaveProperty("previousIndex");
+  });
+});
+
 describe("standards-derived browser snapshot", () => {
   it("recomputes the private identity of the exact element handle", () => {
     document.body.innerHTML = `

@@ -971,7 +971,7 @@ describe("application-scoped MCP runtime", () => {
 
   it("completes the twelve-tool workflow through an independent MCP client", async () => {
     const test = harness();
-    const server = createMcpServer(test.runtime);
+    const server = createMcpServer(test.runtime, { tools: "all" });
     const client = new Client({ name: "runtime-client", version: "1.0.0" });
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
@@ -1132,7 +1132,7 @@ describe("application-scoped MCP runtime", () => {
 
   it("retains the owned session after an SDK snapshot timeout reaches the runtime", async () => {
     const test = harness();
-    const server = createMcpServer(test.runtime);
+    const server = createMcpServer(test.runtime, { tools: "all" });
     const client = new Client({ name: "timeout-client", version: "1.0.0" });
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
@@ -1325,7 +1325,7 @@ describe("application-scoped MCP runtime", () => {
 
   it("retains uncertain action outcome after public SDK ENTER timeout with no redispatch", async () => {
     const test = harness();
-    const server = createMcpServer(test.runtime);
+    const server = createMcpServer(test.runtime, { tools: "all" });
     const client = new Client({ name: "action-timeout", version: "1.0.0" });
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();

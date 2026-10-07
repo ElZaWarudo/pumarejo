@@ -9,7 +9,7 @@ import {
 import { PumarejoError } from "../../src/shared/errors.js";
 
 async function connect(ports: PumarejoDomainPorts) {
-  const server = createMcpServer(ports);
+  const server = createMcpServer(ports, { tools: "all" });
   const client = new Client({
     name: "real-usage-certifier",
     version: "1.0.0",

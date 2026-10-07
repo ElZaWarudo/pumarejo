@@ -332,6 +332,7 @@ const PENDING_LAUNCH_RESULT = {
   state: "launching",
   pollAfterMs: 500,
   recommendedClientTimeoutMs: 10_000,
+  next: 'The app is still building. Call tauri_status with waitMs (for example 30000) until state is "ready"; do not close or relaunch.',
 } as const;
 
 function defaultManager(
