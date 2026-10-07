@@ -1,6 +1,7 @@
 import { PumarejoError } from "../shared/errors.js";
 import type { WebDriverClient } from "../webdriver/client.js";
 import { W3C_ELEMENT_KEY } from "../webdriver/protocol.js";
+import { DEFAULT_SNAPSHOT_MAX_DEPTH } from "./defaults.js";
 import { assertRedactionBoundary } from "./redaction.js";
 import { ReferenceTable, type ReferenceGenerationReservation } from "./refs.js";
 import {
@@ -33,7 +34,8 @@ function hasDefaultComparableScope(request?: SnapshotRequest): boolean {
   return (
     request?.rootRef === undefined &&
     (request?.maxNodes === undefined || request.maxNodes === 500) &&
-    (request?.maxDepth === undefined || request.maxDepth === 32) &&
+    (request?.maxDepth === undefined ||
+      request.maxDepth === DEFAULT_SNAPSHOT_MAX_DEPTH) &&
     (request?.maxTextLength === undefined || request.maxTextLength === 4096) &&
     (request?.visibleOnly === undefined || request.visibleOnly) &&
     (request?.includeNames === undefined || request.includeNames) &&
@@ -304,7 +306,7 @@ export class SnapshotEngine {
           : this.references.resolve(request.rootRef);
       const browserOptions = {
         maxNodes: request?.maxNodes ?? 500,
-        maxDepth: request?.maxDepth ?? 32,
+        maxDepth: request?.maxDepth ?? DEFAULT_SNAPSHOT_MAX_DEPTH,
         maxTextLength: request?.maxTextLength ?? 4096,
         visibleOnly: request?.visibleOnly ?? true,
         includeNames: request?.includeNames ?? true,

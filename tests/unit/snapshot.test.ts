@@ -221,7 +221,7 @@ describe("semantic snapshots", () => {
     });
     const request = {
       maxNodes: 500,
-      maxDepth: 32,
+      maxDepth: 128,
       maxTextLength: 4096,
       visibleOnly: true,
     };
@@ -288,7 +288,7 @@ describe("semantic snapshots", () => {
 
     await engine.snapshot({
       maxNodes: 500,
-      maxDepth: 32,
+      maxDepth: 128,
       maxTextLength: 4096,
       visibleOnly: true,
       roles: ["button"],

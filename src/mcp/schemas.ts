@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { DEFAULT_SNAPSHOT_MAX_DEPTH } from "../observation/defaults.js";
 import {
   DIAGNOSTIC_SOURCES,
   type DiagnosticSource,
@@ -85,7 +86,15 @@ export const snapshotInputSchema = z
         "Observe only this element's subtree, e.g. a collapsed region.",
       ),
     maxNodes: z.number().int().min(1).max(500).default(500),
-    maxDepth: z.number().int().min(0).max(256).default(32),
+    maxDepth: z
+      .number()
+      .int()
+      .min(0)
+      .max(256)
+      .default(DEFAULT_SNAPSHOT_MAX_DEPTH)
+      .describe(
+        "DOM levels to traverse; raise it when a deep region is reported as skipped.",
+      ),
     maxTextLength: z.number().int().min(1).max(65_536).default(4096),
     visibleOnly: z.boolean().default(true),
     includeNames: z.boolean().default(true),

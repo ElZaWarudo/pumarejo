@@ -10,6 +10,7 @@ import {
   triState,
 } from "./browser-state.js";
 import { childElements, providerHandleIndices } from "./browser-traversal.js";
+import { DEFAULT_SNAPSHOT_MAX_DEPTH } from "./defaults.js";
 
 type SemanticKind =
   | "control"
@@ -545,7 +546,10 @@ export function collectSnapshot(
   };
 } {
   const maxNodes = Math.min(Math.max(options.maxNodes ?? 500, 1), 500);
-  const maxDepth = Math.min(Math.max(options.maxDepth ?? 32, 0), 256);
+  const maxDepth = Math.min(
+    Math.max(options.maxDepth ?? DEFAULT_SNAPSHOT_MAX_DEPTH, 0),
+    256,
+  );
   const maxTextLength = Math.min(
     Math.max(options.maxTextLength ?? 4096, 1),
     MAX_FIELD_LENGTH,

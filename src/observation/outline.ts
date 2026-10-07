@@ -156,6 +156,40 @@ function withoutEchoes(nodes: readonly SemanticNode[]): SemanticNode[] {
   });
 }
 
+/** One line per capture limit that was hit, each saying how to see more. */
+function truncationNotes(snapshot: SemanticSnapshot): string[] {
+  const { reasons, counts } = snapshot.truncation;
+  const notes: string[] = [];
+  for (const reason of reasons) {
+    switch (reason) {
+      case "maxDepth":
+        notes.push(
+          "truncated: content nested deeper than maxDepth was skipped; pass a larger maxDepth (up to 256) or a rootRef inside that region",
+        );
+        break;
+      case "maxNodes":
+        notes.push(
+          `truncated: ${counts.returned} of ${counts.matched} matched nodes kept (maxNodes); narrow with rootRef, roles, or name`,
+        );
+        break;
+      case "traversalLimit":
+        notes.push(
+          "truncated: the page has more elements than one capture walks; pass a rootRef to focus a region",
+        );
+        break;
+      case "maxTextLength":
+      case "fieldBudget":
+        notes.push(
+          "truncated: long text was shortened; pass a larger maxTextLength or a rootRef",
+        );
+        break;
+      case "semanticExtraction":
+        break;
+    }
+  }
+  return [...new Set(notes)];
+}
+
 export interface OutlineOptions {
   readonly maxChars?: number;
 }
@@ -185,13 +219,7 @@ export function renderOutline(
     }`,
   ];
   if (snapshot.truncation.truncated) {
-    header.push(
-      `capture truncated (${snapshot.truncation.reasons.join(
-        ", ",
-      )}): ${snapshot.truncation.counts.returned} of ${
-        snapshot.truncation.counts.matched
-      } matched nodes kept; narrow with rootRef, roles, or name`,
-    );
+    header.push(...truncationNotes(snapshot));
   }
   if (snapshot.partial === true) {
     header.push(

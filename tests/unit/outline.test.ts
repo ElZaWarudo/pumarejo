@@ -194,7 +194,14 @@ describe("outline rendering", () => {
       },
     };
     expect(renderOutline(truncated)).toContain(
-      "capture truncated (maxNodes): 1 of 700 matched nodes kept",
+      "truncated: 1 of 700 matched nodes kept (maxNodes)",
+    );
+    const deep: SemanticSnapshot = {
+      ...truncated,
+      truncation: { ...truncated.truncation, reasons: ["maxDepth"] },
+    };
+    expect(renderOutline(deep)).toContain(
+      "truncated: content nested deeper than maxDepth was skipped; pass a larger maxDepth",
     );
     expect(renderOutline(snapshot([]))).toContain("no semantic nodes matched");
   });

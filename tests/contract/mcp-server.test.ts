@@ -182,7 +182,7 @@ describe("MCP server contract", () => {
         properties: {
           rootRef: { type: "string" },
           maxNodes: { type: "integer", default: 500 },
-          maxDepth: { type: "integer", default: 32 },
+          maxDepth: { type: "integer", default: 128 },
           maxTextLength: { type: "integer", default: 4096 },
           visibleOnly: { type: "boolean", default: true },
           includeNames: { type: "boolean", default: true },
