@@ -659,18 +659,20 @@ fallbacks are not exposed.
 ### `tauri_select_option`
 
 ```json
-{
-  "ref": "e4-4",
-  "snapshotAfter": true,
-  "settleMs": 250
-}
+{ "ref": "e5-14", "label": "Claude Code" }
 ```
 
-The ref must identify the exact current HTML `option`. Its owning select is
-inferred only from that handle and revalidated. Unsupported or native surfaces
-return a typed interaction error. None of these tools use operating-system
-input. Since native options are normally hidden, discover their refs with
-`tauri_snapshot` using `visibleOnly: false` and `roles: ["option"]`.
+Snapshots list every `option` of a visible `select` as a child node with its
+own ref, label, value, and `selected` state, even though a closed select lays
+out no option boxes. Pass either an option ref, or the select's ref with
+exactly one of `value` (exact option value) or `label` (exact visible label).
+A select ref without a match fails with `ELEMENT_NOT_FOUND`; a value or label
+on an option ref fails with `ELEMENT_NOT_INTERACTABLE`.
+
+The option is selected and the select then dispatches bubbling `input` and
+`change` events, as a user choice does, so framework listeners such as React's
+`onChange` update their state. Hidden or disabled selects and options fail with
+typed errors. None of these tools use operating-system input.
 
 ### `tauri_sequence`
 

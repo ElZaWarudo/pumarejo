@@ -1032,12 +1032,21 @@ export class WebDriverClient {
     );
   }
 
-  async selectOption(elementId: string, signal?: AbortSignal): Promise<void> {
+  async selectOption(
+    elementId: string,
+    signal?: AbortSignal,
+    match?: { readonly value?: string; readonly label?: string },
+  ): Promise<void> {
+    // With a match, arguments[0] is the <select> and the option is chosen by
+    // exact value or label; otherwise arguments[0] is the exact <option>.
+    // Selection then fires input and change like a user pick, so framework
+    // listeners (React onChange) observe it.
     const result = await this.execute<string>(
-      "const option=arguments[0]; if(!(option instanceof HTMLOptionElement))return 'unsupported'; const parent=option.parentElement,select=parent instanceof HTMLSelectElement?parent:parent instanceof HTMLOptGroupElement&&parent.parentElement instanceof HTMLSelectElement?parent.parentElement:null; if(!select)return 'unsupported'; const style=getComputedStyle(select),rect=select.getBoundingClientRect(); if(style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0||rect.width<=0||rect.height<=0)return 'hidden'; if(option.disabled||select.disabled||option.closest('optgroup')?.disabled)return 'disabled'; option.selected=true; select.dispatchEvent(new Event('input',{bubbles:true})); select.dispatchEvent(new Event('change',{bubbles:true})); return 'selected';",
-      [{ [W3C_ELEMENT_KEY]: elementId }],
+      "const target=arguments[0],match=arguments[1]; let option=target; if(match){ if(!(target instanceof HTMLSelectElement))return 'unsupported'; const all=Array.from(target.options); option=match.value!==undefined?all.find(o=>o.value===match.value):all.find(o=>(o.label||o.text).trim()===match.label.trim()); if(!option)return 'missing'; } if(!(option instanceof HTMLOptionElement))return 'unsupported'; const parent=option.parentElement,select=parent instanceof HTMLSelectElement?parent:parent instanceof HTMLOptGroupElement&&parent.parentElement instanceof HTMLSelectElement?parent.parentElement:null; if(!select)return 'unsupported'; const style=getComputedStyle(select),rect=select.getBoundingClientRect(); if(style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0||rect.width<=0||rect.height<=0)return 'hidden'; if(option.disabled||select.disabled||option.closest('optgroup')?.disabled)return 'disabled'; option.selected=true; select.dispatchEvent(new Event('input',{bubbles:true})); select.dispatchEvent(new Event('change',{bubbles:true})); return 'selected';",
+      [{ [W3C_ELEMENT_KEY]: elementId }, match ?? null],
       signal,
     );
+    if (result === "missing") throw new PumarejoError("ELEMENT_NOT_FOUND");
     if (result === "selected") return;
     if (result === "hidden") throw new PumarejoError("ELEMENT_HIDDEN");
     if (result === "disabled") throw new PumarejoError("ELEMENT_DISABLED");

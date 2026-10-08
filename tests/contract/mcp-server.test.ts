@@ -297,7 +297,7 @@ describe("MCP server contract", () => {
       });
       expect(
         tools.find((tool) => tool.name === "tauri_select_option")?.description,
-      ).toContain("visibleOnly:false");
+      ).toContain("select ref with value or label");
       expect(byName.tauri_close).toMatchObject({
         properties: {},
       });

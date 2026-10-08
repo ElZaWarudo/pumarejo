@@ -252,6 +252,32 @@ describe("snapshot changes", () => {
     ]);
   });
 
+  it("does not repeat a container's text when only its children changed", () => {
+    const before = snapshot([
+      node("e1-1", {
+        kind: "dialog",
+        tag: "dialog",
+        role: "dialog",
+        name: "New job",
+        text: "New job Agent Codex",
+      }),
+      node("e1-2", { parentRef: "e1-1", role: "combobox", value: "codex" }),
+    ]);
+    const after = snapshot([
+      node("e1-1", {
+        kind: "dialog",
+        tag: "dialog",
+        role: "dialog",
+        name: "New job",
+        text: "New job Agent Claude Code",
+      }),
+      node("e1-2", { parentRef: "e1-1", role: "combobox", value: "claude" }),
+    ]);
+    expect(renderChanges(diffSnapshots(before, after))).toEqual([
+      '~ combobox "Save" [e1-2]: "claude": value "codex" → "claude"',
+    ]);
+  });
+
   it("never reveals redacted values in change details", () => {
     const before = snapshot([
       node("e1-1", { role: "textbox", name: "Password", redacted: true }),

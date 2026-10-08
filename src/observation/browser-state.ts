@@ -65,7 +65,8 @@ export function elementValue(element: Element): string | undefined {
   if (
     element instanceof HTMLInputElement ||
     element instanceof HTMLTextAreaElement ||
-    element instanceof HTMLSelectElement
+    element instanceof HTMLSelectElement ||
+    element instanceof HTMLOptionElement
   ) {
     return element.value;
   }

@@ -53,7 +53,7 @@ export const PUMAREJO_TOOL_DESCRIPTIONS = {
   tauri_scroll:
     "Scroll an exact current semantic reference through WebDriver wheel actions.",
   tauri_select_option:
-    'Select an exact current HTML option reference through WebDriver. Discover native option references with tauri_snapshot using visibleOnly:false and roles:["option"].',
+    "Pick a <select> option: pass an option ref from the outline, or the select ref with value or label. Fires input and change like a user choice. Returns what changed.",
   tauri_sequence:
     "Run a bounded FIFO sequence of exact current-generation semantic actions and return one final stabilization snapshot.",
   tauri_close: "Close the app session and release all pumarejo resources.",

@@ -600,9 +600,46 @@ describe("WebDriverClient", () => {
 
       await expect(webdriver.selectOption("option-1")).resolves.toBeUndefined();
       expect(validationScript).toContain(marker);
-      expect(validationArguments).toEqual([{ [W3C_ELEMENT_KEY]: "option-1" }]);
+      expect(validationArguments).toEqual([
+        { [W3C_ELEMENT_KEY]: "option-1" },
+        null,
+      ]);
     },
   );
+
+  it("selects through a <select> handle by label and reports a missing option", async () => {
+    const calls: unknown[] = [];
+    let answer = "selected";
+    const fetchImplementation = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const path = new URL(String(input)).pathname;
+        if (path === "/session") {
+          return jsonResponse({ value: { sessionId: "session-1" } });
+        }
+        if (path.endsWith("/execute/sync")) {
+          calls.push(
+            (JSON.parse(String(init?.body)) as { args: unknown }).args,
+          );
+          return jsonResponse({ value: answer });
+        }
+        throw new Error(`unexpected route: ${path}`);
+      },
+    ) as unknown as typeof fetch;
+    const webdriver = client(fetchImplementation);
+    await webdriver.createSession();
+
+    await expect(
+      webdriver.selectOption("select-1", undefined, { label: "Claude Code" }),
+    ).resolves.toBeUndefined();
+    expect(calls[0]).toEqual([
+      { [W3C_ELEMENT_KEY]: "select-1" },
+      { label: "Claude Code" },
+    ]);
+    answer = "missing";
+    await expect(
+      webdriver.selectOption("select-1", undefined, { value: "nope" }),
+    ).rejects.toMatchObject({ code: "ELEMENT_NOT_FOUND" });
+  });
 
   it("rejects an oversized initial snapshot handle set before shadow probing", async () => {
     const fetchImplementation = vi.fn(async (input: string | URL | Request) => {

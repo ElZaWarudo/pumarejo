@@ -421,7 +421,11 @@ export function diffSnapshots(
       continue;
     }
     const fields: Record<string, readonly [unknown, unknown]> = {};
+    // A container's text is its descendants' text, which the diff already
+    // reports node by node; repeating it only adds noise.
+    const container = (afterTree.children.get(node.ref)?.length ?? 0) > 0;
     for (const field of COMPARED_FIELDS) {
+      if (field === "text" && container) continue;
       const was = old[field];
       const now = node[field];
       if (was !== now) {

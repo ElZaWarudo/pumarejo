@@ -72,7 +72,11 @@ interface InteractionWebDriver {
     deltaY: number,
     signal?: AbortSignal,
   ): Promise<void>;
-  selectOption?(elementId: string, signal?: AbortSignal): Promise<void>;
+  selectOption?(
+    elementId: string,
+    signal?: AbortSignal,
+    match?: { readonly value?: string; readonly label?: string },
+  ): Promise<void>;
   windowAction?(
     input:
       | { readonly action: "maximize" | "restore" }
@@ -605,13 +609,29 @@ export class InteractionEngine {
       this.validateInput(input);
       const before = this.#snapshot.currentSnapshot;
       const beforeComparable = this.#snapshot.currentSnapshotComparable;
-      const reference = await this.requireTarget(input.ref, "option", signal);
+      const match =
+        input.value !== undefined
+          ? { value: input.value }
+          : input.label !== undefined
+            ? { label: input.label }
+            : undefined;
+      const reference = await this.requireTarget(
+        input.ref,
+        match === undefined ? "option" : "select",
+        signal,
+      );
       const selectOption = this.#webdriver.selectOption;
       if (selectOption === undefined) {
         throw new PumarejoError("UNSUPPORTED_ACTION");
       }
       await this.mutate(
-        () => selectOption.call(this.#webdriver, reference.elementId, signal),
+        () =>
+          selectOption.call(
+            this.#webdriver,
+            reference.elementId,
+            signal,
+            match,
+          ),
         signal,
       );
       return await this.observe(
@@ -691,7 +711,7 @@ export class InteractionEngine {
 
   private async requireTarget(
     ref: string,
-    action: "click" | "type" | "pointer" | "scroll" | "option",
+    action: "click" | "type" | "pointer" | "scroll" | "option" | "select",
     signal?: AbortSignal,
   ): Promise<SemanticReference> {
     const reference = this.#references.resolve(ref);
@@ -734,10 +754,15 @@ export class InteractionEngine {
     }
     if (!current.enabled) throw new PumarejoError("ELEMENT_DISABLED");
     if (
-      ((action === "click" || action === "type" || action === "option") &&
+      ((action === "click" ||
+        action === "type" ||
+        action === "option" ||
+        action === "select") &&
         current.kind !== "control") ||
       (action === "option" &&
         (current.tag !== "option" || reference.identity.tag !== "option")) ||
+      (action === "select" &&
+        (current.tag !== "select" || reference.identity.tag !== "select")) ||
       (action === "type" && !current.editable)
     ) {
       throw new PumarejoError("ELEMENT_NOT_INTERACTABLE");

@@ -676,7 +676,7 @@ describe("semantic interactions", () => {
       "selectOption",
       { ref: "e1-1", settleMs: 0 },
       "selectOption",
-      ["exact-element-id", undefined],
+      ["exact-element-id", undefined, undefined],
     ],
   ] as const)(
     "dispatches the exact-ref %s action through WebDriver",
@@ -730,6 +730,78 @@ describe("semantic interactions", () => {
       expect(action).toHaveBeenCalledWith(...expected);
     },
   );
+
+  it.each([
+    [{ value: "claude-code" }, { value: "claude-code" }],
+    [{ label: "Claude Code" }, { label: "Claude Code" }],
+  ] as const)(
+    "selects through the <select> ref by %o",
+    async (choice, match) => {
+      const references = referenceTable({
+        tag: "select",
+        role: "combobox",
+        identity: { name: "Agente", ownershipContext: OWNERSHIP },
+      });
+      const selectOption = vi.fn(async () => undefined);
+      const engine = new InteractionEngine({
+        webdriver: {
+          execute: vi.fn(async () =>
+            currentIdentity({
+              tag: "select",
+              role: "combobox",
+              name: "Agente",
+            }),
+          ),
+          selectOption,
+        } as never,
+        snapshot: snapshotPort(
+          vi.fn(async () => observedSnapshot({ generation: 2, text: "x" })),
+          references,
+          observedSnapshot({ generation: 1 }),
+        ),
+        identityScript: async () => "identity",
+        settle: async () => undefined,
+      });
+
+      await expect(
+        engine.selectOption({ ref: "e1-1", ...choice, settleMs: 0 }),
+      ).resolves.toMatchObject({ action: "selectOption", ref: "e1-1" });
+      expect(selectOption).toHaveBeenCalledWith(
+        "exact-element-id",
+        undefined,
+        match,
+      );
+    },
+  );
+
+  it("rejects a value or label on an <option> ref", async () => {
+    const references = referenceTable({
+      tag: "option",
+      role: "option",
+      identity: { name: "Save", ownershipContext: OWNERSHIP },
+    });
+    const selectOption = vi.fn(async () => undefined);
+    const engine = new InteractionEngine({
+      webdriver: {
+        execute: vi.fn(async () =>
+          currentIdentity({ tag: "option", role: "option" }),
+        ),
+        selectOption,
+      } as never,
+      snapshot: snapshotPort(
+        vi.fn(async () => observedSnapshot({ generation: 2 })),
+        references,
+        observedSnapshot({ generation: 1 }),
+      ),
+      identityScript: async () => "identity",
+      settle: async () => undefined,
+    });
+
+    await expect(
+      engine.selectOption({ ref: "e1-1", value: "x", settleMs: 0 }),
+    ).rejects.toMatchObject({ code: "ELEMENT_NOT_INTERACTABLE" });
+    expect(selectOption).not.toHaveBeenCalled();
+  });
 
   it("returns native restore evidence without waiting for suspended WebView observation", async () => {
     const references = referenceTable();

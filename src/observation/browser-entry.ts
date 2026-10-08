@@ -188,6 +188,23 @@ function composedParent(element: Element): Element | undefined {
 }
 
 function visible(element: Element): boolean {
+  // A closed native <select> lays out none of its options, yet each option is
+  // what the user picks from: it is visible whenever its select is.
+  if (
+    element instanceof HTMLOptionElement ||
+    element instanceof HTMLOptGroupElement
+  ) {
+    const select = element.closest("select");
+    return (
+      select !== null &&
+      !element.hidden &&
+      !(
+        element.parentElement instanceof HTMLOptGroupElement &&
+        element.parentElement.hidden
+      ) &&
+      visible(select)
+    );
+  }
   for (
     let candidate: Element | undefined = element;
     candidate;

@@ -314,10 +314,35 @@ export const scrollInputSchema = z
 
 export const selectOptionInputSchema = z
   .object({
-    ref: referenceSchema,
+    ref: referenceSchema.describe(
+      "An <option> ref, or a <select> ref together with value or label.",
+    ),
+    value: z
+      .string()
+      .max(4_096)
+      .optional()
+      .describe(
+        "With a <select> ref: pick the option whose value equals this.",
+      ),
+    label: z
+      .string()
+      .max(4_096)
+      .optional()
+      .describe(
+        "With a <select> ref: pick the option whose visible label equals this.",
+      ),
     ...actionObservationFields,
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    if (input.value !== undefined && input.label !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["label"],
+        message: "pass value or label, not both",
+      });
+    }
+  });
 
 const sequenceSettleField = {
   settleMs: z.number().int().min(0).max(2_000).default(250),

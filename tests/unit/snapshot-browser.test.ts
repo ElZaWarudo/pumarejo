@@ -42,6 +42,62 @@ afterEach(() => {
   document.documentElement.innerHTML = "<head></head><body></body>";
 });
 
+describe("native select options", () => {
+  it("lists each option of a closed <select> with value, label, and selection", () => {
+    document.body.innerHTML = `
+      <label for="agent">Agente</label>
+      <select id="agent">
+        <option value="codex" selected>Codex</option>
+        <option value="claude-code">Claude Code</option>
+        <option value="off" hidden>Hidden</option>
+      </select>
+    `;
+    // Real WebViews lay out no box for options inside a closed select.
+    const layout = Element.prototype.getBoundingClientRect;
+    Object.defineProperty(Element.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value(this: Element) {
+        return this instanceof HTMLOptionElement
+          ? {
+              x: 0,
+              y: 0,
+              width: 0,
+              height: 0,
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              toJSON: () => ({}),
+            }
+          : layout.call(this);
+      },
+    });
+
+    const snapshot = collectSnapshot();
+    const select = snapshot.nodes.findIndex(
+      (node) => node.descriptor.tag === "select",
+    );
+    const options = snapshot.nodes
+      .filter((node) => node.descriptor.tag === "option")
+      .map(({ descriptor }) => ({
+        parentIndex: descriptor.parentIndex,
+        name: descriptor.name,
+        value: descriptor.value,
+        selected: descriptor.selected,
+      }));
+
+    expect(options).toEqual([
+      { parentIndex: select, name: "Codex", value: "codex", selected: true },
+      {
+        parentIndex: select,
+        name: "Claude Code",
+        value: "claude-code",
+        selected: false,
+      },
+    ]);
+  });
+});
+
 describe("surviving element matching", () => {
   it("reports the previous index of each element that is still attached", () => {
     document.body.innerHTML = `
