@@ -1,5 +1,13 @@
 import { execFile } from "node:child_process";
-import { lstat, readdir, readFile, realpath } from "node:fs/promises";
+import { constants } from "node:fs";
+import {
+  access,
+  lstat,
+  readdir,
+  readFile,
+  realpath,
+  stat,
+} from "node:fs/promises";
 import { createServer } from "node:net";
 import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -108,6 +116,26 @@ export interface DoctorDependencies {
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Whether `path` resolves to an executable regular file. Symlinks are
+ * followed: distributions install cargo (rustup proxies), npm and pnpm as
+ * links in /usr/bin.
+ */
+async function executableFile(
+  path: string,
+  platform: NodeJS.Platform,
+): Promise<boolean> {
+  const metadata = await stat(path);
+  if (!metadata.isFile()) return false;
+  if (platform === "win32") return true;
+  try {
+    await access(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function executableAvailable(
   command: string,
   environment: NodeJS.ProcessEnv,
@@ -115,8 +143,7 @@ async function executableAvailable(
 ): Promise<boolean> {
   if (isAbsolute(command)) {
     try {
-      const metadata = await lstat(command);
-      return metadata.isFile() && !metadata.isSymbolicLink();
+      return await executableFile(command, platform);
     } catch {
       return false;
     }
@@ -134,8 +161,7 @@ async function executableAvailable(
   for (const directory of path.split(delimiter).filter(Boolean)) {
     for (const candidate of candidates) {
       try {
-        const metadata = await lstat(join(directory, candidate));
-        if (metadata.isFile() && !metadata.isSymbolicLink()) {
+        if (await executableFile(join(directory, candidate), platform)) {
           return true;
         }
       } catch (error) {
@@ -186,15 +212,8 @@ async function defaultWebviewAvailable(
   }
   try {
     if (platform === "linux") {
-      const executable = "/usr/sbin/ldconfig";
-      const metadata = await lstat(executable);
-      if (
-        metadata.isSymbolicLink() ||
-        !metadata.isFile() ||
-        (await realpath(executable)) !== executable
-      ) {
-        return false;
-      }
+      const executable = await trustedLdconfig();
+      if (executable === undefined) return false;
       const result = await execFileAsync(executable, ["-p"], {
         timeout: 5_000,
         windowsHide: true,
@@ -205,6 +224,30 @@ async function defaultWebviewAvailable(
     return false;
   }
   return false;
+}
+
+// Merged-/usr distributions (Arch, Fedora) link /usr/sbin or /sbin to
+// /usr/bin, so accept a link only when it resolves to another of these.
+const LDCONFIG_LOCATIONS = [
+  "/usr/sbin/ldconfig",
+  "/sbin/ldconfig",
+  "/usr/bin/ldconfig",
+] as const;
+
+async function trustedLdconfig(): Promise<string | undefined> {
+  for (const location of LDCONFIG_LOCATIONS) {
+    try {
+      const target = await realpath(location);
+      if (!(LDCONFIG_LOCATIONS as readonly string[]).includes(target)) {
+        continue;
+      }
+      const metadata = await lstat(target);
+      if (metadata.isFile() && !metadata.isSymbolicLink()) return target;
+    } catch {
+      // Try the next location.
+    }
+  }
+  return undefined;
 }
 
 async function portAvailable(port: number): Promise<boolean> {
