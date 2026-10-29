@@ -1,5 +1,5 @@
 import { lstat, readFile, realpath } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import JSON5 from "json5";
 import { parse as parseToml } from "smol-toml";
@@ -154,19 +154,92 @@ function hasFeature(value: unknown, feature: string): boolean {
   return dependencyFeatures(value).includes(feature);
 }
 
+const MAX_WORKSPACE_DEPTH = 8;
+
+/**
+ * Find the dependency table of the nearest enclosing Cargo workspace, the way
+ * Cargo resolves `workspace = true`. Ancestor manifests are read but never
+ * written, so they may sit outside the project root.
+ */
+async function workspaceDependencies(
+  memberManifestPath: string,
+): Promise<UnknownRecord | undefined> {
+  let directory = dirname(dirname(memberManifestPath));
+  for (let depth = 0; depth < MAX_WORKSPACE_DEPTH; depth += 1) {
+    const candidate = join(directory, "Cargo.toml");
+    try {
+      const metadata = await lstat(candidate);
+      if (
+        metadata.isFile() &&
+        !metadata.isSymbolicLink() &&
+        metadata.size <= MAX_PROJECT_FILE_BYTES
+      ) {
+        const workspace = record(
+          record(parseToml(await readFile(candidate, "utf8")))?.workspace,
+        );
+        if (workspace !== undefined) {
+          return record(workspace.dependencies) ?? {};
+        }
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw new ProjectDetectionError("CONFIG_INVALID", { cause: error });
+      }
+    }
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  return undefined;
+}
+
+/**
+ * Resolve `name = { workspace = true }` against the workspace dependency:
+ * the version comes from the workspace and features are the union of both.
+ */
+function inheritWorkspaceDependency(
+  member: unknown,
+  workspace: unknown,
+): unknown {
+  // A missing workspace entry stays unsupported rather than unchecked.
+  if (workspace === undefined) return {};
+  const features = [
+    ...dependencyFeatures(workspace),
+    ...dependencyFeatures(member),
+  ];
+  return {
+    ...(typeof workspace === "string"
+      ? { version: workspace }
+      : (record(workspace) ?? {})),
+    features,
+  };
+}
+
 async function parseCargoManifest(path: string): Promise<{
   readonly runtime: unknown;
   readonly build: unknown;
 }> {
+  let runtime: unknown;
+  let build: unknown;
   try {
     const cargo = record(parseToml(await readFile(path, "utf8")));
-    return {
-      runtime: record(cargo?.dependencies)?.tauri,
-      build: record(cargo?.["build-dependencies"])?.["tauri-build"],
-    };
+    runtime = record(cargo?.dependencies)?.tauri;
+    build = record(cargo?.["build-dependencies"])?.["tauri-build"];
   } catch (error) {
     throw new ProjectDetectionError("CONFIG_INVALID", { cause: error });
   }
+  const inherits = (value: unknown): boolean =>
+    record(value)?.workspace === true;
+  if (inherits(runtime) || inherits(build)) {
+    const workspace = await workspaceDependencies(path);
+    if (inherits(runtime)) {
+      runtime = inheritWorkspaceDependency(runtime, workspace?.tauri);
+    }
+    if (inherits(build)) {
+      build = inheritWorkspaceDependency(build, workspace?.["tauri-build"]);
+    }
+  }
+  return { runtime, build };
 }
 
 function validateTauriVersion(runtime: unknown, build: unknown): void {
