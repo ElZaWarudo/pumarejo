@@ -9,6 +9,8 @@ export type IntegrationPlanErrorReason =
   | "CARGO_FEATURE_AMBIGUOUS"
   | "CARGO_MANIFEST_INVALID"
   | "PROJECT_CHANGED"
+  | "PROVIDER_PATH_INVALID"
+  | "PROVIDER_SOURCE_CHANGED"
   | "RUST_LAYOUT_AMBIGUOUS"
   | "UNSAFE_TARGET"
   | "WRITE_FAILED";
@@ -28,6 +30,10 @@ const GUIDANCE: Record<IntegrationPlanErrorReason, string> = {
     "Fix src-tauri/Cargo.toml so it can be parsed safely, then rerun init.",
   PROJECT_CHANGED:
     "Review the concurrent project change and rerun init from a stable working tree.",
+  PROVIDER_PATH_INVALID:
+    "Point --provider-path at a tauri-plugin-wdio-webdriver 1.x crate (for example <submodule>/vendor/tauri-plugin-wdio-webdriver) outside .pumarejo/provider, then rerun init.",
+  PROVIDER_SOURCE_CHANGED:
+    "The project is integrated with a different provider source; run pumarejo remove, then rerun init with the provider you want.",
   RUST_LAYOUT_AMBIGUOUS:
     "Manually wrap the single Tauri builder with the documented debug-and-feature-gated pumarejo_builder helper.",
   UNSAFE_TARGET:

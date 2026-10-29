@@ -61,6 +61,8 @@ export interface AttributedDriftResult {
 export interface AttributedDriftOptions {
   /** The project-detected label, never a value derived from the full-file hash. */
   readonly expectedWindow?: string;
+  /** Cargo path of the provider; defaults to the staged copy. */
+  readonly providerCargoPath?: string;
 }
 
 function record(value: unknown): UnknownRecord | undefined {
@@ -220,6 +222,7 @@ function rustProjectionIntact(source: string): boolean {
 function cargoProjectionIntact(
   source: string,
   attribution: readonly string[],
+  providerCargoPath: string,
 ): boolean {
   const known = new Set([
     CARGO_DEPENDENCY_ATTRIBUTION,
@@ -262,13 +265,13 @@ function cargoProjectionIntact(
       if (
         dependency?.optional !== true ||
         !isSupportedProviderVersion(dependency.version) ||
-        dependency.path !== PROVIDER_CARGO_PATH ||
+        dependency.path !== providerCargoPath ||
         Object.keys(dependency).sort().join(",") !== "optional,path,version"
       ) {
         return false;
       }
       const marker = "# <pumarejo:cargo-dependency>";
-      const canonicalLine = `tauri-plugin-wdio-webdriver = { path = "${PROVIDER_CARGO_PATH}", version = "${TAURI_WEBDRIVER_PLUGIN_VERSION}", optional = true }`;
+      const canonicalLine = `tauri-plugin-wdio-webdriver = { path = "${providerCargoPath}", version = "${TAURI_WEBDRIVER_PLUGIN_VERSION}", optional = true }`;
       const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
       const escapedLine = canonicalLine.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
       const generatedDependency = new RegExp(
@@ -286,14 +289,14 @@ function cargoProjectionIntact(
       if (
         dependency?.optional !== true ||
         !isSupportedProviderVersion(dependency.version) ||
-        dependency.path !== PROVIDER_CARGO_PATH ||
+        dependency.path !== providerCargoPath ||
         Object.keys(dependency).sort().join(",") !== "optional,path,version"
       ) {
         return false;
       }
       const marker = "# <pumarejo:cargo-dependency-path>";
       const markerCount = source.split(marker).length - 1;
-      const escapedPath = PROVIDER_CARGO_PATH.replace(
+      const escapedPath = providerCargoPath.replace(
         /[.*+?^${}()|[\]\\]/gu,
         "\\$&",
       );
@@ -481,7 +484,11 @@ export function evaluateAttributedEntry(
     case "cargo":
       intact =
         entry.relativePath === "src-tauri/Cargo.toml" &&
-        cargoProjectionIntact(source, entry.attribution);
+        cargoProjectionIntact(
+          source,
+          entry.attribution,
+          options.providerCargoPath ?? PROVIDER_CARGO_PATH,
+        );
       break;
     case "ignore":
       intact =

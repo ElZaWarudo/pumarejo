@@ -6,7 +6,9 @@ import {
   contentHash,
   createIntegrationManifest,
   INTEGRATION_MANIFEST_RELATIVE_PATH,
+  externalProvider,
   parseCanonicalIntegrationManifest,
+  providerCargoPath,
   serializeIntegrationManifest,
   type IntegrationManifestChange,
 } from "./manifest.js";
@@ -70,6 +72,7 @@ function removeIgnoreBlock(source: string): string {
 async function planConsumerRemoval(
   projectRoot: string,
   entry: IntegrationManifestChange,
+  cargoPath: string,
 ): Promise<WritableChange> {
   const current = await readSafeFile(
     projectRoot,
@@ -86,7 +89,7 @@ async function planConsumerRemoval(
         projectRoot,
         entry,
         current,
-        planCargoRemoval(current, entry.attribution),
+        planCargoRemoval(current, entry.attribution, cargoPath),
       );
     case "rust":
       return removalChange(
@@ -199,7 +202,11 @@ export async function removeIntegration(
 
   const consumerChanges = await Promise.all(
     manifest.changes.map((entry) =>
-      planConsumerRemoval(detected.projectRoot, entry),
+      planConsumerRemoval(
+        detected.projectRoot,
+        entry,
+        providerCargoPath(manifest),
+      ),
     ),
   );
   const changes = consumerChanges.map((change) => ({
@@ -211,7 +218,11 @@ export async function removeIntegration(
   }
 
   const removingSource = serializeIntegrationManifest(
-    createIntegrationManifest(manifest.changes, "removing"),
+    createIntegrationManifest(
+      manifest.changes,
+      "removing",
+      externalProvider(manifest),
+    ),
   );
   const manifestToRemoving: WritableChange = {
     absolutePath: manifestPath,

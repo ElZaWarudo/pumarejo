@@ -8,6 +8,9 @@ export async function runInitCommand(
 ): Promise<void> {
   const result = await initializeProject(invocation.project, {
     dryRun: invocation.dryRun,
+    ...(invocation.providerPath === undefined
+      ? {}
+      : { providerPath: invocation.providerPath }),
   });
   channels.stdout(`${JSON.stringify(result)}\n`);
 }

@@ -23,15 +23,19 @@ import {
 import {
   contentHash,
   createIntegrationManifest,
+  externalProvider,
   INTEGRATION_MANIFEST_RELATIVE_PATH,
   parseCanonicalIntegrationManifest,
   serializeIntegrationManifest,
   validateProviderManifestEntries,
   type IntegrationChangeKind,
   type IntegrationManifest,
+  type ExternalProviderReference,
   type IntegrationManifestChange,
 } from "./manifest.js";
 import {
+  externalProviderCargoPath,
+  inspectExternalProvider,
   PROVIDER_CARGO_PATH,
   PROVIDER_KIND,
   PROVIDER_STAGED_ROOT,
@@ -75,6 +79,8 @@ export interface IntegrationPlan {
   readonly changes: readonly PlannedIntegrationChange[];
   readonly manifestChange: PlannedFileWrite | null;
   readonly finalManifestChange: PlannedFileWrite | null;
+  /** The provider referenced in place instead of a staged copy, if any. */
+  readonly provider?: ExternalProviderReference;
   /** Complete read set for a current-provider reconciliation, including unchanged inputs. */
   readonly reconciliation?: {
     readonly inputs: readonly {
@@ -88,6 +94,7 @@ export interface IntegrationPlan {
 
 export interface IntegrationResult {
   readonly status: "planned" | "applied" | "already-integrated";
+  readonly provider?: ExternalProviderReference;
   readonly changes: readonly Pick<
     PlannedIntegrationChange,
     "relativePath" | "kind" | "beforeHash" | "afterHash"
@@ -151,9 +158,23 @@ function change(
   };
 }
 
+async function assertExternalProvider(
+  projectRoot: string,
+  cargoPath: string,
+): Promise<void> {
+  const inspection = await inspectExternalProvider(
+    resolve(projectRoot, "src-tauri"),
+    cargoPath,
+  );
+  if (!inspection.valid) {
+    throw new IntegrationPlanError("PROVIDER_PATH_INVALID");
+  }
+}
+
 async function existingIntegration(
   projectRoot: string,
   windowLabel: string,
+  requestedProvider: ExternalProviderReference | undefined,
 ): Promise<IntegrationPlan | undefined> {
   const manifestPath = resolve(projectRoot, INTEGRATION_MANIFEST_RELATIVE_PATH);
   const source = await readSafeFile(projectRoot, manifestPath, false);
@@ -178,6 +199,17 @@ async function existingIntegration(
       throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
     }
     validateAppliedManifest(manifest);
+    const provider = externalProvider(manifest);
+    if (
+      requestedProvider !== undefined &&
+      requestedProvider.cargoPath !== provider?.cargoPath
+    ) {
+      throw new IntegrationPlanError("PROVIDER_SOURCE_CHANGED");
+    }
+    const cargoPath = provider?.cargoPath ?? PROVIDER_CARGO_PATH;
+    if (provider !== undefined) {
+      await assertExternalProvider(projectRoot, provider.cargoPath);
+    }
     const providerEntries = manifest.changes.filter(
       (entry) => entry.kind === PROVIDER_KIND,
     );
@@ -185,7 +217,7 @@ async function existingIntegration(
       manifest.version === 2 &&
       manifest.pumarejoVersion === VERSION &&
       manifest.pluginVersion === TAURI_WEBDRIVER_PLUGIN_VERSION &&
-      providerEntries.length === 46;
+      providerEntries.length === (provider === undefined ? 46 : 0);
     const currentByPath = new Map<string, string>();
     for (const entry of manifest.changes) {
       const path = resolve(projectRoot, entry.relativePath);
@@ -211,6 +243,7 @@ async function existingIntegration(
             ["rust", "cargo", "ignore"].includes(entry.kind) &&
             evaluateAttributedEntry(entry, current, {
               expectedWindow: windowLabel,
+              providerCargoPath: cargoPath,
             }).owned === "intact"
           ))
       ) {
@@ -219,8 +252,10 @@ async function existingIntegration(
       if (
         currentVersion &&
         entry.kind !== PROVIDER_KIND &&
-        evaluateAttributedEntry(entry, current, { expectedWindow: windowLabel })
-          .owned !== "intact"
+        evaluateAttributedEntry(entry, current, {
+          expectedWindow: windowLabel,
+          providerCargoPath: cargoPath,
+        }).owned !== "intact"
       ) {
         throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
       }
@@ -248,7 +283,7 @@ async function existingIntegration(
       }
     }
     if (currentVersion) {
-      const bundle = await readProviderBundle();
+      const bundle = provider === undefined ? await readProviderBundle() : [];
       const providerChanges = bundle.flatMap((entry) => {
         const path = `${PROVIDER_STAGED_ROOT}/${entry.sourceRelativePath}`;
         const current = currentByPath.get(path)!;
@@ -281,6 +316,7 @@ async function existingIntegration(
           changes: [],
           manifestChange: null,
           finalManifestChange: null,
+          ...(provider === undefined ? {} : { provider }),
           reconciliation,
         };
       }
@@ -293,10 +329,10 @@ async function existingIntegration(
           : { ...entry, afterHash: updated.afterHash };
       });
       const applying = serializeIntegrationManifest(
-        createIntegrationManifest(manifestChanges, "applying"),
+        createIntegrationManifest(manifestChanges, "applying", provider),
       );
       const applied = serializeIntegrationManifest(
-        createIntegrationManifest(manifestChanges, "applied"),
+        createIntegrationManifest(manifestChanges, "applied", provider),
       );
       return {
         projectRoot,
@@ -335,6 +371,7 @@ async function existingIntegration(
           : planCargoEdit(cargoSource, {
               allowLegacyExternalDependency: true,
               allowExistingProviderPath: true,
+              providerPath: cargoPath,
             });
       const cargoChange =
         cargoEntry !== undefined &&
@@ -359,7 +396,7 @@ async function existingIntegration(
         if (
           !installed.registered ||
           !isSupportedProviderVersion(installed.version) ||
-          installed.path !== PROVIDER_CARGO_PATH
+          installed.path !== cargoPath
         ) {
           throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
         }
@@ -394,7 +431,9 @@ async function existingIntegration(
               ],
             );
       const providerBundle =
-        providerEntries.length === 0 ? await readProviderBundle() : [];
+        provider === undefined && providerEntries.length === 0
+          ? await readProviderBundle()
+          : [];
       const providerChanges = providerBundle.map((entry) =>
         change(
           projectRoot,
@@ -439,14 +478,15 @@ async function existingIntegration(
         ),
       );
       const applyingSource = serializeIntegrationManifest(
-        createIntegrationManifest(manifestChanges, "applying"),
+        createIntegrationManifest(manifestChanges, "applying", provider),
       );
       const appliedSource = serializeIntegrationManifest(
-        createIntegrationManifest(manifestChanges, "applied"),
+        createIntegrationManifest(manifestChanges, "applied", provider),
       );
       return {
         projectRoot,
         status: "planned",
+        ...(provider === undefined ? {} : { provider }),
         changes: [
           ...(cargoChange === undefined ? [] : [cargoChange]),
           ...(capabilityChange === undefined ? [] : [capabilityChange]),
@@ -476,6 +516,7 @@ async function existingIntegration(
       changes: [],
       manifestChange: null,
       finalManifestChange: null,
+      ...(provider === undefined ? {} : { provider }),
     };
   } catch (error) {
     if (error instanceof IntegrationPlanError) {
@@ -561,6 +602,7 @@ export function validateAppliedManifest(manifest: IntegrationManifest): void {
       (entry) => !entry.relativePath.startsWith(`${PROVIDER_STAGED_ROOT}/`),
     ) ||
     providerPaths.size !== providerEntries.length ||
+    (externalProvider(manifest) !== undefined && providerEntries.length > 0) ||
     manifest.changes.length !== 4 + cargoEntries.length + providerEntries.length
   ) {
     throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
@@ -706,13 +748,33 @@ function reportChanges(plan: IntegrationPlan): IntegrationResult["changes"] {
   }));
 }
 
+export interface PlanIntegrationOptions {
+  /**
+   * Reference this provider directory in place (absolute, or relative to the
+   * working directory) instead of staging a copy under .pumarejo/provider.
+   */
+  readonly providerPath?: string;
+}
+
 export async function planIntegration(
   projectPath: string,
+  options: PlanIntegrationOptions = {},
 ): Promise<IntegrationPlan> {
   const detected = await detectTauriProject(projectPath);
+  const requestedProvider: ExternalProviderReference | undefined =
+    options.providerPath === undefined
+      ? undefined
+      : {
+          source: "external",
+          cargoPath: externalProviderCargoPath(
+            detected.tauriDirectory,
+            options.providerPath,
+          ),
+        };
   const existing = await existingIntegration(
     detected.projectRoot,
     detected.primaryWindowLabel,
+    requestedProvider,
   );
   if (existing !== undefined) {
     return existing;
@@ -761,7 +823,14 @@ export async function planIntegration(
   }
   const configSource = `${JSON.stringify(generateProjectConfig(detected), null, 2)}\n`;
   const cargoAttribution = cargoIntegrationAttribution(cargoSource);
-  const providerBundle = await readProviderBundle();
+  if (requestedProvider !== undefined) {
+    await assertExternalProvider(
+      detected.projectRoot,
+      requestedProvider.cargoPath,
+    );
+  }
+  const providerBundle =
+    requestedProvider === undefined ? await readProviderBundle() : [];
   const providerChanges = providerBundle.map((entry) =>
     change(
       detected.projectRoot,
@@ -778,7 +847,12 @@ export async function planIntegration(
       "src-tauri/Cargo.toml",
       "cargo",
       cargoSource,
-      planCargoEdit(cargoSource),
+      planCargoEdit(
+        cargoSource,
+        requestedProvider === undefined
+          ? {}
+          : { providerPath: requestedProvider.cargoPath },
+      ),
       cargoAttribution,
     ),
     change(
@@ -837,8 +911,13 @@ export async function planIntegration(
   const applyingManifest = createIntegrationManifest(
     manifestChanges,
     "applying",
+    requestedProvider,
   );
-  const appliedManifest = createIntegrationManifest(manifestChanges, "applied");
+  const appliedManifest = createIntegrationManifest(
+    manifestChanges,
+    "applied",
+    requestedProvider,
+  );
   const manifestSource = serializeIntegrationManifest(applyingManifest);
   const finalManifestSource = serializeIntegrationManifest(appliedManifest);
   const manifestChange = change(
@@ -864,6 +943,7 @@ export async function planIntegration(
     changes,
     manifestChange,
     finalManifestChange,
+    ...(requestedProvider === undefined ? {} : { provider: requestedProvider }),
   };
 }
 
@@ -889,6 +969,10 @@ export async function applyIntegrationPlan(
         throw new IntegrationPlanError("PROJECT_CHANGED");
       }
     }
+    if (plan.provider !== undefined) {
+      await assertExternalProvider(plan.projectRoot, plan.provider.cargoPath);
+      return;
+    }
     await validateProviderStaging(
       plan.projectRoot,
       plan.reconciliation.providerEntries,
@@ -904,9 +988,11 @@ export async function applyIntegrationPlan(
       throw new IntegrationPlanError("PROJECT_CHANGED");
     }
   };
+  const provider =
+    plan.provider === undefined ? {} : { provider: plan.provider };
   await verifyReconciliation();
   if (plan.status === "already-integrated") {
-    return { status: "already-integrated", changes: [] };
+    return { status: "already-integrated", changes: [], ...provider };
   }
   if (plan.manifestChange === null || plan.finalManifestChange === null) {
     throw new IntegrationPlanError("WRITE_FAILED");
@@ -926,19 +1012,25 @@ export async function applyIntegrationPlan(
       await verifyReconciliation();
     },
   });
-  return { status: "applied", changes: reportChanges(plan) };
+  return { status: "applied", changes: reportChanges(plan), ...provider };
 }
 
 export async function initializeProject(
   projectPath: string,
-  options: { readonly dryRun?: boolean } = {},
+  options: { readonly dryRun?: boolean } & PlanIntegrationOptions = {},
 ): Promise<IntegrationResult> {
-  const plan = await planIntegration(projectPath);
+  const plan = await planIntegration(projectPath, {
+    ...(options.providerPath === undefined
+      ? {}
+      : { providerPath: options.providerPath }),
+  });
+  const provider =
+    plan.provider === undefined ? {} : { provider: plan.provider };
   if (plan.status === "already-integrated") {
-    return { status: "already-integrated", changes: [] };
+    return { status: "already-integrated", changes: [], ...provider };
   }
   if (options.dryRun === true) {
-    return { status: "planned", changes: reportChanges(plan) };
+    return { status: "planned", changes: reportChanges(plan), ...provider };
   }
   return applyIntegrationPlan(plan);
 }

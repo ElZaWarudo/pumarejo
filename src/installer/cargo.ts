@@ -16,8 +16,10 @@ const FEATURE_CREATED_MARKER = "# <pumarejo:cargo-feature-created>";
 const FEATURE_SECTION_CREATED_MARKER =
   "# <pumarejo:cargo-feature-section-created>";
 const FEATURE_VALUE_MARKER = "# <pumarejo:cargo-feature-value>";
-const DEPENDENCY_VALUE = `{ path = "${PROVIDER_CARGO_PATH}", version = "${TAURI_WEBDRIVER_PLUGIN_VERSION}", optional = true }`;
-const DEPENDENCY_PATH_VALUE = `path = "${PROVIDER_CARGO_PATH}"`;
+const dependencyValue = (providerPath: string): string =>
+  `{ path = "${providerPath}", version = "${TAURI_WEBDRIVER_PLUGIN_VERSION}", optional = true }`;
+const dependencyPathValue = (providerPath: string): string =>
+  `path = "${providerPath}"`;
 const EXISTING_REGISTRY_VERSION = "1.2.0";
 export const CARGO_DEPENDENCY_ATTRIBUTION =
   "dependency:tauri-plugin-wdio-webdriver:optional";
@@ -200,6 +202,8 @@ export interface PlanCargoEditOptions {
   readonly allowLegacyExternalDependency?: boolean;
   /** Permit a previously attributable local provider path during an upgrade. */
   readonly allowExistingProviderPath?: boolean;
+  /** Cargo path of the provider; defaults to the staged copy. */
+  readonly providerPath?: string;
 }
 
 function dependencyKeys(dependency: UnknownRecord): readonly string[] {
@@ -221,12 +225,15 @@ export function isSupportedProviderVersion(version: unknown): boolean {
   );
 }
 
-function isSupportedProviderPathDependency(dependency: UnknownRecord): boolean {
+function isSupportedProviderPathDependency(
+  dependency: UnknownRecord,
+  providerPath: string,
+): boolean {
   return (
     dependencyKeys(dependency).join(",") === "optional,path,version" &&
     dependency.optional === true &&
     isSupportedProviderVersion(dependency.version) &&
-    dependency.path === PROVIDER_CARGO_PATH
+    dependency.path === providerPath
   );
 }
 
@@ -252,6 +259,7 @@ export function planCargoEdit(
   source: string,
   options: PlanCargoEditOptions = {},
 ): string {
+  const providerPath = options.providerPath ?? PROVIDER_CARGO_PATH;
   const cargo = parseCargo(source);
   const dependencies = record(cargo.dependencies);
   if (dependencies === undefined) {
@@ -263,7 +271,7 @@ export function planCargoEdit(
     if (dependency === undefined) {
       throw new IntegrationPlanError("CARGO_DEPENDENCY_AMBIGUOUS");
     }
-    if (isSupportedProviderPathDependency(dependency)) {
+    if (isSupportedProviderPathDependency(dependency, providerPath)) {
       if (options.allowExistingProviderPath !== true) {
         throw new IntegrationPlanError("CARGO_DEPENDENCY_AMBIGUOUS");
       }
@@ -294,7 +302,7 @@ export function planCargoEdit(
     next = insertSectionValue(
       next,
       "dependencies",
-      `${DEPENDENCY_MARKER}${lineEnding}${DEPENDENCY_NAME} = ${DEPENDENCY_VALUE}`,
+      `${DEPENDENCY_MARKER}${lineEnding}${DEPENDENCY_NAME} = ${dependencyValue(providerPath)}`,
     );
   } else {
     const dependency = record(existingDependency);
@@ -305,7 +313,7 @@ export function planCargoEdit(
       const match = ensureSingleInlineDependencyLine(source);
       const originalLine = match[1];
       const openingIndex = originalLine.indexOf("{");
-      const addedLine = `${originalLine.slice(0, openingIndex + 1)} ${DEPENDENCY_PATH_VALUE},${originalLine.slice(openingIndex + 1)}${match[2]}`;
+      const addedLine = `${originalLine.slice(0, openingIndex + 1)} ${dependencyPathValue(providerPath)},${originalLine.slice(openingIndex + 1)}${match[2]}`;
       next = source.replace(
         match[0],
         `${DEPENDENCY_PATH_MARKER}${lineEnding}${addedLine}`,
@@ -348,7 +356,7 @@ export function planCargoEdit(
   const validatedFeature = record(validated.features)?.[FEATURE_NAME];
   if (
     validatedDependency?.optional !== true ||
-    validatedDependency.path !== PROVIDER_CARGO_PATH ||
+    validatedDependency.path !== providerPath ||
     !isSupportedProviderVersion(validatedDependency.version) ||
     !Array.isArray(validatedFeature) ||
     !validatedFeature.includes(FEATURE_VALUE)
@@ -425,10 +433,11 @@ function removeExactBlock(source: string, block: string): string {
 function removeAddedProviderPath(
   source: string,
   dependency: UnknownRecord | undefined,
+  providerPath: string,
 ): string {
   if (
     dependency === undefined ||
-    !isSupportedProviderPathDependency(dependency)
+    !isSupportedProviderPathDependency(dependency, providerPath)
   ) {
     throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
   }
@@ -440,7 +449,7 @@ function removeAddedProviderPath(
   }
   const line = match[1];
   const openingIndex = line.indexOf("{");
-  const insertedPrefix = ` ${DEPENDENCY_PATH_VALUE},`;
+  const insertedPrefix = ` ${dependencyPathValue(providerPath)},`;
   if (!line.slice(openingIndex + 1).startsWith(insertedPrefix)) {
     throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
   }
@@ -459,6 +468,7 @@ function removeAddedProviderPath(
 export function planCargoRemoval(
   source: string,
   attribution: readonly string[],
+  providerPath: string = PROVIDER_CARGO_PATH,
 ): string {
   const eolBinding = assertCargoEolBinding(source, attribution);
   const cargo = parseCargo(source);
@@ -478,16 +488,16 @@ export function planCargoRemoval(
     if (
       dependency?.optional !== true ||
       dependency.version !== TAURI_WEBDRIVER_PLUGIN_VERSION ||
-      dependency.path !== PROVIDER_CARGO_PATH
+      dependency.path !== providerPath
     ) {
       throw new IntegrationPlanError("ALREADY_INTEGRATED_MODIFIED");
     }
     next = removeExactBlock(
       next,
-      `${DEPENDENCY_MARKER}${lineEnding}${DEPENDENCY_NAME} = ${DEPENDENCY_VALUE}${lineEnding}${lineEnding}`,
+      `${DEPENDENCY_MARKER}${lineEnding}${DEPENDENCY_NAME} = ${dependencyValue(providerPath)}${lineEnding}${lineEnding}`,
     );
   } else {
-    next = removeAddedProviderPath(source, dependency);
+    next = removeAddedProviderPath(source, dependency, providerPath);
   }
 
   if (
