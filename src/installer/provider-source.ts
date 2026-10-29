@@ -1,9 +1,12 @@
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
-import { dirname, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+
+import { parse as parseToml } from "smol-toml";
 
 import { IntegrationPlanError } from "./plan-error.js";
+import { TAURI_WEBDRIVER_PLUGIN_VERSION } from "../version.js";
 
 export const PROVIDER_NAME = "tauri-plugin-wdio-webdriver";
 export const PROVIDER_KIND = "provider" as const;
@@ -123,6 +126,22 @@ async function regularFile(path: string): Promise<void> {
   ) {
     throw new IntegrationPlanError("UNSAFE_TARGET");
   }
+}
+
+/**
+ * Provider roots shipped with the running CLI: the built bundle and, in a
+ * source checkout (npm git dependency or git submodule), the vendor tree.
+ */
+async function cliProviderRoots(): Promise<readonly string[]> {
+  const roots: string[] = [];
+  for (const candidate of [packageProviderRoot(), developmentProviderRoot()]) {
+    try {
+      roots.push(await realpath(candidate));
+    } catch {
+      // Absent in this layout.
+    }
+  }
+  return roots;
 }
 
 export async function resolveProviderSourceRoot(): Promise<string> {
@@ -321,4 +340,141 @@ export class ProviderDriftError extends IntegrationPlanError {
     super("ALREADY_INTEGRATED_MODIFIED");
     this.files = [...files];
   }
+}
+
+/** Characters allowed in an external provider path written into Cargo.toml. */
+const EXTERNAL_PROVIDER_PATH = /^[A-Za-z0-9._@+\- /]+$/u;
+const MAX_EXTERNAL_PROVIDER_PATH_LENGTH = 1_024;
+
+/**
+ * Validate the shape of an external provider path as recorded in the
+ * integration manifest and written to Cargo.toml: relative to the directory
+ * holding src-tauri/Cargo.toml, forward slashes, and never inside a .pumarejo directory (the staged copy's home).
+ */
+export function isExternalProviderCargoPath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= MAX_EXTERNAL_PROVIDER_PATH_LENGTH &&
+    EXTERNAL_PROVIDER_PATH.test(value) &&
+    !value.startsWith("/") &&
+    !value.endsWith("/") &&
+    !value
+      .split("/")
+      .some(
+        (segment) =>
+          segment === "" || segment === "." || segment === ".pumarejo",
+      )
+  );
+}
+
+/**
+ * Turn a user-supplied provider directory (absolute, or relative to `base`)
+ * into the Cargo path dependency seen from `cargoDirectory`.
+ */
+export function externalProviderCargoPath(
+  cargoDirectory: string,
+  providerPath: string,
+  base: string = process.cwd(),
+): string {
+  const absolute = resolve(base, providerPath);
+  const fromCargo = relative(cargoDirectory, absolute);
+  if (fromCargo === "" || isAbsolute(fromCargo)) {
+    throw new IntegrationPlanError("PROVIDER_PATH_INVALID");
+  }
+  const cargoPath = fromCargo.split(sep).join("/");
+  if (!isExternalProviderCargoPath(cargoPath)) {
+    throw new IntegrationPlanError("PROVIDER_PATH_INVALID");
+  }
+  return cargoPath;
+}
+
+export interface ExternalProviderInspection {
+  /** The directory exists and holds the provider crate at a supported version. */
+  readonly valid: boolean;
+  readonly reason?: "missing" | "not-provider" | "unsupported-version";
+  readonly packageVersion?: string;
+  /**
+   * How the external provider relates to the provider this CLI ships:
+   * the same directory, identical content, or different content.
+   */
+  readonly origin?: "cli" | "identical" | "different";
+  readonly differingFiles?: readonly string[];
+}
+
+/** Inspect an external provider referenced from `cargoDirectory`. */
+export async function inspectExternalProvider(
+  cargoDirectory: string,
+  cargoPath: string,
+): Promise<ExternalProviderInspection> {
+  if (!isExternalProviderCargoPath(cargoPath)) {
+    return { valid: false, reason: "missing" };
+  }
+  let root: string;
+  let manifest: string;
+  try {
+    root = await realpath(resolve(cargoDirectory, cargoPath));
+    if (!(await lstat(root)).isDirectory()) {
+      return { valid: false, reason: "missing" };
+    }
+    const manifestPath = resolve(root, "Cargo.toml");
+    const metadata = await lstat(manifestPath);
+    if (
+      metadata.isSymbolicLink() ||
+      !metadata.isFile() ||
+      metadata.size > MAX_PROVIDER_FILE_BYTES
+    ) {
+      return { valid: false, reason: "not-provider" };
+    }
+    manifest = await readFile(manifestPath, "utf8");
+  } catch {
+    return { valid: false, reason: "missing" };
+  }
+  let name: unknown;
+  let version: unknown;
+  try {
+    const parsed = parseToml(manifest) as {
+      package?: { name?: unknown; version?: unknown };
+    };
+    name = parsed.package?.name;
+    version = parsed.package?.version;
+  } catch {
+    return { valid: false, reason: "not-provider" };
+  }
+  if (name !== PROVIDER_NAME || typeof version !== "string") {
+    return { valid: false, reason: "not-provider" };
+  }
+  // The consumer dependency requires `version = "1"`, i.e. any 1.x release.
+  if (!version.startsWith(`${TAURI_WEBDRIVER_PLUGIN_VERSION}.`)) {
+    return {
+      valid: false,
+      reason: "unsupported-version",
+      packageVersion: version,
+    };
+  }
+
+  if ((await cliProviderRoots()).includes(root)) {
+    return { valid: true, packageVersion: version, origin: "cli" };
+  }
+  const differingFiles: string[] = [];
+  for (const entry of await readProviderBundle()) {
+    try {
+      const path = safePath(root, entry.sourceRelativePath);
+      await regularFile(path);
+      const content = (await readFile(path, "utf8")).replaceAll("\r\n", "\n");
+      if (hash(content) !== entry.afterHash) {
+        differingFiles.push(entry.sourceRelativePath);
+      }
+    } catch {
+      differingFiles.push(entry.sourceRelativePath);
+    }
+  }
+  return differingFiles.length === 0
+    ? { valid: true, packageVersion: version, origin: "identical" }
+    : {
+        valid: true,
+        packageVersion: version,
+        origin: "different",
+        differingFiles,
+      };
 }

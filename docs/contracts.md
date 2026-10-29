@@ -44,7 +44,7 @@ dependency keys, missing markers, and changed owned projections fail closed.
 ## CLI
 
 ```text
-pumarejo init [--project <path>] [--dry-run]
+pumarejo init [--project <path>] [--provider-path <path>] [--dry-run]
 pumarejo doctor [--project <path>] [--json]
 pumarejo remove [--project <path>] [--dry-run]
 pumarejo mcp --project <path>
@@ -57,6 +57,15 @@ Commands exit with code `0` on success, `1` for an expected validation or runtim
 Human-readable output goes to stderr when the MCP stdio server is running so stdout remains protocol-only.
 `mcp print-config` validates the project and emits a copyable TOML entry for
 Codex or JSON entry for Claude Code and Cursor. It writes no host file.
+
+`init --provider-path <path>` references an existing provider crate (for
+example inside a git submodule) instead of staging a copy. The integration
+manifest then carries `"provider": { "source": "external", "cargoPath": "<path
+relative to src-tauri>" }` and no `provider` change entries; the Cargo
+dependency must use exactly that path. The path may not contain empty, `.` or
+`.pumarejo` segments. Re-running `init` with a different provider source
+fails with `PROVIDER_SOURCE_CHANGED`; an invalid or missing crate fails with
+`PROVIDER_PATH_INVALID`.
 
 `doctor` emits stable diagnostic identities in human and JSON form. Launch
 classification distinguishes `configured`, `detected`, `missing`,

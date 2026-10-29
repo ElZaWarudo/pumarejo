@@ -37,6 +37,29 @@ the Cargo manifest refers to the provider copy, so teammates and CI need it to
 build. The `.gitignore` block keeps only runtime state (sessions, artifacts)
 out of the repository.
 
+### Using pumarejo as a git submodule
+
+A repository can pin pumarejo as a git submodule instead of installing it from
+npm. Point `init` at the provider crate inside the submodule; it then writes
+a Cargo path dependency to that directory and stages no copy under
+`.pumarejo/provider/`:
+
+```sh
+git submodule add https://github.com/ElZaWarudo/pumarejo tools/pumarejo
+(cd tools/pumarejo && pnpm install)   # its prepare script builds dist/
+node tools/pumarejo/dist/cli/index.js init --project apps/desktop \
+  --provider-path tools/pumarejo/vendor/tauri-plugin-wdio-webdriver
+node tools/pumarejo/dist/cli/index.js doctor --project apps/desktop
+```
+
+A relative `--provider-path` is resolved from the working directory. The
+integration manifest records the provider as external, so `doctor` checks that
+the directory exists and holds a supported `tauri-plugin-wdio-webdriver`
+crate, and warns if it differs from the provider of the CLI you run. Run the
+CLI from the same submodule so both stay at one pinned commit, and run
+`git submodule update --init` wherever the app is built. `init` follows
+`tauri = { workspace = true }` to the enclosing Cargo workspace.
+
 To remove attributable integration while preserving unrelated edits:
 
 ```sh
@@ -68,7 +91,9 @@ Start the server with `--tools all` to add `tauri_window`, `tauri_pointer`,
 when it connects.
 
 Launch with `mode: "visible"` to show the app window without taking keyboard
-focus, or `mode: "background"` to keep it off the active desktop. A first
+focus, or `mode: "background"` to keep it off the active desktop. On Linux,
+background mode starts its own Xvfb server, so it needs `Xvfb` installed
+(`xvfb` on Ubuntu, `xorg-server-xvfb` on Arch); visible mode does not. A first
 launch may answer `state: "launching"` while the app builds; call
 `tauri_status` with `waitMs` until it is ready.
 

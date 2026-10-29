@@ -24,6 +24,7 @@ export type CliInvocation =
       readonly bindLegacy?: boolean;
       readonly upgradeBinding?: boolean;
       readonly manifestPath?: string;
+      readonly providerPath?: string;
       readonly expectedWorkflowId?: string;
       readonly expectedSessionId?: string;
     };
@@ -80,6 +81,7 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
   let upgradeBinding = false;
   let dryRunProvided = false;
   let manifestPath: string | undefined;
+  let providerPath: string | undefined;
   let expectedWorkflowId: string | undefined;
   let expectedSessionId: string | undefined;
   let subcommand: "print-config" | undefined;
@@ -153,6 +155,23 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
           throw new CliUsageError("--manifest requires a valid path.");
         }
         manifestPath = value;
+        index += 1;
+        break;
+      }
+      case "--provider-path": {
+        if (command !== "init") {
+          throw new CliUsageError(`Unknown option ${option} for ${command}.`);
+        }
+        const value = arguments_[index + 1];
+        if (
+          !value ||
+          value.startsWith("-") ||
+          value.length > MAX_PROJECT_PATH_LENGTH ||
+          value.includes("\0")
+        ) {
+          throw new CliUsageError("--provider-path requires a valid path.");
+        }
+        providerPath = value;
         index += 1;
         break;
       }
@@ -269,6 +288,7 @@ export function parseCliArgs(arguments_: readonly string[]): CliInvocation {
     ...(bindLegacy ? { bindLegacy: true } : {}),
     ...(upgradeBinding ? { upgradeBinding: true } : {}),
     ...(manifestPath === undefined ? {} : { manifestPath }),
+    ...(providerPath === undefined ? {} : { providerPath }),
     ...(expectedWorkflowId === undefined ? {} : { expectedWorkflowId }),
     ...(expectedSessionId === undefined ? {} : { expectedSessionId }),
   };

@@ -517,6 +517,11 @@ export async function serveMcpOverStdio(
   try {
     await server.connect(transport);
     server.server.onclose = closeRuntime;
+    // The SDK transport ignores stdin EOF; a client that closes the pipe
+    // without a signal still ends the session and its owned app.
+    process.stdin.once("end", () => {
+      void server.close().catch(reportCleanupFailure);
+    });
   } catch (error) {
     process.off("SIGINT", onSigint);
     process.off("SIGTERM", onSigterm);

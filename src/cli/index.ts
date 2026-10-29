@@ -20,7 +20,7 @@ export { VERSION };
 export const HELP_TEXT = `pumarejo
 
 Usage:
-  pumarejo init [--project <path>] [--dry-run]
+  pumarejo init [--project <path>] [--provider-path <path>] [--dry-run]
   pumarejo doctor [--project <path>] [--json]
   pumarejo doctor --self [--json]
   pumarejo remove [--project <path>] [--dry-run]

@@ -1,5 +1,13 @@
 import { execFile } from "node:child_process";
-import { lstat, readdir, readFile, realpath } from "node:fs/promises";
+import { constants } from "node:fs";
+import {
+  access,
+  lstat,
+  readdir,
+  readFile,
+  realpath,
+  stat,
+} from "node:fs/promises";
 import { createServer } from "node:net";
 import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -29,6 +37,7 @@ import { cargoPluginIntegration, isSupportedProviderVersion } from "./cargo.js";
 import {
   INTEGRATION_MANIFEST_RELATIVE_PATH,
   contentHash,
+  externalProvider,
   parseCanonicalIntegrationManifest,
   type IntegrationManifest,
 } from "./manifest.js";
@@ -36,11 +45,13 @@ import { readSafeFile, validateAppliedManifest } from "./plan.js";
 import { detectTauriProject, type DetectedTauriProject } from "./project.js";
 import { readLaunchVerification } from "./launch-verification.js";
 import {
+  inspectExternalProvider,
   PROVIDER_CARGO_PATH,
   PROVIDER_KIND,
   providerContentMatches,
   ProviderDriftError,
   validateProviderStaging,
+  type ExternalProviderInspection,
 } from "./provider-source.js";
 
 export type DiagnosticStatus = "ready" | "warn" | "error";
@@ -108,6 +119,26 @@ export interface DoctorDependencies {
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Whether `path` resolves to an executable regular file. Symlinks are
+ * followed: distributions install cargo (rustup proxies), npm and pnpm as
+ * links in /usr/bin.
+ */
+async function executableFile(
+  path: string,
+  platform: NodeJS.Platform,
+): Promise<boolean> {
+  const metadata = await stat(path);
+  if (!metadata.isFile()) return false;
+  if (platform === "win32") return true;
+  try {
+    await access(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function executableAvailable(
   command: string,
   environment: NodeJS.ProcessEnv,
@@ -115,8 +146,7 @@ async function executableAvailable(
 ): Promise<boolean> {
   if (isAbsolute(command)) {
     try {
-      const metadata = await lstat(command);
-      return metadata.isFile() && !metadata.isSymbolicLink();
+      return await executableFile(command, platform);
     } catch {
       return false;
     }
@@ -134,8 +164,7 @@ async function executableAvailable(
   for (const directory of path.split(delimiter).filter(Boolean)) {
     for (const candidate of candidates) {
       try {
-        const metadata = await lstat(join(directory, candidate));
-        if (metadata.isFile() && !metadata.isSymbolicLink()) {
+        if (await executableFile(join(directory, candidate), platform)) {
           return true;
         }
       } catch (error) {
@@ -186,15 +215,8 @@ async function defaultWebviewAvailable(
   }
   try {
     if (platform === "linux") {
-      const executable = "/usr/sbin/ldconfig";
-      const metadata = await lstat(executable);
-      if (
-        metadata.isSymbolicLink() ||
-        !metadata.isFile() ||
-        (await realpath(executable)) !== executable
-      ) {
-        return false;
-      }
+      const executable = await trustedLdconfig();
+      if (executable === undefined) return false;
       const result = await execFileAsync(executable, ["-p"], {
         timeout: 5_000,
         windowsHide: true,
@@ -205,6 +227,30 @@ async function defaultWebviewAvailable(
     return false;
   }
   return false;
+}
+
+// Merged-/usr distributions (Arch, Fedora) link /usr/sbin or /sbin to
+// /usr/bin, so accept a link only when it resolves to another of these.
+const LDCONFIG_LOCATIONS = [
+  "/usr/sbin/ldconfig",
+  "/sbin/ldconfig",
+  "/usr/bin/ldconfig",
+] as const;
+
+async function trustedLdconfig(): Promise<string | undefined> {
+  for (const location of LDCONFIG_LOCATIONS) {
+    try {
+      const target = await realpath(location);
+      if (!(LDCONFIG_LOCATIONS as readonly string[]).includes(target)) {
+        continue;
+      }
+      const metadata = await lstat(target);
+      if (metadata.isFile() && !metadata.isSymbolicLink()) return target;
+    } catch {
+      // Try the next location.
+    }
+  }
+  return undefined;
 }
 
 async function portAvailable(port: number): Promise<boolean> {
@@ -327,19 +373,31 @@ async function integrationDiagnostics(
     ];
   }
 
+  const external = externalProvider(manifest);
+  const cargoPath = external?.cargoPath ?? PROVIDER_CARGO_PATH;
   const projections = manifest.changes.map((entry) =>
     evaluateAttributedEntry(
       entry,
       entrySources.get(entry.relativePath) ?? null,
       {
         expectedWindow,
+        providerCargoPath: cargoPath,
       },
     ),
   );
   const providerEntries = manifest.changes.filter(
     (entry) => entry.kind === PROVIDER_KIND,
   );
-  let providerStagingIntact = true;
+  const providerShapeValid =
+    providerEntries.length === (external === undefined ? 46 : 0);
+  const externalInspection =
+    external === undefined
+      ? undefined
+      : await inspectExternalProvider(
+          resolve(projectRoot, "src-tauri"),
+          external.cargoPath,
+        );
+  let providerStagingIntact = externalInspection?.valid ?? true;
   let driftedProviderFiles: readonly string[] = [];
   if (providerEntries.length > 0) {
     try {
@@ -389,7 +447,7 @@ async function integrationDiagnostics(
   );
   const cargo = manifest.changes.find((entry) => entry.kind === "cargo");
   const rust = manifest.changes.find((entry) => entry.kind === "rust");
-  let registrationReady = rust !== undefined && providerEntries.length === 46;
+  let registrationReady = rust !== undefined && providerShapeValid;
   let installedPluginVersion: string | undefined;
   try {
     const rustProjection = projections[manifest.changes.indexOf(rust!)];
@@ -406,7 +464,7 @@ async function integrationDiagnostics(
     const plugin = cargoPluginIntegration(cargoSource);
     registrationReady &&= plugin.registered;
     installedPluginVersion = plugin.version;
-    registrationReady &&= plugin.path === PROVIDER_CARGO_PATH;
+    registrationReady &&= plugin.path === cargoPath;
     if (cargo !== undefined) {
       const cargoProjection = projections[manifest.changes.indexOf(cargo)];
       registrationReady &&= cargoProjection?.owned === "intact";
@@ -435,7 +493,8 @@ async function integrationDiagnostics(
     manifest.pumarejoVersion === VERSION &&
     manifest.pluginVersion === TAURI_WEBDRIVER_PLUGIN_VERSION &&
     isSupportedProviderVersion(installedPluginVersion) &&
-    providerEntries.length === 46;
+    providerShapeValid &&
+    (externalInspection === undefined || externalInspection.valid);
 
   return [
     manifestDiagnostic,
@@ -447,18 +506,20 @@ async function integrationDiagnostics(
         : "Cargo or Rust no longer retains the attributable registration.",
       registrationReady ? undefined : "Restore the owned values or rerun init.",
     ),
-    diagnostic(
-      "integration.provider",
-      providerStagingIntact ? "ready" : "error",
-      providerStagingIntact
-        ? "The staged provider copy matches the integration manifest (line endings ignored)."
-        : driftedProviderFiles.length === 0
-          ? "The staged provider copy under .pumarejo/provider is missing or has unexpected files."
-          : `The staged provider copy differs in ${driftedProviderFiles.length} file(s): ${driftedProviderFiles.slice(0, 5).join(", ")}${driftedProviderFiles.length > 5 ? ", …" : ""}.`,
-      providerStagingIntact
-        ? undefined
-        : "Restore these files from the installed pumarejo package (dist/provider), then rerun doctor.",
-    ),
+    externalInspection !== undefined
+      ? externalProviderDiagnostic(cargoPath, externalInspection)
+      : diagnostic(
+          "integration.provider",
+          providerStagingIntact ? "ready" : "error",
+          providerStagingIntact
+            ? "The staged provider copy matches the integration manifest (line endings ignored)."
+            : driftedProviderFiles.length === 0
+              ? "The staged provider copy under .pumarejo/provider is missing or has unexpected files."
+              : `The staged provider copy differs in ${driftedProviderFiles.length} file(s): ${driftedProviderFiles.slice(0, 5).join(", ")}${driftedProviderFiles.length > 5 ? ", …" : ""}.`,
+          providerStagingIntact
+            ? undefined
+            : "Restore these files from the installed pumarejo package (dist/provider), then rerun doctor.",
+        ),
     diagnostic(
       "integration.capability-permission",
       capabilityReady ? "ready" : "error",
@@ -481,6 +542,40 @@ async function integrationDiagnostics(
         : { classification: "version_drift" },
     ),
   ];
+}
+
+function externalProviderDiagnostic(
+  cargoPath: string,
+  inspection: ExternalProviderInspection,
+): DoctorDiagnostic {
+  if (!inspection.valid) {
+    return diagnostic(
+      "integration.provider",
+      "error",
+      inspection.reason === "unsupported-version"
+        ? `The external provider at ${cargoPath} has unsupported version ${inspection.packageVersion ?? "unknown"}.`
+        : inspection.reason === "not-provider"
+          ? `The external provider path ${cargoPath} does not hold the tauri-plugin-wdio-webdriver crate.`
+          : `The external provider at ${cargoPath} is missing.`,
+      "Check out the provider (for a git submodule: git submodule update --init), then rerun doctor.",
+    );
+  }
+  if (inspection.origin === "different") {
+    const files = inspection.differingFiles ?? [];
+    return diagnostic(
+      "integration.provider",
+      "warn",
+      `The external provider at ${cargoPath} (version ${inspection.packageVersion}) differs from the provider of the running Pumarejo CLI in ${files.length} file(s): ${files.slice(0, 5).join(", ")}${files.length > 5 ? ", …" : ""}.`,
+      "Run the Pumarejo CLI from the same checkout that provides the crate, or update one to match the other.",
+    );
+  }
+  return diagnostic(
+    "integration.provider",
+    "ready",
+    inspection.origin === "cli"
+      ? `The external provider at ${cargoPath} (version ${inspection.packageVersion}) is the provider of the running Pumarejo CLI.`
+      : `The external provider at ${cargoPath} (version ${inspection.packageVersion}) matches the provider of the running Pumarejo CLI.`,
+  );
 }
 
 function safeLaunchArguments(arguments_: readonly string[]): readonly string[] {

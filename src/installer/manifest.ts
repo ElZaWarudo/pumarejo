@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 
 import { TAURI_WEBDRIVER_PLUGIN_VERSION, VERSION } from "../version.js";
 import {
+  isExternalProviderCargoPath,
   PROVIDER_ATTRIBUTION_PREFIX,
+  PROVIDER_CARGO_PATH,
   PROVIDER_KIND,
   PROVIDER_SOURCE_ALLOWLIST,
   PROVIDER_STAGED_ROOT,
@@ -33,10 +35,21 @@ export interface IntegrationManifestV1 {
   readonly changes: readonly IntegrationManifestChange[];
 }
 
+/**
+ * A provider the project references in place (for example from a git
+ * submodule) instead of a copy staged under .pumarejo/provider. `cargoPath` is
+ * the Cargo path dependency, relative to src-tauri.
+ */
+export interface ExternalProviderReference {
+  readonly source: "external";
+  readonly cargoPath: string;
+}
+
 export interface IntegrationManifestV2 {
   readonly version: 2;
   readonly pumarejoVersion: string;
   readonly pluginVersion: string;
+  readonly provider?: ExternalProviderReference;
   readonly state: "applying" | "applied" | "removing";
   readonly changes: readonly IntegrationManifestChange[];
 }
@@ -50,14 +63,32 @@ export function contentHash(content: string): string {
 export function createIntegrationManifest(
   changes: readonly IntegrationManifestChange[],
   state: IntegrationManifest["state"],
+  provider?: ExternalProviderReference,
 ): IntegrationManifestV2 {
   return {
     version: 2,
     pumarejoVersion: VERSION,
     pluginVersion: TAURI_WEBDRIVER_PLUGIN_VERSION,
+    ...(provider === undefined
+      ? {}
+      : {
+          provider: { source: provider.source, cargoPath: provider.cargoPath },
+        }),
     state,
     changes,
   };
+}
+
+/** The external provider a manifest references, if any. */
+export function externalProvider(
+  manifest: IntegrationManifest,
+): ExternalProviderReference | undefined {
+  return manifest.version === 2 ? manifest.provider : undefined;
+}
+
+/** The Cargo path dependency a manifest's integration expects. */
+export function providerCargoPath(manifest: IntegrationManifest): string {
+  return externalProvider(manifest)?.cargoPath ?? PROVIDER_CARGO_PATH;
 }
 
 export function serializeIntegrationManifest(
@@ -89,6 +120,26 @@ export function parseIntegrationManifest(source: string): IntegrationManifest {
       typeof (parsed as { pluginVersion?: unknown }).pluginVersion !== "string")
   ) {
     throw new Error("Invalid integration manifest.");
+  }
+  const rawProvider = (parsed as { provider?: unknown }).provider;
+  let provider: ExternalProviderReference | undefined;
+  if (rawProvider !== undefined) {
+    if (
+      version !== 2 ||
+      typeof rawProvider !== "object" ||
+      rawProvider === null ||
+      Object.keys(rawProvider).sort().join(",") !== "cargoPath,source" ||
+      (rawProvider as { source?: unknown }).source !== "external" ||
+      !isExternalProviderCargoPath(
+        (rawProvider as { cargoPath?: unknown }).cargoPath,
+      )
+    ) {
+      throw new Error("Invalid integration manifest provider.");
+    }
+    provider = {
+      source: "external",
+      cargoPath: (rawProvider as { cargoPath: string }).cargoPath,
+    };
   }
 
   const changes = (parsed as { changes: unknown[] }).changes.map((change) => {
@@ -134,6 +185,7 @@ export function parseIntegrationManifest(source: string): IntegrationManifest {
         pumarejoVersion: (parsed as { pumarejoVersion: string })
           .pumarejoVersion,
         pluginVersion: (parsed as { pluginVersion: string }).pluginVersion,
+        ...(provider === undefined ? {} : { provider }),
         state,
         changes,
       };
