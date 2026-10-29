@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { serveMcpOverStdio } from "../mcp/server.js";
@@ -116,7 +117,11 @@ export async function runCli(
   }
 }
 
+// npm links the bin through node_modules/.bin, so compare the resolved path.
 const executablePath = process.argv[1];
-if (executablePath && import.meta.url === pathToFileURL(executablePath).href) {
+if (
+  executablePath &&
+  import.meta.url === pathToFileURL(realpathSync(executablePath)).href
+) {
   process.exitCode = await runCli(process.argv.slice(2));
 }
