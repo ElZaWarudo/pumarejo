@@ -75,7 +75,9 @@ describe.runIf(process.platform === "win32")(
     }, 120_000);
 
     it("rejects a manifested root that is itself a junction", async () => {
-      const root = await mkdtemp(join(tmpdir(), "pumarejo-native-root-junction-"));
+      const root = await mkdtemp(
+        join(tmpdir(), "pumarejo-native-root-junction-"),
+      );
       roots.push(root);
       const outside = join(root, "outside");
       const target = join(root, "target");
